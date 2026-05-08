@@ -11,5 +11,6 @@ hyper = { version = "1.9.0", features = ["http1", "client"] }
 hyper-util = { version = "0.1.20", features = ["tokio"] }
 rustls-pki-types = "1.14.1"
 rustls-platform-verifier = "0.7.0"
+thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["net", "rt", "rt-multi-thread", "macros", "time"] }
 tokio-rustls = "0.26.4"
