@@ -1,3 +1,4 @@
+use http::StatusCode;
 use secrecy::{ExposeSecret, SecretString};
 
 #[derive(Debug, Clone)]
@@ -16,27 +17,71 @@ impl SchwabClient {
         }
     }
 
-    pub async fn get_user_preferences(&self) -> reqwest::Result<Result<UserPreferences, ServiceError>> {
+    pub async fn get_user_preferences(&self) -> Result<UserPreferences> {
         let url = format!("{}/userPreference", self.base_url);
         let response = self.client.get(url).bearer_auth(self.auth_token.expose_secret()).send().await?;
-        println!("Response: {:#?}", response);
-        if !response.status().is_success() {
-            let error = response.json::<ServiceError>().await?;
-            return Ok(Err(ServiceError {
-                message: error.message,
-                errors: error.errors,
-            }));
+        if response.status().is_success() {
+            let body = response.json::<UserPreferences>().await?;
+            Ok(body)
+        } else {
+            let error = map_response_to_error(response).await.unwrap();
+            Err(error)
         }
-
-        let body = response.json::<UserPreferences>().await?;
-        Ok(Ok(body))
     }
+}
+
+async fn map_response_to_error(response: reqwest::Response) -> Option<Error> {
+    let status = response.status();
+    if !status.is_client_error() && !status.is_server_error() {
+        return None;
+    }
+
+    let service_error = response.json::<ServiceError>().await.expect("service error should follow schema");
+    if status.is_client_error() {
+        match status {
+            StatusCode::UNAUTHORIZED => Some(Error::Unauthorized(service_error)),
+            StatusCode::FORBIDDEN => Some(Error::Forbidden(service_error)),
+            StatusCode::NOT_FOUND => Some(Error::NotFound(service_error)),
+            _ => Some(Error::BadRequest(service_error)),
+        }
+    } else {
+        match status {
+            StatusCode::SERVICE_UNAVAILABLE => Some(Error::ServiceUnavailable(service_error)),
+            _ => Some(Error::InternalServerError(service_error)),
+        }
+    }
+}
+
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("bad request: {0}")]
+    BadRequest(ServiceError),
+    #[error("unauthorized: {0}")]
+    Unauthorized(ServiceError),
+    #[error("forbidden: {0}")]
+    Forbidden(ServiceError),
+    #[error("not found: {0}")]
+    NotFound(ServiceError),
+    #[error("internal server error: {0}")]
+    InternalServerError(ServiceError),
+    #[error("service unavailable: {0}")]
+    ServiceUnavailable(ServiceError),
+    #[error("request failed: {0}")]
+    RequestFailed(#[from] reqwest::Error),
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ServiceError {
     pub message: String,
     pub errors: Vec<String>,
+}
+
+impl std::fmt::Display for ServiceError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
