@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use http::{StatusCode, Uri};
 use secrecy::{ExposeSecret, SecretString};
+use serde_with::{SerializeAs, StringWithSeparator, formats::CommaSeparator, serde_as};
+use strum::{Display, EnumString, FromRepr};
 
 use crate::websocket;
 
@@ -124,6 +126,32 @@ impl SchwabStreamer {
         Ok(())
     }
 
+    pub async fn subs(&mut self, keys: Vec<String>, fields: Vec<SubsField>) -> Result<()> {
+        let request = StreamerRequest {
+            request_id: self.request_id,
+            service: "LEVELONE_EQUITIES".to_string(),
+            command: "SUBS".to_string(),
+            schwab_client_customer_id: self.customer_id.to_string(),
+            schwab_client_correlation_id: self.correlation_id.to_string(),
+            parameters: Subs {
+                keys,
+                fields,
+            },
+        };
+
+        self.request_id += 1;
+
+        self.websocket
+            .write_frame(fastwebsockets::Frame::text(
+                fastwebsockets::Payload::Borrowed(
+                    serde_json::to_string(&request).unwrap().as_bytes(),
+                ),
+            ))
+            .await.expect("failed to write frame");
+
+        Ok(())
+    }
+
     pub async fn read_frame(&mut self) -> Result<Option<String>> {
         let frame = self
             .websocket
@@ -164,6 +192,82 @@ struct Login {
     schwab_client_channel: String,
     #[serde(rename = "SchwabClientFunctionId")]
     schwab_client_function_id: String,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, serde::Serialize)]
+struct Subs {
+    #[serde(rename = "keys")]
+    #[serde_as(as = "StringWithSeparator<CommaSeparator, String>")]
+    keys: Vec<String>,
+    #[serde(rename = "fields")]
+    #[serde(serialize_with = "fields_serializer")]
+    fields: Vec<SubsField>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde_repr::Serialize_repr, serde_repr::Deserialize_repr, Display, EnumString, FromRepr)]
+#[repr(u8)]
+pub enum SubsField {
+    Symbol,
+    BidPrice,
+    AskPrice,
+    LastPrice,
+    BidSize,
+    AskSize,
+    AskId,
+    BidId,
+    TotalVolume,
+    LastSize,
+    HighPrice,
+    LowPrice,
+    ClosePrice,
+    ExchangeId,
+    Marginable,
+    Description,
+    LastId,
+    OpenPrice,
+    NetChange,
+    High52WeekPrice,
+    Low52WeekPrice,
+    PeRatio,
+    AnnualDividendAmount,
+    DividendYield,
+    Nav,
+    ExchangeName,
+    DividendDate,
+    RegularMarketQuote,
+    RegularMarketTrade,
+    RegularMarketLastPrice,
+    RegularMarketLastSize,
+    RegularMarketNetChange,
+    SecurityStatus,
+    MarkPrice,
+    QuoteTime,
+    TradeTime,
+    RegularMarketTradeTime,
+    BidTime,
+    AskTime,
+    AskMicId,
+    BidMicId,
+    LastMicId,
+    NetPercentageChange,
+    RegularMarketPercentageChange,
+    MarkPriceNetChange,
+    MarkPricePercentageChange,
+    HardToBorrowQuantity,
+    HardToBorrowRate,
+    HardToBorrow,
+    Shortable,
+    PostMarketNetChange,
+    PostMarketPercentageChange,
+}
+
+fn fields_serializer<S>(fields: &Vec<SubsField>, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let fields_iter = fields.iter().map(|f| (*f as u8).to_string());
+    StringWithSeparator::<CommaSeparator, String>::serialize_as(&fields_iter.collect::<Vec<String>>(), serializer)
 }
 
 async fn map_response_to_error(response: reqwest::Response) -> Option<Error> {
@@ -273,4 +377,19 @@ pub struct UserPreferences {
     pub streamer_info: Vec<StreamerInfo>,
     #[serde(rename = "offers")]
     pub offers: Vec<Offer>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serialize_subs_fields() {
+        let subs = Subs {
+            keys: vec!["AAPL".to_string()],
+            fields: vec![SubsField::Symbol, SubsField::BidPrice, SubsField::AskPrice],
+        };
+        let serialized = serde_json::to_string(&subs).unwrap();
+        assert_eq!(serialized, r#"{"keys":"AAPL","fields":"0,1,2"}"#);
+    }
 }
