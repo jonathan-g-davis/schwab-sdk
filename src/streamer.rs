@@ -1,4 +1,5 @@
 use derive_builder::Builder;
+use serde_with::{serde_as, DisplayFromStr, PickFirst};
 pub use subscription::Command;
 
 pub mod admin;
@@ -67,12 +68,10 @@ impl SchwabStreamer {
         Ok(())
     }
 
-    pub async fn recv(&mut self) -> Result<Option<String>, fastwebsockets::WebSocketError> {
+    pub async fn recv(&mut self) -> Result<Option<StreamerResponse>, fastwebsockets::WebSocketError> {
         let frame = self.websocket.read_frame().await?;
         if frame.opcode == fastwebsockets::OpCode::Text {
-            let text =
-                String::from_utf8(frame.payload.to_vec()).expect("frame should be valid utf-8");
-            Ok(Some(text))
+            Ok(serde_json::from_slice(&frame.payload).expect("response should be valid json"))
         } else {
             Ok(None)
         }
@@ -115,7 +114,56 @@ impl StreamerRequest {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[serde_as]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ResponsePayload {
+    #[serde(rename = "requestid")]
+    #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
+    request_id: u64,
+    service: Service,
+    #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
+    timestamp: u64,
+    command: StreamerCommand,
+    #[serde(rename = "SchwabClientCorrelId")]
+    schwab_client_correlation_id: String,
+    content: ResponseContent,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ResponseContent {
+    code: ResponseCode,
+    #[serde(rename = "msg")]
+    message: String,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct Heartbeat {
+    #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
+    heartbeat: u64,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DataPayload {
+    service: Service,
+    #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
+    timestamp: u64,
+    command: StreamerCommand,
+    content: serde_json::Value,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub enum StreamerResponse {
+    #[serde(rename = "response")]
+    Response(Vec<ResponsePayload>),
+    #[serde(rename = "notify")]
+    Notify(Vec<Heartbeat>),
+    #[serde(rename = "data")]
+    Data(Vec<DataPayload>),
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 enum Service {
     #[serde(rename = "ADMIN")]
     Admin,
@@ -147,7 +195,7 @@ enum Service {
     AccountActivity,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 enum StreamerCommand {
     #[serde(rename = "LOGIN")]
     Login,
@@ -161,4 +209,26 @@ enum StreamerCommand {
     View,
     #[serde(rename = "LOGOUT")]
     Logout,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde_repr::Deserialize_repr)]
+#[repr(u8)]
+enum ResponseCode {
+    Ok = 0,
+    LoginDenied = 3,
+    UnknownFailure = 9,
+    ServiceNotAvailable = 11,
+    CloseConnection = 12,
+    ReachedSymbolLimit = 19,
+    StreamConnNotFound,
+    BadCommandFormat,
+    FailedCommandSubs,
+    FailedCommandUnsubs,
+    FailedCommandAdd,
+    FailedCommandView,
+    SucceededCommandSubs,
+    SucceededCommandUnsubs,
+    SucceededCommandAdd,
+    SucceededCommandView,
+    StopStreaming,
 }
