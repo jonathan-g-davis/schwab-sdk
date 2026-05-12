@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use http::{StatusCode, Uri};
 use secrecy::{ExposeSecret, SecretString};
 
@@ -95,6 +97,29 @@ impl SchwabStreamer {
             ))
             .await
             .expect("failed to write frame");
+
+        Ok(())
+    }
+
+    pub async fn logout(&mut self) -> Result<()> {
+        let request = StreamerRequest {
+            request_id: self.request_id,
+            service: "ADMIN".to_string(),
+            command: "LOGOUT".to_string(),
+            schwab_client_customer_id: self.customer_id.to_string(),
+            schwab_client_correlation_id: self.correlation_id.to_string(),
+            parameters: HashMap::<String, String>::new(),
+        };
+
+        self.request_id += 1;
+
+        self.websocket
+            .write_frame(fastwebsockets::Frame::text(
+                fastwebsockets::Payload::Borrowed(
+                    serde_json::to_string(&request).unwrap().as_bytes(),
+                ),
+            ))
+            .await.expect("failed to write frame");
 
         Ok(())
     }
