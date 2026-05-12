@@ -1,5 +1,7 @@
-use http::StatusCode;
+use http::{StatusCode, Uri};
 use secrecy::{ExposeSecret, SecretString};
+
+use crate::websocket;
 
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
@@ -19,7 +21,12 @@ impl SchwabClient {
 
     pub async fn get_user_preferences(&self) -> Result<UserPreferences> {
         let url = format!("{}/userPreference", self.base_url);
-        let response = self.client.get(url).bearer_auth(self.auth_token.expose_secret()).send().await?;
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(self.auth_token.expose_secret())
+            .send()
+            .await?;
         if response.status().is_success() {
             let body = response.json::<UserPreferences>().await?;
             Ok(body)
@@ -28,6 +35,110 @@ impl SchwabClient {
             Err(error)
         }
     }
+
+    pub async fn connect_streamer(&self) -> Result<SchwabStreamer> {
+        let user_preferences = self.get_user_preferences().await?;
+        let streamer_info = user_preferences
+            .streamer_info
+            .into_iter()
+            .next()
+            .expect("streamer info should be present");
+        let uri = streamer_info
+            .streamer_socket_url
+            .parse::<Uri>()
+            .expect("streamer socket url should be a valid uri");
+        let websocket = websocket::connect(uri).await?;
+        Ok(SchwabStreamer {
+            websocket,
+            auth_token: self.auth_token.clone(),
+            customer_id: streamer_info.schwab_client_customer_id,
+            correlation_id: streamer_info.schwab_client_correlation_id,
+            channel: streamer_info.schwab_client_channel,
+            function_id: streamer_info.schwab_client_function_id,
+            request_id: 0,
+        })
+    }
+}
+
+pub struct SchwabStreamer {
+    websocket: fastwebsockets::FragmentCollector<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>,
+    auth_token: SecretString,
+    customer_id: String,
+    correlation_id: String,
+    channel: String,
+    function_id: String,
+    request_id: u64,
+}
+
+impl SchwabStreamer {
+    pub async fn login(&mut self) -> Result<()> {
+        let request = StreamerRequest {
+            request_id: self.request_id,
+            service: "ADMIN".to_string(),
+            command: "LOGIN".to_string(),
+            schwab_client_customer_id: self.customer_id.to_string(),
+            schwab_client_correlation_id: self.correlation_id.to_string(),
+            parameters: Login {
+                authorization: self.auth_token.expose_secret().to_string(),
+                schwab_client_channel: self.channel.to_string(),
+                schwab_client_function_id: self.function_id.to_string(),
+            },
+        };
+
+        self.request_id += 1;
+
+        self.websocket
+            .write_frame(fastwebsockets::Frame::text(
+                fastwebsockets::Payload::Borrowed(
+                    serde_json::to_string(&request).unwrap().as_bytes(),
+                ),
+            ))
+            .await
+            .expect("failed to write frame");
+
+        Ok(())
+    }
+
+    pub async fn read_frame(&mut self) -> Result<Option<String>> {
+        let frame = self
+            .websocket
+            .read_frame()
+            .await
+            .expect("failed to read frame");
+        if frame.opcode == fastwebsockets::OpCode::Text {
+            let text =
+                String::from_utf8(frame.payload.to_vec()).expect("frame should be valid utf-8");
+            Ok(Some(text))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct StreamerRequest<T> {
+    #[serde(rename = "requestid")]
+    request_id: u64,
+    #[serde(rename = "service")]
+    service: String,
+    #[serde(rename = "command")]
+    command: String,
+    #[serde(rename = "SchwabClientCustomerId")]
+    schwab_client_customer_id: String,
+    #[serde(rename = "SchwabClientCorrelId")]
+    schwab_client_correlation_id: String,
+    #[serde(rename = "parameters")]
+    parameters: T,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct Login {
+    #[serde(rename = "Authorization")]
+    authorization: String,
+    #[serde(rename = "SchwabClientChannel")]
+    schwab_client_channel: String,
+    #[serde(rename = "SchwabClientFunctionId")]
+    schwab_client_function_id: String,
 }
 
 async fn map_response_to_error(response: reqwest::Response) -> Option<Error> {
@@ -36,7 +147,10 @@ async fn map_response_to_error(response: reqwest::Response) -> Option<Error> {
         return None;
     }
 
-    let service_error = response.json::<ServiceError>().await.expect("service error should follow schema");
+    let service_error = response
+        .json::<ServiceError>()
+        .await
+        .expect("service error should follow schema");
     if status.is_client_error() {
         match status {
             StatusCode::UNAUTHORIZED => Some(Error::Unauthorized(service_error)),
@@ -70,6 +184,8 @@ pub enum Error {
     ServiceUnavailable(ServiceError),
     #[error("request failed: {0}")]
     RequestFailed(#[from] reqwest::Error),
+    #[error("websocket error: {0}")]
+    WebSocket(#[from] websocket::WebSocketError),
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
