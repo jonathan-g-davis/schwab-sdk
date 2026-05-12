@@ -1,11 +1,7 @@
-use std::collections::HashMap;
-
 use http::{StatusCode, Uri};
 use secrecy::{ExposeSecret, SecretString};
-use serde_with::{SerializeAs, StringWithSeparator, formats::CommaSeparator, serde_as};
-use strum::{Display, EnumString, FromRepr};
 
-use crate::websocket;
+use crate::{SchwabStreamer, websocket};
 
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
@@ -40,7 +36,7 @@ impl SchwabClient {
         }
     }
 
-    pub async fn connect_streamer(&self) -> Result<SchwabStreamer> {
+    pub async fn streamer(&self) -> Result<SchwabStreamer> {
         let user_preferences = self.get_user_preferences().await?;
         let streamer_info = user_preferences
             .streamer_info
@@ -52,222 +48,15 @@ impl SchwabClient {
             .parse::<Uri>()
             .expect("streamer socket url should be a valid uri");
         let websocket = websocket::connect(uri).await?;
-        Ok(SchwabStreamer {
-            websocket,
-            auth_token: self.auth_token.clone(),
-            customer_id: streamer_info.schwab_client_customer_id,
-            correlation_id: streamer_info.schwab_client_correlation_id,
-            channel: streamer_info.schwab_client_channel,
-            function_id: streamer_info.schwab_client_function_id,
-            request_id: 0,
-        })
+        Ok(SchwabStreamer::builder()
+            .websocket(websocket)
+            .customer_id(streamer_info.schwab_client_customer_id)
+            .correlation_id(streamer_info.schwab_client_correlation_id)
+            .channel(streamer_info.schwab_client_channel)
+            .function_id(streamer_info.schwab_client_function_id)
+            .build()
+            .unwrap())
     }
-}
-
-pub struct SchwabStreamer {
-    websocket: fastwebsockets::FragmentCollector<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>,
-    auth_token: SecretString,
-    customer_id: String,
-    correlation_id: String,
-    channel: String,
-    function_id: String,
-    request_id: u64,
-}
-
-impl SchwabStreamer {
-    pub async fn login(&mut self) -> Result<()> {
-        let request = StreamerRequest {
-            request_id: self.request_id,
-            service: "ADMIN".to_string(),
-            command: "LOGIN".to_string(),
-            schwab_client_customer_id: self.customer_id.to_string(),
-            schwab_client_correlation_id: self.correlation_id.to_string(),
-            parameters: Login {
-                authorization: self.auth_token.expose_secret().to_string(),
-                schwab_client_channel: self.channel.to_string(),
-                schwab_client_function_id: self.function_id.to_string(),
-            },
-        };
-
-        self.request_id += 1;
-
-        self.websocket
-            .write_frame(fastwebsockets::Frame::text(
-                fastwebsockets::Payload::Borrowed(
-                    serde_json::to_string(&request).unwrap().as_bytes(),
-                ),
-            ))
-            .await
-            .expect("failed to write frame");
-
-        Ok(())
-    }
-
-    pub async fn logout(&mut self) -> Result<()> {
-        let request = StreamerRequest {
-            request_id: self.request_id,
-            service: "ADMIN".to_string(),
-            command: "LOGOUT".to_string(),
-            schwab_client_customer_id: self.customer_id.to_string(),
-            schwab_client_correlation_id: self.correlation_id.to_string(),
-            parameters: HashMap::<String, String>::new(),
-        };
-
-        self.request_id += 1;
-
-        self.websocket
-            .write_frame(fastwebsockets::Frame::text(
-                fastwebsockets::Payload::Borrowed(
-                    serde_json::to_string(&request).unwrap().as_bytes(),
-                ),
-            ))
-            .await.expect("failed to write frame");
-
-        Ok(())
-    }
-
-    pub async fn subs(&mut self, keys: Vec<String>, fields: Vec<SubsField>) -> Result<()> {
-        let request = StreamerRequest {
-            request_id: self.request_id,
-            service: "LEVELONE_EQUITIES".to_string(),
-            command: "SUBS".to_string(),
-            schwab_client_customer_id: self.customer_id.to_string(),
-            schwab_client_correlation_id: self.correlation_id.to_string(),
-            parameters: Subs {
-                keys,
-                fields,
-            },
-        };
-
-        self.request_id += 1;
-
-        self.websocket
-            .write_frame(fastwebsockets::Frame::text(
-                fastwebsockets::Payload::Borrowed(
-                    serde_json::to_string(&request).unwrap().as_bytes(),
-                ),
-            ))
-            .await.expect("failed to write frame");
-
-        Ok(())
-    }
-
-    pub async fn read_frame(&mut self) -> Result<Option<String>> {
-        let frame = self
-            .websocket
-            .read_frame()
-            .await
-            .expect("failed to read frame");
-        if frame.opcode == fastwebsockets::OpCode::Text {
-            let text =
-                String::from_utf8(frame.payload.to_vec()).expect("frame should be valid utf-8");
-            Ok(Some(text))
-        } else {
-            Ok(None)
-        }
-    }
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-struct StreamerRequest<T> {
-    #[serde(rename = "requestid")]
-    request_id: u64,
-    #[serde(rename = "service")]
-    service: String,
-    #[serde(rename = "command")]
-    command: String,
-    #[serde(rename = "SchwabClientCustomerId")]
-    schwab_client_customer_id: String,
-    #[serde(rename = "SchwabClientCorrelId")]
-    schwab_client_correlation_id: String,
-    #[serde(rename = "parameters")]
-    parameters: T,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-struct Login {
-    #[serde(rename = "Authorization")]
-    authorization: String,
-    #[serde(rename = "SchwabClientChannel")]
-    schwab_client_channel: String,
-    #[serde(rename = "SchwabClientFunctionId")]
-    schwab_client_function_id: String,
-}
-
-#[serde_as]
-#[derive(Debug, Clone, serde::Serialize)]
-struct Subs {
-    #[serde(rename = "keys")]
-    #[serde_as(as = "StringWithSeparator<CommaSeparator, String>")]
-    keys: Vec<String>,
-    #[serde(rename = "fields")]
-    #[serde(serialize_with = "fields_serializer")]
-    fields: Vec<SubsField>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde_repr::Serialize_repr, serde_repr::Deserialize_repr, Display, EnumString, FromRepr)]
-#[repr(u8)]
-pub enum SubsField {
-    Symbol,
-    BidPrice,
-    AskPrice,
-    LastPrice,
-    BidSize,
-    AskSize,
-    AskId,
-    BidId,
-    TotalVolume,
-    LastSize,
-    HighPrice,
-    LowPrice,
-    ClosePrice,
-    ExchangeId,
-    Marginable,
-    Description,
-    LastId,
-    OpenPrice,
-    NetChange,
-    High52WeekPrice,
-    Low52WeekPrice,
-    PeRatio,
-    AnnualDividendAmount,
-    DividendYield,
-    Nav,
-    ExchangeName,
-    DividendDate,
-    RegularMarketQuote,
-    RegularMarketTrade,
-    RegularMarketLastPrice,
-    RegularMarketLastSize,
-    RegularMarketNetChange,
-    SecurityStatus,
-    MarkPrice,
-    QuoteTime,
-    TradeTime,
-    RegularMarketTradeTime,
-    BidTime,
-    AskTime,
-    AskMicId,
-    BidMicId,
-    LastMicId,
-    NetPercentageChange,
-    RegularMarketPercentageChange,
-    MarkPriceNetChange,
-    MarkPricePercentageChange,
-    HardToBorrowQuantity,
-    HardToBorrowRate,
-    HardToBorrow,
-    Shortable,
-    PostMarketNetChange,
-    PostMarketPercentageChange,
-}
-
-fn fields_serializer<S>(fields: &Vec<SubsField>, serializer: S) -> std::result::Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    let fields_iter = fields.iter().map(|f| (*f as u8).to_string());
-    StringWithSeparator::<CommaSeparator, String>::serialize_as(&fields_iter.collect::<Vec<String>>(), serializer)
 }
 
 async fn map_response_to_error(response: reqwest::Response) -> Option<Error> {
@@ -377,19 +166,4 @@ pub struct UserPreferences {
     pub streamer_info: Vec<StreamerInfo>,
     #[serde(rename = "offers")]
     pub offers: Vec<Offer>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_serialize_subs_fields() {
-        let subs = Subs {
-            keys: vec!["AAPL".to_string()],
-            fields: vec![SubsField::Symbol, SubsField::BidPrice, SubsField::AskPrice],
-        };
-        let serialized = serde_json::to_string(&subs).unwrap();
-        assert_eq!(serialized, r#"{"keys":"AAPL","fields":"0,1,2"}"#);
-    }
 }
