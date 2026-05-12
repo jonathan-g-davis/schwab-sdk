@@ -32,6 +32,7 @@ impl From<Subscription<Field>> for StreamerRequest {
     FromRepr,
 )]
 #[repr(u8)]
+#[strum(serialize_all = "snake_case")]
 pub enum Field {
     Symbol,
     BidPrice,
@@ -90,6 +91,13 @@ pub enum Field {
 impl From<Field> for u8 {
     fn from(field: Field) -> Self {
         field as u8
+    }
+}
+
+impl TryFrom<u8> for Field {
+    type Error = String;
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Field::from_repr(value).ok_or_else(|| format!("Invalid field: {}", value))
     }
 }
 

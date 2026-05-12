@@ -1,6 +1,6 @@
 use derive_builder::Builder;
-use serde_with::{serde_as, DisplayFromStr, PickFirst};
-pub use subscription::Command;
+use serde_with::{DisplayFromStr, PickFirst, serde_as};
+pub use subscription::Command as SubscriptionCommand;
 
 pub mod admin;
 pub mod level_one_equities;
@@ -68,10 +68,15 @@ impl SchwabStreamer {
         Ok(())
     }
 
-    pub async fn recv(&mut self) -> Result<Option<StreamerResponse>, fastwebsockets::WebSocketError> {
+    pub async fn recv(
+        &mut self,
+    ) -> Result<Option<StreamerResponse>, fastwebsockets::WebSocketError> {
         let frame = self.websocket.read_frame().await?;
         if frame.opcode == fastwebsockets::OpCode::Text {
-            Ok(serde_json::from_slice(&frame.payload).expect("response should be valid json"))
+            let raw_response: RawStreamerResponse =
+                serde_json::from_slice(&frame.payload).expect("response should be valid json");
+            let response = StreamerResponse::from(raw_response);
+            Ok(Some(response))
         } else {
             Ok(None)
         }
@@ -119,33 +124,33 @@ impl StreamerRequest {
 pub struct ResponsePayload {
     #[serde(rename = "requestid")]
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
-    request_id: u64,
-    service: Service,
+    pub request_id: u64,
+    pub service: Service,
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
-    timestamp: u64,
-    command: StreamerCommand,
+    pub timestamp: u64,
+    pub command: StreamerCommand,
     #[serde(rename = "SchwabClientCorrelId")]
-    schwab_client_correlation_id: String,
-    content: ResponseContent,
+    pub schwab_client_correlation_id: String,
+    pub content: ResponseContent,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ResponseContent {
-    code: ResponseCode,
+    pub code: ResponseCode,
     #[serde(rename = "msg")]
-    message: String,
+    pub message: String,
 }
 
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct Heartbeat {
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
-    heartbeat: u64,
+    pub heartbeat: u64,
 }
 
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct DataPayload {
+struct RawDataPayload {
     service: Service,
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     timestamp: u64,
@@ -153,18 +158,99 @@ pub struct DataPayload {
     content: serde_json::Value,
 }
 
+#[derive(Debug, Clone)]
+pub struct DataPayload {
+    pub service: Service,
+    pub timestamp: u64,
+    pub command: SubscriptionCommand,
+    pub content: serde_json::Value,
+}
+
+impl From<RawDataPayload> for DataPayload {
+    fn from(payload: RawDataPayload) -> Self {
+        DataPayload {
+            service: payload.service,
+            timestamp: payload.timestamp,
+            command: match payload.command {
+                StreamerCommand::Subs => SubscriptionCommand::Subscribe,
+                StreamerCommand::Add => SubscriptionCommand::Add,
+                StreamerCommand::Unsubs => SubscriptionCommand::Unsubscribe,
+                StreamerCommand::View => SubscriptionCommand::View,
+                _ => unreachable!(),
+            },
+            content: transform_keys_for_service(payload.service, payload.content),
+        }
+    }
+}
+
+fn transform_keys_for_service(service: Service, content: serde_json::Value) -> serde_json::Value {
+    match service {
+        Service::LevelOneEquities => transform_keys::<level_one_equities::Field>(content),
+        _ => content,
+    }
+}
+
+fn transform_keys<T: std::fmt::Display + TryFrom<u8, Error: std::fmt::Debug>>(
+    content: serde_json::Value,
+) -> serde_json::Value {
+    let content = content
+        .as_array()
+        .expect("data content should be an array")
+        .into_iter()
+        .map(|item| {
+            let map = item
+                .as_object()
+                .expect("data item should be an object")
+                .into_iter()
+                .map(|(k, v)| {
+                    (
+                        k.parse::<u8>()
+                            .map(T::try_from)
+                            .map(|field| {
+                                field.expect("data key should be a valid field").to_string()
+                            })
+                            .unwrap_or(k.to_string()),
+                        v.clone(),
+                    )
+                })
+                .collect();
+            serde_json::Value::Object(map)
+        })
+        .collect();
+    serde_json::Value::Array(content)
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
-pub enum StreamerResponse {
+enum RawStreamerResponse {
     #[serde(rename = "response")]
     Response(Vec<ResponsePayload>),
     #[serde(rename = "notify")]
     Notify(Vec<Heartbeat>),
     #[serde(rename = "data")]
+    Data(Vec<RawDataPayload>),
+}
+
+#[derive(Debug, Clone)]
+pub enum StreamerResponse {
+    Response(Vec<ResponsePayload>),
+    Notify(Vec<Heartbeat>),
     Data(Vec<DataPayload>),
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-enum Service {
+impl From<RawStreamerResponse> for StreamerResponse {
+    fn from(response: RawStreamerResponse) -> Self {
+        match response {
+            RawStreamerResponse::Response(responses) => StreamerResponse::Response(responses),
+            RawStreamerResponse::Notify(heartbeats) => StreamerResponse::Notify(heartbeats),
+            RawStreamerResponse::Data(data) => {
+                StreamerResponse::Data(data.into_iter().map(|data| data.into()).collect())
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum Service {
     #[serde(rename = "ADMIN")]
     Admin,
     #[serde(rename = "LEVELONE_EQUITIES")]
@@ -196,7 +282,7 @@ enum Service {
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-enum StreamerCommand {
+pub enum StreamerCommand {
     #[serde(rename = "LOGIN")]
     Login,
     #[serde(rename = "SUBS")]
@@ -213,7 +299,7 @@ enum StreamerCommand {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde_repr::Deserialize_repr)]
 #[repr(u8)]
-enum ResponseCode {
+pub enum ResponseCode {
     Ok = 0,
     LoginDenied = 3,
     UnknownFailure = 9,

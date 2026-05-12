@@ -3,11 +3,15 @@ use serde_with::{SerializeAs, StringWithSeparator, formats::CommaSeparator, serd
 
 use crate::streamer::StreamerCommand;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Command {
+    #[serde(rename = "SUBS")]
     Subscribe,
+    #[serde(rename = "ADD")]
     Add,
+    #[serde(rename = "UNSUBS")]
     Unsubscribe,
+    #[serde(rename = "VIEW")]
     View,
 }
 
