@@ -3,6 +3,7 @@ use fastwebsockets::FragmentCollectorRead;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 pub use subscription::Command as SubscriptionCommand;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use crate::websocket::WebSocket;
 
 pub mod admin;
@@ -94,14 +95,28 @@ pub struct FrameSender {
 }
 
 impl FrameSender {
-    pub fn run(mut self) -> tokio::task::JoinHandle<()> {
-        tokio::task::spawn(async move {
+    pub fn run(mut self) -> (tokio::task::JoinHandle<()>, CancellationToken) {
+        let token = CancellationToken::new();
+        let cloned_token = token.clone();
+        let handle = tokio::task::spawn(async move {
             loop {
-                if let Some(frame) = self.receiver.recv().await {
-                    self.write_half.write_frame(frame).await.unwrap();
+                tokio::select! {
+                    biased;
+                    recv = self.receiver.recv() => {
+                        if let Some(frame) = recv {
+                            self.write_half.write_frame(frame).await.unwrap();
+                        } else {
+                            break;
+                        }
+                    }
+                    _ = cloned_token.cancelled() => {
+                        break;
+                    }
                 }
             }
-        })
+        });
+
+        (handle, token)
     }
 }
 
