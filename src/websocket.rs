@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use fastwebsockets::FragmentCollector;
 use http::{
     Method,
     header::{CONNECTION, HOST, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_VERSION, UPGRADE},
@@ -12,6 +11,8 @@ use rustls_platform_verifier::ConfigVerifierExt;
 use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio_rustls::{TlsConnector, client::TlsStream, rustls};
+
+pub(crate) type WebSocket = fastwebsockets::WebSocket<TokioIo<Upgraded>>;
 
 struct SpawnExecutor;
 
@@ -61,7 +62,7 @@ async fn connect_tls(uri: &Uri) -> Result<TlsStream<TcpStream>, WebSocketError> 
         .map_err(WebSocketError::TlsStream)
 }
 
-pub async fn connect(uri: Uri) -> Result<FragmentCollector<TokioIo<Upgraded>>, WebSocketError> {
+pub(crate) async fn connect(uri: Uri) -> Result<WebSocket, WebSocketError> {
     let tls_stream = connect_tls(&uri).await?;
 
     // Build the websocket upgrade request
@@ -81,6 +82,5 @@ pub async fn connect(uri: Uri) -> Result<FragmentCollector<TokioIo<Upgraded>>, W
         .await
         .map_err(WebSocketError::Handshake)?;
 
-    // Return the websocket stream wrapped in a fragment collector
-    Ok(FragmentCollector::new(ws))
+    Ok(ws)
 }

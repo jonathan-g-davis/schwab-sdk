@@ -1,13 +1,109 @@
 use derive_builder::Builder;
+use fastwebsockets::FragmentCollectorRead;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 pub use subscription::Command as SubscriptionCommand;
+use tokio::sync::mpsc;
+use crate::websocket::WebSocket;
 
 pub mod admin;
 pub mod level_one_equities;
 pub mod subscription;
 
-type WebSocket =
-    fastwebsockets::FragmentCollector<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>;
+type ReadHalf = fastwebsockets::FragmentCollectorRead<tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
+type WriteHalf = fastwebsockets::WebSocketWrite<tokio::io::WriteHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
+
+pub struct SchwabStreamerReadHalf {
+    read_half: ReadHalf,
+    sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
+}
+
+impl SchwabStreamerReadHalf {
+    pub async fn recv(
+        &mut self,
+    ) -> Result<Option<StreamerResponse>, fastwebsockets::WebSocketError> {
+        let mut send_fn = Box::new(|frame| self.sender.send(frame));
+        let frame = self.read_half.read_frame(&mut send_fn).await?;
+        match frame.opcode {
+            fastwebsockets::OpCode::Text => {
+                let raw_response: RawStreamerResponse =
+                    serde_json::from_slice(&frame.payload).expect("response should be valid json");
+                let response = StreamerResponse::from(raw_response);
+                Ok(Some(response))
+            }
+            _ => Ok(None)
+        }
+    }
+}
+
+pub struct SchwabStreamerWriteHalf {
+    sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
+    customer_id: String,
+    correlation_id: String,
+    channel: String,
+    function_id: String,
+    request_id: u64,
+}
+
+impl SchwabStreamerWriteHalf {
+    pub async fn login(
+        &mut self,
+        auth_token: String,
+    ) -> Result<(), fastwebsockets::WebSocketError> {
+        let request = StreamerRequest::login()
+            .authorization(auth_token)
+            .schwab_client_channel(self.channel.clone())
+            .schwab_client_function_id(self.function_id.clone())
+            .build()
+            .unwrap();
+        self.send(request).await
+    }
+
+    pub async fn logout(&mut self) -> Result<(), fastwebsockets::WebSocketError> {
+        let request = StreamerRequest::logout();
+        self.send(request).await
+    }
+
+    pub async fn send<T: Into<StreamerRequest>>(
+        &mut self,
+        request: T,
+    ) -> Result<(), fastwebsockets::WebSocketError> {
+        let request: StreamerRequest = request.into();
+        let request = RequestPayload {
+            request_id: self.request_id,
+            service: request.service,
+            command: request.command,
+            parameters: request.parameters,
+            schwab_client_customer_id: self.customer_id.clone(),
+            schwab_client_correlation_id: self.correlation_id.clone(),
+        };
+        self.request_id += 1;
+
+        let serialized = serde_json::to_string(&request).unwrap();
+        self.sender
+            .send(fastwebsockets::Frame::text(
+                fastwebsockets::Payload::Owned(serialized.into()),
+            ))
+            .await.unwrap();
+        Ok(())
+    }
+}
+
+pub struct FrameSender {
+    receiver: mpsc::Receiver<fastwebsockets::Frame<'static>>,
+    write_half: WriteHalf,
+}
+
+impl FrameSender {
+    pub fn run(mut self) -> tokio::task::JoinHandle<()> {
+        tokio::task::spawn(async move {
+            loop {
+                if let Some(frame) = self.receiver.recv().await {
+                    self.write_half.write_frame(frame).await.unwrap();
+                }
+            }
+        })
+    }
+}
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
@@ -24,6 +120,32 @@ pub struct SchwabStreamer {
 impl SchwabStreamer {
     pub(crate) fn builder() -> SchwabStreamerBuilder {
         SchwabStreamerBuilder::default()
+    }
+
+    pub fn split(self) -> (SchwabStreamerReadHalf, SchwabStreamerWriteHalf, FrameSender) {
+        let (tx, rx) = mpsc::channel::<fastwebsockets::Frame<'static>>(100);
+        let (read_half, write_half) = self.websocket.split(tokio::io::split);
+
+        let reader = SchwabStreamerReadHalf {
+            read_half: FragmentCollectorRead::new(read_half),
+            sender: tx.clone(),
+        };
+
+        let writer = SchwabStreamerWriteHalf {
+            sender: tx,
+            customer_id: self.customer_id,
+            correlation_id: self.correlation_id,
+            channel: self.channel,
+            function_id: self.function_id,
+            request_id: self.request_id,
+        };
+
+        let frame_sender = FrameSender {
+            receiver: rx,
+            write_half: write_half,
+        };
+
+        (reader, writer, frame_sender)
     }
 
     pub async fn login(
