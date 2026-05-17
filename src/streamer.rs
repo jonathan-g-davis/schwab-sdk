@@ -207,16 +207,17 @@ impl SchwabStreamer {
 
     pub async fn recv(
         &mut self,
-    ) -> Result<Option<StreamerResponse>, fastwebsockets::WebSocketError> {
-        let frame = self.websocket.read_frame().await?;
-        if frame.opcode == fastwebsockets::OpCode::Text {
-            let raw_response: RawStreamerResponse =
-                serde_json::from_slice(&frame.payload).expect("response should be valid json");
-            let response = StreamerResponse::from(raw_response);
-            Ok(Some(response))
-        } else {
-            Ok(None)
+    ) -> Result<StreamerResponse, fastwebsockets::WebSocketError> {
+        loop {
+            let frame = self.websocket.read_frame().await?;
+            if frame.opcode == fastwebsockets::OpCode::Text {
+                let raw_response: RawStreamerResponse =
+                    serde_json::from_slice(&frame.payload).expect("response should be valid json");
+                let response = StreamerResponse::from(raw_response);
+                return Ok(response)
+            }
         }
+
     }
 }
 
@@ -386,7 +387,7 @@ impl From<RawStreamerResponse> for StreamerResponse {
     }
 }
 
-#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Service {
     #[serde(rename = "ADMIN")]
     Admin,
@@ -418,7 +419,7 @@ pub enum Service {
     AccountActivity,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum StreamerCommand {
     #[serde(rename = "LOGIN")]
     Login,
