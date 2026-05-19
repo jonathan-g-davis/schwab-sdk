@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use derive_builder::Builder;
 use fastwebsockets::FragmentCollectorRead;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
@@ -36,18 +39,19 @@ impl SchwabStreamerReadHalf {
     }
 }
 
+#[derive(Clone)]
 pub struct SchwabStreamerWriteHalf {
     sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
     customer_id: String,
     correlation_id: String,
     channel: String,
     function_id: String,
-    request_id: u64,
+    request_id: Arc<AtomicU64>,
 }
 
 impl SchwabStreamerWriteHalf {
     pub async fn login(
-        &mut self,
+        &self,
         auth_token: String,
     ) -> Result<(), fastwebsockets::WebSocketError> {
         let request = StreamerRequest::login()
@@ -59,25 +63,25 @@ impl SchwabStreamerWriteHalf {
         self.send(request).await
     }
 
-    pub async fn logout(&mut self) -> Result<(), fastwebsockets::WebSocketError> {
+    pub async fn logout(&self) -> Result<(), fastwebsockets::WebSocketError> {
         let request = StreamerRequest::logout();
         self.send(request).await
     }
 
     pub async fn send<T: Into<StreamerRequest>>(
-        &mut self,
+        &self,
         request: T,
     ) -> Result<(), fastwebsockets::WebSocketError> {
         let request: StreamerRequest = request.into();
+        let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
         let request = RequestPayload {
-            request_id: self.request_id,
+            request_id,
             service: request.service,
             command: request.command,
             parameters: request.parameters,
             schwab_client_customer_id: self.customer_id.clone(),
             schwab_client_correlation_id: self.correlation_id.clone(),
         };
-        self.request_id += 1;
 
         let serialized = serde_json::to_string(&request).unwrap();
         self.sender
@@ -152,7 +156,7 @@ impl SchwabStreamer {
             correlation_id: self.correlation_id,
             channel: self.channel,
             function_id: self.function_id,
-            request_id: self.request_id,
+            request_id: Arc::new(AtomicU64::new(self.request_id)),
         };
 
         let frame_sender = FrameSender {
