@@ -24,17 +24,15 @@ pub struct SchwabStreamerReadHalf {
 impl SchwabStreamerReadHalf {
     pub async fn recv(
         &mut self,
-    ) -> Result<Option<StreamerResponse>, fastwebsockets::WebSocketError> {
+    ) -> Result<StreamerResponse, fastwebsockets::WebSocketError> {
         let mut send_fn = Box::new(|frame| self.sender.send(frame));
-        let frame = self.read_half.read_frame(&mut send_fn).await?;
-        match frame.opcode {
-            fastwebsockets::OpCode::Text => {
+        loop {
+            let frame = self.read_half.read_frame(&mut send_fn).await?;
+            if frame.opcode == fastwebsockets::OpCode::Text {
                 let raw_response: RawStreamerResponse =
                     serde_json::from_slice(&frame.payload).expect("response should be valid json");
-                let response = StreamerResponse::from(raw_response);
-                Ok(Some(response))
+                return Ok(StreamerResponse::from(raw_response));
             }
-            _ => Ok(None)
         }
     }
 }
@@ -221,7 +219,6 @@ impl SchwabStreamer {
                 return Ok(response)
             }
         }
-
     }
 }
 
