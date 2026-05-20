@@ -1,167 +1,94 @@
 //! Shared domain types.
 //!
-//! This module holds newtypes that flow across the public API. The pattern
-//! for any value Schwab treats as sensitive (bearer tokens, customer
-//! identifiers, account numbers) is:
+//! This module holds newtypes that flow across the public API. Sensitive
+//! string values (bearer tokens, customer identifiers, account numbers) are
+//! defined via the `sensitive_string_newtype!` macro, which produces a
+//! `SecretBox`-backed newtype with:
 //!
-//! 1. A private `*Inner` type that derives `Zeroize` + `Serialize` +
-//!    `Deserialize` and `impl`s `SerializableSecret` + `CloneableSecret`.
-//! 2. A public newtype wrapping `SecretBox<*Inner>`. `SecretBox`'s `Debug`
-//!    impl redacts the inner value (`SecretBox<TypeName>([REDACTED])`), so
-//!    structs holding these types can derive `Debug` without leaking
-//!    credentials into logs.
+//! - `Clone` (via `CloneableSecret`).
+//! - `Debug` that redacts via `secrecy`
+//!   (`Name(SecretBox<NameInner>([REDACTED]))`).
+//! - `Serialize` / `Deserialize` over the inner string (gated by
+//!   `SerializableSecret`).
+//! - `new(impl Into<String>)` and `expose_secret() -> &str`.
 
 use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SerializableSecret};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
-// --- AuthToken ---------------------------------------------------------------
+macro_rules! sensitive_string_newtype {
+    ($(#[$meta:meta])* $vis:vis $name:ident, $inner:ident) => {
+        #[derive(Clone, Zeroize, Serialize, Deserialize)]
+        #[serde(transparent)]
+        struct $inner(String);
 
-#[derive(Clone, Zeroize, Serialize, Deserialize)]
-#[serde(transparent)]
-struct AuthTokenInner(String);
+        impl CloneableSecret for $inner {}
+        impl SerializableSecret for $inner {}
 
-impl CloneableSecret for AuthTokenInner {}
-impl SerializableSecret for AuthTokenInner {}
+        $(#[$meta])*
+        $vis struct $name(SecretBox<$inner>);
 
-/// OAuth bearer access token used in `Authorization: Bearer ...` headers and
-/// in the streamer LOGIN frame's `Authorization` parameter.
-/// 
-/// Redacted in logs via `secrecy`.
-pub struct AuthToken(SecretBox<AuthTokenInner>);
+        impl $name {
+            pub fn new(value: impl Into<String>) -> Self {
+                Self(SecretBox::new(Box::new($inner(value.into()))))
+            }
 
-impl AuthToken {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(SecretBox::new(Box::new(AuthTokenInner(value.into()))))
-    }
+            /// Reveal the raw value. Use only at the point of constructing a
+            /// wire header, frame, or URL path segment; do not store, log,
+            /// or pass into untyped contexts.
+            pub fn expose_secret(&self) -> &str {
+                &self.0.expose_secret().0
+            }
+        }
 
-    /// Reveal the raw token. Use only at the point of constructing a wire
-    /// header or frame; do not store, log, or pass into untyped contexts.
-    pub fn expose_secret(&self) -> &str {
-        &self.0.expose_secret().0
-    }
+        impl Clone for $name {
+            fn clone(&self) -> Self {
+                Self(self.0.clone())
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($name)).field(&self.0).finish()
+            }
+        }
+
+        impl Serialize for $name {
+            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+                self.0.serialize(s)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                SecretBox::<$inner>::deserialize(d).map(Self)
+            }
+        }
+    };
 }
 
-impl Clone for AuthToken {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
+sensitive_string_newtype! {
+    /// OAuth bearer access token used in `Authorization: Bearer ...` headers
+    /// and in the streamer LOGIN frame's `Authorization` parameter.
+    ///
+    /// Redacted in logs via `secrecy`.
+    pub AuthToken, AuthTokenInner
 }
 
-impl std::fmt::Debug for AuthToken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("AuthToken").field(&self.0).finish()
-    }
+sensitive_string_newtype! {
+    /// `schwabClientCustomerId` from the user-preference endpoint. Echoed
+    /// back into every streamer request envelope. Treated as PII.
+    ///
+    /// Redacted in logs via `secrecy`.
+    pub CustomerId, CustomerIdInner
 }
 
-impl Serialize for AuthToken {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(s)
-    }
-}
-
-impl<'de> Deserialize<'de> for AuthToken {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        SecretBox::<AuthTokenInner>::deserialize(d).map(Self)
-    }
-}
-
-// --- CustomerId --------------------------------------------------------------
-
-#[derive(Clone, Zeroize, Serialize, Deserialize)]
-#[serde(transparent)]
-struct CustomerIdInner(String);
-
-impl CloneableSecret for CustomerIdInner {}
-impl SerializableSecret for CustomerIdInner {}
-
-/// `schwabClientCustomerId` from the user-preference endpoint. Echoed back
-/// into every streamer request envelope. Treated as PII.
-/// 
-/// Redacted in logs via `secrecy`.
-pub struct CustomerId(SecretBox<CustomerIdInner>);
-
-impl CustomerId {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(SecretBox::new(Box::new(CustomerIdInner(value.into()))))
-    }
-
-    pub fn expose_secret(&self) -> &str {
-        &self.0.expose_secret().0
-    }
-}
-
-impl Clone for CustomerId {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl std::fmt::Debug for CustomerId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("CustomerId").field(&self.0).finish()
-    }
-}
-
-impl Serialize for CustomerId {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(s)
-    }
-}
-
-impl<'de> Deserialize<'de> for CustomerId {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        SecretBox::<CustomerIdInner>::deserialize(d).map(Self)
-    }
-}
-
-// --- AccountNumber -----------------------------------------------------------
-
-#[derive(Clone, Zeroize, Serialize, Deserialize)]
-#[serde(transparent)]
-struct AccountNumberInner(String);
-
-impl CloneableSecret for AccountNumberInner {}
-impl SerializableSecret for AccountNumberInner {}
-
-/// Schwab account number. PII-equivalent — appears in REST paths
-/// (`/accounts/{accountNumber}/...`) and in account-activity events.
-/// 
-/// Redacted in logs via `secrecy`.
-pub struct AccountNumber(SecretBox<AccountNumberInner>);
-
-impl AccountNumber {
-    pub fn new(value: impl Into<String>) -> Self {
-        Self(SecretBox::new(Box::new(AccountNumberInner(value.into()))))
-    }
-
-    pub fn expose_secret(&self) -> &str {
-        &self.0.expose_secret().0
-    }
-}
-
-impl Clone for AccountNumber {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl std::fmt::Debug for AccountNumber {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("AccountNumber").field(&self.0).finish()
-    }
-}
-
-impl Serialize for AccountNumber {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.0.serialize(s)
-    }
-}
-
-impl<'de> Deserialize<'de> for AccountNumber {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        SecretBox::<AccountNumberInner>::deserialize(d).map(Self)
-    }
+sensitive_string_newtype! {
+    /// Schwab account number. PII-equivalent — appears in REST paths
+    /// (`/accounts/{accountNumber}/...`) and in account-activity events.
+    ///
+    /// Redacted in logs via `secrecy`.
+    pub AccountNumber, AccountNumberInner
 }
 
 #[cfg(test)]
