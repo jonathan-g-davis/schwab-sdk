@@ -1,21 +1,21 @@
 use http::{StatusCode, Uri};
-use secrecy::{ExposeSecret, SecretString};
 
+use crate::model::{AccountNumber, AuthToken, CustomerId};
 use crate::{SchwabStreamer, websocket};
 
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
     client: reqwest::Client,
     base_url: String,
-    auth_token: SecretString,
+    auth_token: AuthToken,
 }
 
 impl SchwabClient {
-    pub fn new(base_url: String, auth_token: String) -> Self {
+    pub fn new(base_url: String, auth_token: AuthToken) -> Self {
         Self {
             client: reqwest::Client::new(),
             base_url,
-            auth_token: SecretString::from(auth_token),
+            auth_token,
         }
     }
 
@@ -27,6 +27,8 @@ impl SchwabClient {
             .bearer_auth(self.auth_token.expose_secret())
             .send()
             .await?;
+        // `auth_token` reveal is scoped to header construction; do not store
+        // or pass the raw string elsewhere.
         if response.status().is_success() {
             let body = response.json::<UserPreferences>().await?;
             Ok(body)
@@ -185,7 +187,7 @@ impl std::fmt::Display for ServiceError {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserPreferenceAccount {
     #[serde(rename = "accountNumber")]
-    pub account_number: String,
+    pub account_number: AccountNumber,
     #[serde(rename = "primaryAccount")]
     pub primary_account: bool,
     #[serde(rename = "type")]
@@ -195,7 +197,7 @@ pub struct UserPreferenceAccount {
     #[serde(rename = "accountColor")]
     pub account_color: String,
     #[serde(rename = "displayAcctId")]
-    pub display_account_id: String,
+    pub display_account_id: AccountNumber,
     #[serde(rename = "autoPositionEffect")]
     pub auto_position_effect: bool,
 }
@@ -205,7 +207,7 @@ pub struct StreamerInfo {
     #[serde(rename = "streamerSocketUrl")]
     pub streamer_socket_url: String,
     #[serde(rename = "schwabClientCustomerId")]
-    pub schwab_client_customer_id: String,
+    pub schwab_client_customer_id: CustomerId,
     #[serde(rename = "schwabClientCorrelId")]
     pub schwab_client_correlation_id: String,
     #[serde(rename = "schwabClientChannel")]

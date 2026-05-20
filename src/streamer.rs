@@ -8,6 +8,7 @@ pub use subscription::Command as SubscriptionCommand;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use crate::client::{Error, Result};
+use crate::model::{AuthToken, CustomerId};
 use crate::websocket::WebSocket;
 
 pub mod admin;
@@ -39,10 +40,10 @@ impl SchwabStreamerReadHalf {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SchwabStreamerWriteHalf {
     sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
-    customer_id: String,
+    customer_id: CustomerId,
     correlation_id: String,
     channel: String,
     function_id: String,
@@ -50,7 +51,7 @@ pub struct SchwabStreamerWriteHalf {
 }
 
 impl SchwabStreamerWriteHalf {
-    pub async fn login(&self, auth_token: String) -> Result<()> {
+    pub async fn login(&self, auth_token: AuthToken) -> Result<()> {
         let request = StreamerRequest::login()
             .authorization(auth_token)
             .schwab_client_channel(self.channel.clone())
@@ -129,7 +130,7 @@ impl FrameSender {
 #[builder(pattern = "owned")]
 pub struct SchwabStreamer {
     websocket: WebSocket,
-    customer_id: String,
+    customer_id: CustomerId,
     correlation_id: String,
     channel: String,
     function_id: String,
@@ -168,7 +169,7 @@ impl SchwabStreamer {
         (reader, writer, frame_sender)
     }
 
-    pub async fn login(&mut self, auth_token: String) -> Result<()> {
+    pub async fn login(&mut self, auth_token: AuthToken) -> Result<()> {
         let request = StreamerRequest::login()
             .authorization(auth_token)
             .schwab_client_channel(self.channel.clone())
@@ -232,7 +233,7 @@ struct RequestPayload {
     #[serde(rename = "parameters")]
     parameters: serde_json::Value,
     #[serde(rename = "SchwabClientCustomerId")]
-    schwab_client_customer_id: String,
+    schwab_client_customer_id: CustomerId,
     #[serde(rename = "SchwabClientCorrelId")]
     schwab_client_correlation_id: String,
 }
