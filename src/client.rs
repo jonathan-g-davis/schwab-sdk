@@ -119,6 +119,8 @@ pub enum Error {
     WebSocket(#[from] websocket::WebSocketError),
     #[error("streamer transport: {0}")]
     Streamer(#[from] fastwebsockets::WebSocketError),
+    #[error("encode {context}: {reason}")]
+    Encode { context: String, reason: String },
     #[error("decode {context}: {reason}")]
     Decode { context: String, reason: String },
     #[error("build: {0}")]
@@ -150,6 +152,7 @@ impl Error {
             | Error::Unauthorized(_)
             | Error::Forbidden(_)
             | Error::NotFound(_)
+            | Error::Encode { .. }
             | Error::Decode { .. }
             | Error::Build(_)
             | Error::MissingPreference(_)

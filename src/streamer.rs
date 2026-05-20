@@ -7,6 +7,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 pub use subscription::Command as SubscriptionCommand;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
+use crate::client::{Error, Result};
 use crate::websocket::WebSocket;
 
 pub mod admin;
@@ -22,16 +23,17 @@ pub struct SchwabStreamerReadHalf {
 }
 
 impl SchwabStreamerReadHalf {
-    pub async fn recv(
-        &mut self,
-    ) -> Result<StreamerResponse, fastwebsockets::WebSocketError> {
+    pub async fn recv(&mut self) -> Result<StreamerResponse> {
         let mut send_fn = Box::new(|frame| self.sender.send(frame));
         loop {
             let frame = self.read_half.read_frame(&mut send_fn).await?;
             if frame.opcode == fastwebsockets::OpCode::Text {
-                let raw_response: RawStreamerResponse =
-                    serde_json::from_slice(&frame.payload).expect("response should be valid json");
-                return Ok(StreamerResponse::from(raw_response));
+                let raw_response: RawStreamerResponse = serde_json::from_slice(&frame.payload)
+                    .map_err(|e| Error::Decode {
+                        context: "streamer response frame".to_string(),
+                        reason: e.to_string(),
+                    })?;
+                return StreamerResponse::try_from(raw_response);
             }
         }
     }
@@ -48,28 +50,21 @@ pub struct SchwabStreamerWriteHalf {
 }
 
 impl SchwabStreamerWriteHalf {
-    pub async fn login(
-        &self,
-        auth_token: String,
-    ) -> Result<(), fastwebsockets::WebSocketError> {
+    pub async fn login(&self, auth_token: String) -> Result<()> {
         let request = StreamerRequest::login()
             .authorization(auth_token)
             .schwab_client_channel(self.channel.clone())
             .schwab_client_function_id(self.function_id.clone())
             .build()
-            .unwrap();
+            .map_err(|e| Error::Build(e.to_string()))?;
         self.send(request).await
     }
 
-    pub async fn logout(&self) -> Result<(), fastwebsockets::WebSocketError> {
-        let request = StreamerRequest::logout();
-        self.send(request).await
+    pub async fn logout(&self) -> Result<()> {
+        self.send(StreamerRequest::logout()).await
     }
 
-    pub async fn send<T: Into<StreamerRequest>>(
-        &self,
-        request: T,
-    ) -> Result<(), fastwebsockets::WebSocketError> {
+    pub async fn send<T: Into<StreamerRequest>>(&self, request: T) -> Result<()> {
         let request: StreamerRequest = request.into();
         let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
         let request = RequestPayload {
@@ -81,12 +76,16 @@ impl SchwabStreamerWriteHalf {
             schwab_client_correlation_id: self.correlation_id.clone(),
         };
 
-        let serialized = serde_json::to_string(&request).unwrap();
+        let serialized = serde_json::to_string(&request).map_err(|e| Error::Encode {
+            context: "streamer request envelope".to_string(),
+            reason: e.to_string(),
+        })?;
         self.sender
             .send(fastwebsockets::Frame::text(
                 fastwebsockets::Payload::Owned(serialized.into()),
             ))
-            .await.unwrap();
+            .await
+            .map_err(|_| Error::ChannelClosed)?;
         Ok(())
     }
 }
@@ -97,7 +96,11 @@ pub struct FrameSender {
 }
 
 impl FrameSender {
-    pub fn run(mut self) -> (tokio::task::JoinHandle<()>, CancellationToken) {
+    /// Spawn the outbound frame pump. The returned `JoinHandle` resolves to
+    /// `Ok(())` on graceful shutdown (channel closed or cancellation), or
+    /// `Err` if the underlying websocket write fails. Callers are expected
+    /// to supervise the handle and treat a write failure as a disconnect.
+    pub fn run(mut self) -> (tokio::task::JoinHandle<Result<()>>, CancellationToken) {
         let token = CancellationToken::new();
         let cloned_token = token.clone();
         let handle = tokio::task::spawn(async move {
@@ -105,10 +108,9 @@ impl FrameSender {
                 tokio::select! {
                     biased;
                     recv = self.receiver.recv() => {
-                        if let Some(frame) = recv {
-                            self.write_half.write_frame(frame).await.unwrap();
-                        } else {
-                            break;
+                        match recv {
+                            Some(frame) => self.write_half.write_frame(frame).await?,
+                            None => break,
                         }
                     }
                     _ = cloned_token.cancelled() => {
@@ -116,6 +118,7 @@ impl FrameSender {
                     }
                 }
             }
+            Ok(())
         });
 
         (handle, token)
@@ -159,34 +162,27 @@ impl SchwabStreamer {
 
         let frame_sender = FrameSender {
             receiver: rx,
-            write_half: write_half,
+            write_half,
         };
 
         (reader, writer, frame_sender)
     }
 
-    pub async fn login(
-        &mut self,
-        auth_token: String,
-    ) -> Result<(), fastwebsockets::WebSocketError> {
+    pub async fn login(&mut self, auth_token: String) -> Result<()> {
         let request = StreamerRequest::login()
             .authorization(auth_token)
             .schwab_client_channel(self.channel.clone())
             .schwab_client_function_id(self.function_id.clone())
             .build()
-            .unwrap();
+            .map_err(|e| Error::Build(e.to_string()))?;
         self.send(request).await
     }
 
-    pub async fn logout(&mut self) -> Result<(), fastwebsockets::WebSocketError> {
-        let request = StreamerRequest::logout();
-        self.send(request).await
+    pub async fn logout(&mut self) -> Result<()> {
+        self.send(StreamerRequest::logout()).await
     }
 
-    pub async fn send<T: Into<StreamerRequest>>(
-        &mut self,
-        request: T,
-    ) -> Result<(), fastwebsockets::WebSocketError> {
+    pub async fn send<T: Into<StreamerRequest>>(&mut self, request: T) -> Result<()> {
         let request: StreamerRequest = request.into();
         let request = RequestPayload {
             request_id: self.request_id,
@@ -198,7 +194,10 @@ impl SchwabStreamer {
         };
         self.request_id += 1;
 
-        let serialized = serde_json::to_string(&request).unwrap();
+        let serialized = serde_json::to_string(&request).map_err(|e| Error::Encode {
+            context: "streamer request envelope".to_string(),
+            reason: e.to_string(),
+        })?;
         self.websocket
             .write_frame(fastwebsockets::Frame::text(
                 fastwebsockets::Payload::Borrowed(serialized.as_bytes()),
@@ -207,16 +206,16 @@ impl SchwabStreamer {
         Ok(())
     }
 
-    pub async fn recv(
-        &mut self,
-    ) -> Result<StreamerResponse, fastwebsockets::WebSocketError> {
+    pub async fn recv(&mut self) -> Result<StreamerResponse> {
         loop {
             let frame = self.websocket.read_frame().await?;
             if frame.opcode == fastwebsockets::OpCode::Text {
-                let raw_response: RawStreamerResponse =
-                    serde_json::from_slice(&frame.payload).expect("response should be valid json");
-                let response = StreamerResponse::from(raw_response);
-                return Ok(response)
+                let raw_response: RawStreamerResponse = serde_json::from_slice(&frame.payload)
+                    .map_err(|e| Error::Decode {
+                        context: "streamer response frame".to_string(),
+                        reason: e.to_string(),
+                    })?;
+                return StreamerResponse::try_from(raw_response);
             }
         }
     }
@@ -305,58 +304,72 @@ pub struct DataPayload {
     pub content: serde_json::Value,
 }
 
-impl From<RawDataPayload> for DataPayload {
-    fn from(payload: RawDataPayload) -> Self {
-        DataPayload {
+impl TryFrom<RawDataPayload> for DataPayload {
+    type Error = Error;
+
+    fn try_from(payload: RawDataPayload) -> Result<Self> {
+        let command = match payload.command {
+            StreamerCommand::Subs => SubscriptionCommand::Subscribe,
+            StreamerCommand::Add => SubscriptionCommand::Add,
+            StreamerCommand::Unsubs => SubscriptionCommand::Unsubscribe,
+            StreamerCommand::View => SubscriptionCommand::View,
+            other => {
+                return Err(Error::Decode {
+                    context: "data payload command".to_string(),
+                    reason: format!("unexpected command {other:?}"),
+                });
+            }
+        };
+        let content = transform_keys_for_service(payload.service, payload.content)?;
+        Ok(DataPayload {
             service: payload.service,
             timestamp: payload.timestamp,
-            command: match payload.command {
-                StreamerCommand::Subs => SubscriptionCommand::Subscribe,
-                StreamerCommand::Add => SubscriptionCommand::Add,
-                StreamerCommand::Unsubs => SubscriptionCommand::Unsubscribe,
-                StreamerCommand::View => SubscriptionCommand::View,
-                _ => unreachable!(),
-            },
-            content: transform_keys_for_service(payload.service, payload.content),
-        }
+            command,
+            content,
+        })
     }
 }
 
-fn transform_keys_for_service(service: Service, content: serde_json::Value) -> serde_json::Value {
+fn transform_keys_for_service(
+    service: Service,
+    content: serde_json::Value,
+) -> Result<serde_json::Value> {
     match service {
         Service::LevelOneEquities => transform_keys::<level_one_equities::Field>(content),
-        _ => content,
+        _ => Ok(content),
     }
 }
 
-fn transform_keys<T: std::fmt::Display + TryFrom<u8, Error: std::fmt::Debug>>(
+fn transform_keys<T: std::fmt::Display + TryFrom<u8>>(
     content: serde_json::Value,
-) -> serde_json::Value {
-    let content = content
-        .as_array()
-        .expect("data content should be an array")
-        .into_iter()
-        .map(|item| {
-            let map = item
-                .as_object()
-                .expect("data item should be an object")
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        k.parse::<u8>()
-                            .map(T::try_from)
-                            .map(|field| {
-                                field.expect("data key should be a valid field").to_string()
-                            })
-                            .unwrap_or(k.to_string()),
-                        v.clone(),
-                    )
-                })
-                .collect();
-            serde_json::Value::Object(map)
-        })
-        .collect();
-    serde_json::Value::Array(content)
+) -> Result<serde_json::Value> {
+    let array = content.as_array().ok_or_else(|| Error::Decode {
+        context: "data payload content".to_string(),
+        reason: "expected array".to_string(),
+    })?;
+    let mut out = Vec::with_capacity(array.len());
+    for item in array {
+        let object = item.as_object().ok_or_else(|| Error::Decode {
+            context: "data payload item".to_string(),
+            reason: "expected object".to_string(),
+        })?;
+        let mut map = serde_json::Map::with_capacity(object.len());
+        for (k, v) in object {
+            // Field-number keys get remapped to their name; everything else
+            // (e.g. "key", "delayed", "assetMainType") passes through. An
+            // unknown numeric discriminant is forward-compatibility: keep
+            // the raw key so the consumer can still see the field.
+            let mapped = match k.parse::<u8>() {
+                Ok(n) => T::try_from(n)
+                    .map(|field| field.to_string())
+                    .unwrap_or_else(|_| k.clone()),
+                Err(_) => k.clone(),
+            };
+            map.insert(mapped, v.clone());
+        }
+        out.push(serde_json::Value::Object(map));
+    }
+    Ok(serde_json::Value::Array(out))
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -376,15 +389,21 @@ pub enum StreamerResponse {
     Data(Vec<DataPayload>),
 }
 
-impl From<RawStreamerResponse> for StreamerResponse {
-    fn from(response: RawStreamerResponse) -> Self {
-        match response {
+impl TryFrom<RawStreamerResponse> for StreamerResponse {
+    type Error = Error;
+
+    fn try_from(response: RawStreamerResponse) -> Result<Self> {
+        Ok(match response {
             RawStreamerResponse::Response(responses) => StreamerResponse::Response(responses),
             RawStreamerResponse::Notify(heartbeats) => StreamerResponse::Notify(heartbeats),
             RawStreamerResponse::Data(data) => {
-                StreamerResponse::Data(data.into_iter().map(|data| data.into()).collect())
+                let converted = data
+                    .into_iter()
+                    .map(DataPayload::try_from)
+                    .collect::<Result<Vec<DataPayload>>>()?;
+                StreamerResponse::Data(converted)
             }
-        }
+        })
     }
 }
 
