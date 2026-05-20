@@ -15,10 +15,12 @@ pub struct Login {
 
 impl From<Login> for StreamerRequest {
     fn from(login: Login) -> Self {
+        let parameters =
+            serde_json::to_value(login).expect("Login serialization is infallible");
         StreamerRequest {
             service: Service::Admin,
             command: StreamerCommand::Login,
-            parameters: serde_json::to_value(login).unwrap(),
+            parameters,
         }
     }
 }
@@ -53,5 +55,24 @@ mod tests {
             serialized,
             r#"{"Authorization":"1234567890","SchwabClientChannel":"test","SchwabClientFunctionId":"test"}"#
         );
+    }
+
+    #[test]
+    fn from_login_never_panics() {
+        let login = LoginBuilder::default()
+            .authorization(String::new())
+            .schwab_client_channel(String::new())
+            .schwab_client_function_id(String::new())
+            .build()
+            .unwrap();
+        let _request: StreamerRequest = login.into();
+
+        let login = LoginBuilder::default()
+            .authorization("\u{0}\"\\\n".to_string())
+            .schwab_client_channel("ch".to_string())
+            .schwab_client_function_id("fn".to_string())
+            .build()
+            .unwrap();
+        let _request: StreamerRequest = login.into();
     }
 }
