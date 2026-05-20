@@ -45,7 +45,7 @@ pub(super) struct SubscriptionParameters<T: Into<u8> + Copy> {
     pub(super) fields: Vec<T>,
 }
 
-fn fields_serializer<S, T>(fields: &Vec<T>, serializer: S) -> std::result::Result<S::Ok, S::Error>
+fn fields_serializer<S, T>(fields: &[T], serializer: S) -> std::result::Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
     T: Into<u8> + Copy,

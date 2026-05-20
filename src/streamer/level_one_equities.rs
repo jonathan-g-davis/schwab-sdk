@@ -7,14 +7,15 @@ use crate::streamer::{
 
 impl From<Subscription<Field>> for StreamerRequest {
     fn from(subscription: Subscription<Field>) -> Self {
+        let parameters = serde_json::to_value(SubscriptionParameters {
+            keys: subscription.keys,
+            fields: subscription.fields,
+        })
+        .expect("SubscriptionParameters serialization is infallible");
         StreamerRequest {
             service: Service::LevelOneEquities,
             command: subscription.command.into(),
-            parameters: serde_json::to_value(SubscriptionParameters {
-                keys: subscription.keys,
-                fields: subscription.fields,
-            })
-            .unwrap(),
+            parameters,
         }
     }
 }
@@ -113,5 +114,24 @@ mod tests {
         };
         let serialized = serde_json::to_string(&parameters).unwrap();
         assert_eq!(serialized, r#"{"keys":"AAPL","fields":"0,1,2"}"#);
+    }
+
+    #[test]
+    fn from_subscription_never_panics() {
+        use crate::streamer::subscription::{Command, Subscription};
+
+        let sub = Subscription {
+            command: Command::Subscribe,
+            keys: vec!["AAPL".to_string(), "MSFT,with,commas".to_string()],
+            fields: vec![Field::Symbol, Field::LastPrice],
+        };
+        let _request: StreamerRequest = sub.into();
+
+        let sub = Subscription::<Field> {
+            command: Command::Unsubscribe,
+            keys: vec![],
+            fields: vec![],
+        };
+        let _request: StreamerRequest = sub.into();
     }
 }
