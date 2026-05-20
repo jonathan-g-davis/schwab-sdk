@@ -38,6 +38,10 @@ pub enum WebSocketError {
     MissingHost,
     #[error("failed to create TLS stream")]
     TlsStream(std::io::Error),
+    #[error("failed to configure TLS: {0}")]
+    TlsConfig(rustls::Error),
+    #[error("failed to build upgrade request: {0}")]
+    BuildRequest(http::Error),
 }
 
 async fn connect_tls(uri: &Uri) -> Result<TlsStream<TcpStream>, WebSocketError> {
@@ -53,8 +57,8 @@ async fn connect_tls(uri: &Uri) -> Result<TlsStream<TcpStream>, WebSocketError> 
     // Perform the TLS handshake and return the TLS stream
     let domain = rustls_pki_types::ServerName::try_from(host.to_string())
         .map_err(WebSocketError::InvalidDomain)?;
-    let config = rustls::ClientConfig::with_platform_verifier()
-        .expect("failed to create client config from platform verifier");
+    let config =
+        rustls::ClientConfig::with_platform_verifier().map_err(WebSocketError::TlsConfig)?;
     let connector = TlsConnector::from(Arc::new(config));
     connector
         .connect(domain, socket)
@@ -75,7 +79,7 @@ pub(crate) async fn connect(uri: Uri) -> Result<WebSocket, WebSocketError> {
         .header(SEC_WEBSOCKET_KEY, fastwebsockets::handshake::generate_key())
         .header(SEC_WEBSOCKET_VERSION, "13")
         .body(Empty::<Bytes>::new())
-        .expect("failed to build request");
+        .map_err(WebSocketError::BuildRequest)?;
 
     // Perform the websocket handshake and return the websocket stream
     let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, tls_stream)
