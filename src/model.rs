@@ -12,7 +12,7 @@
 //!   `SerializableSecret`).
 //! - `new(impl Into<String>)` and `expose_secret() -> &str`.
 
-use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SerializableSecret};
+use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SecretString, SerializableSecret};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
@@ -26,6 +26,8 @@ macro_rules! sensitive_string_newtype {
         impl SerializableSecret for $inner {}
 
         $(#[$meta])*
+        #[derive(Debug, Clone, Zeroize, Serialize, Deserialize)]
+        #[serde(transparent)]
         $vis struct $name(SecretBox<$inner>);
 
         impl $name {
@@ -41,27 +43,21 @@ macro_rules! sensitive_string_newtype {
             }
         }
 
-        impl Clone for $name {
-            fn clone(&self) -> Self {
-                Self(self.0.clone())
+        impl From<&str> for $name {
+            fn from(value: &str) -> Self {
+                Self::new(value)
             }
         }
 
-        impl std::fmt::Debug for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_tuple(stringify!($name)).field(&self.0).finish()
+        impl From<String> for $name {
+            fn from(value: String) -> Self {
+                Self::new(value)
             }
         }
 
-        impl Serialize for $name {
-            fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                self.0.serialize(s)
-            }
-        }
-
-        impl<'de> Deserialize<'de> for $name {
-            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                SecretBox::<$inner>::deserialize(d).map(Self)
+        impl From<SecretString> for $name {
+            fn from(value: SecretString) -> Self {
+                Self::new(value.expose_secret())
             }
         }
     };
