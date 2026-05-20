@@ -31,8 +31,7 @@ impl SchwabClient {
             let body = response.json::<UserPreferences>().await?;
             Ok(body)
         } else {
-            let error = map_response_to_error(response).await.unwrap();
-            Err(error)
+            Err(map_response_to_error(response).await)
         }
     }
 
@@ -42,46 +41,55 @@ impl SchwabClient {
             .streamer_info
             .into_iter()
             .next()
-            .expect("streamer info should be present");
+            .ok_or(Error::MissingPreference("streamerInfo"))?;
         let uri = streamer_info
             .streamer_socket_url
             .parse::<Uri>()
-            .expect("streamer socket url should be a valid uri");
+            .map_err(|e| Error::InvalidUri(format!("streamerSocketUrl: {e}")))?;
         let websocket = websocket::connect(uri).await?;
-        Ok(SchwabStreamer::builder()
+        SchwabStreamer::builder()
             .websocket(websocket)
             .customer_id(streamer_info.schwab_client_customer_id)
             .correlation_id(streamer_info.schwab_client_correlation_id)
             .channel(streamer_info.schwab_client_channel)
             .function_id(streamer_info.schwab_client_function_id)
             .build()
-            .unwrap())
+            .map_err(|e| Error::Build(e.to_string()))
     }
 }
 
-async fn map_response_to_error(response: reqwest::Response) -> Option<Error> {
+async fn map_response_to_error(response: reqwest::Response) -> Error {
     let status = response.status();
-    if !status.is_client_error() && !status.is_server_error() {
-        return None;
+    let retry_after = parse_retry_after(response.headers());
+    let service_error = match response.json::<ServiceError>().await {
+        Ok(body) => body,
+        Err(source) => {
+            return Error::Decode {
+                context: format!("service error body (status {status})"),
+                reason: source.to_string(),
+            };
+        }
+    };
+    match status {
+        StatusCode::UNAUTHORIZED => Error::Unauthorized(service_error),
+        StatusCode::FORBIDDEN => Error::Forbidden(service_error),
+        StatusCode::NOT_FOUND => Error::NotFound(service_error),
+        StatusCode::TOO_MANY_REQUESTS => Error::RateLimited {
+            retry_after,
+            body: service_error,
+        },
+        StatusCode::SERVICE_UNAVAILABLE => Error::ServiceUnavailable(service_error),
+        s if s.is_server_error() => Error::InternalServerError(service_error),
+        _ => Error::BadRequest(service_error),
     }
+}
 
-    let service_error = response
-        .json::<ServiceError>()
-        .await
-        .expect("service error should follow schema");
-    if status.is_client_error() {
-        match status {
-            StatusCode::UNAUTHORIZED => Some(Error::Unauthorized(service_error)),
-            StatusCode::FORBIDDEN => Some(Error::Forbidden(service_error)),
-            StatusCode::NOT_FOUND => Some(Error::NotFound(service_error)),
-            _ => Some(Error::BadRequest(service_error)),
-        }
-    } else {
-        match status {
-            StatusCode::SERVICE_UNAVAILABLE => Some(Error::ServiceUnavailable(service_error)),
-            _ => Some(Error::InternalServerError(service_error)),
-        }
-    }
+fn parse_retry_after(headers: &reqwest::header::HeaderMap) -> Option<std::time::Duration> {
+    let value = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
+    value
+        .parse::<u64>()
+        .ok()
+        .map(std::time::Duration::from_secs)
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -96,6 +104,11 @@ pub enum Error {
     Forbidden(ServiceError),
     #[error("not found: {0}")]
     NotFound(ServiceError),
+    #[error("rate limited: {body}")]
+    RateLimited {
+        retry_after: Option<std::time::Duration>,
+        body: ServiceError,
+    },
     #[error("internal server error: {0}")]
     InternalServerError(ServiceError),
     #[error("service unavailable: {0}")]
@@ -104,6 +117,54 @@ pub enum Error {
     RequestFailed(#[from] reqwest::Error),
     #[error("websocket error: {0}")]
     WebSocket(#[from] websocket::WebSocketError),
+    #[error("streamer transport: {0}")]
+    Streamer(#[from] fastwebsockets::WebSocketError),
+    #[error("decode {context}: {reason}")]
+    Decode { context: String, reason: String },
+    #[error("build: {0}")]
+    Build(String),
+    #[error("outbound frame channel closed")]
+    ChannelClosed,
+    #[error("missing user preference field: {0}")]
+    MissingPreference(&'static str),
+    #[error("invalid uri: {0}")]
+    InvalidUri(String),
+}
+
+impl Error {
+    /// Schwab-specific retry classification. Returns `true` for transient
+    /// failures (network, 5xx, 429) where the same request can be safely
+    /// retried by the caller. Returns `false` for terminal failures
+    /// (4xx other than 429, decode errors, build errors).
+    ///
+    /// `schwab-rs` does not implement retry itself; this method exists so
+    /// downstream consumers can wire in `backon` or another retry policy.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Error::RateLimited { .. }
+            | Error::InternalServerError(_)
+            | Error::ServiceUnavailable(_) => true,
+            Error::RequestFailed(e) => e.is_timeout() || e.is_connect() || e.is_request(),
+            Error::WebSocket(_) | Error::Streamer(_) | Error::ChannelClosed => true,
+            Error::BadRequest(_)
+            | Error::Unauthorized(_)
+            | Error::Forbidden(_)
+            | Error::NotFound(_)
+            | Error::Decode { .. }
+            | Error::Build(_)
+            | Error::MissingPreference(_)
+            | Error::InvalidUri(_) => false,
+        }
+    }
+
+    /// `Retry-After` duration parsed from a 429 response, when present.
+    /// Always `None` for non-rate-limited errors.
+    pub fn retry_after(&self) -> Option<std::time::Duration> {
+        match self {
+            Error::RateLimited { retry_after, .. } => *retry_after,
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
