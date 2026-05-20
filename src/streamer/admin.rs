@@ -1,12 +1,13 @@
 use derive_builder::Builder;
 
+use crate::model::AuthToken;
 use crate::streamer::{Service, StreamerCommand, StreamerRequest};
 
 #[derive(Debug, Clone, serde::Serialize, Builder)]
 #[builder(pattern = "owned")]
 pub struct Login {
     #[serde(rename = "Authorization")]
-    authorization: String,
+    authorization: AuthToken,
     #[serde(rename = "SchwabClientChannel")]
     schwab_client_channel: String,
     #[serde(rename = "SchwabClientFunctionId")]
@@ -44,7 +45,7 @@ mod tests {
     #[test]
     fn test_serialize_login() {
         let login = LoginBuilder::default()
-            .authorization("1234567890".to_string())
+            .authorization(AuthToken::new("1234567890"))
             .schwab_client_channel("test".to_string())
             .schwab_client_function_id("test".to_string())
             .build()
@@ -58,9 +59,24 @@ mod tests {
     }
 
     #[test]
+    fn login_debug_does_not_leak_auth_token() {
+        let login = LoginBuilder::default()
+            .authorization(AuthToken::new("super-secret-bearer"))
+            .schwab_client_channel("ch".to_string())
+            .schwab_client_function_id("fn".to_string())
+            .build()
+            .unwrap();
+        let debug = format!("{login:?}");
+        assert!(
+            !debug.contains("super-secret-bearer"),
+            "Debug leaked auth token: {debug}"
+        );
+    }
+
+    #[test]
     fn from_login_never_panics() {
         let login = LoginBuilder::default()
-            .authorization(String::new())
+            .authorization(AuthToken::new(""))
             .schwab_client_channel(String::new())
             .schwab_client_function_id(String::new())
             .build()
@@ -68,7 +84,7 @@ mod tests {
         let _request: StreamerRequest = login.into();
 
         let login = LoginBuilder::default()
-            .authorization("\u{0}\"\\\n".to_string())
+            .authorization(AuthToken::new("\u{0}\"\\\n"))
             .schwab_client_channel("ch".to_string())
             .schwab_client_function_id("fn".to_string())
             .build()
