@@ -5,7 +5,7 @@ use derive_builder::Builder;
 use fastwebsockets::FragmentCollectorRead;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 pub use subscription::Command as SubscriptionCommand;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 use crate::error::{Error, Result};
 use crate::model::{AuthToken, CustomerId};
@@ -15,11 +15,13 @@ pub mod account_activity;
 pub mod admin;
 pub mod book;
 pub mod chart;
+pub mod events;
 pub mod level_one;
 pub mod screener;
 pub mod subscription;
 pub mod subscription_tracker;
 
+pub use events::{ConnectionEvent, DisconnectReason};
 pub use subscription_tracker::SubscriptionTracker;
 
 type ReadHalf = fastwebsockets::FragmentCollectorRead<tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
@@ -28,21 +30,82 @@ type WriteHalf = fastwebsockets::WebSocketWrite<tokio::io::WriteHalf<hyper_util:
 pub struct SchwabStreamerReadHalf {
     read_half: ReadHalf,
     sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
+    events_tx: watch::Sender<ConnectionEvent>,
 }
 
 impl SchwabStreamerReadHalf {
     pub async fn recv(&mut self) -> Result<StreamerResponse> {
         let mut send_fn = Box::new(|frame| self.sender.send(frame));
         loop {
-            let frame = self.read_half.read_frame(&mut send_fn).await?;
+            let frame = match self.read_half.read_frame(&mut send_fn).await {
+                Ok(f) => f,
+                Err(e) => {
+                    self.events_tx
+                        .send_replace(ConnectionEvent::Disconnected(
+                            DisconnectReason::Transport(e.to_string()),
+                        ));
+                    return Err(e.into());
+                }
+            };
             if frame.opcode == fastwebsockets::OpCode::Text {
-                let raw_response: RawStreamerResponse = serde_json::from_slice(&frame.payload)
-                    .map_err(|e| Error::Decode {
-                        context: "streamer response frame".to_string(),
-                        reason: e.to_string(),
-                    })?;
-                return StreamerResponse::try_from(raw_response);
+                let raw_response: RawStreamerResponse = match serde_json::from_slice(&frame.payload)
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        self.events_tx
+                            .send_replace(ConnectionEvent::StreamError {
+                                message: e.to_string(),
+                            });
+                        return Err(Error::Decode {
+                            context: "streamer response frame".to_string(),
+                            reason: e.to_string(),
+                        });
+                    }
+                };
+                let response = StreamerResponse::try_from(raw_response)?;
+                classify_and_emit(&self.events_tx, &response);
+                return Ok(response);
             }
+        }
+    }
+
+    /// Subscribe to connection-state updates for this session. Receivers
+    /// initially observe the current state (typically `Connected` or, after
+    /// the first login response, `LoggedIn`).
+    pub fn events(&self) -> watch::Receiver<ConnectionEvent> {
+        self.events_tx.subscribe()
+    }
+}
+
+/// Classify a parsed `StreamerResponse` and emit any state changes through
+/// `events_tx`. Errors are not emitted here; the caller handles them.
+fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &StreamerResponse) {
+    let StreamerResponse::Response(responses) = response else {
+        return;
+    };
+    for r in responses {
+        let is_login =
+            r.service == Service::Admin && r.command == StreamerCommand::Login;
+        match r.content.code {
+            ResponseCode::Ok if is_login => {
+                events_tx.send_replace(ConnectionEvent::LoggedIn);
+            }
+            ResponseCode::LoginDenied => {
+                events_tx.send_replace(ConnectionEvent::Disconnected(
+                    DisconnectReason::LoginDenied(r.content.message.clone()),
+                ));
+            }
+            ResponseCode::CloseConnection => {
+                events_tx.send_replace(ConnectionEvent::Disconnected(
+                    DisconnectReason::ServerClose(r.content.message.clone()),
+                ));
+            }
+            ResponseCode::StopStreaming => {
+                events_tx.send_replace(ConnectionEvent::Disconnected(
+                    DisconnectReason::StopStreaming(r.content.message.clone()),
+                ));
+            }
+            _ => {}
         }
     }
 }
@@ -143,11 +206,27 @@ pub struct SchwabStreamer {
     function_id: String,
     #[builder(default = "0")]
     request_id: u64,
+    #[builder(default = "default_events_sender()")]
+    events_tx: watch::Sender<ConnectionEvent>,
+}
+
+/// Initial event-channel sender. The receiver returned by `watch::channel`
+/// is intentionally dropped: the sender retains the initial `Connected`
+/// value and `send_replace` continues to update it even with no live
+/// receivers, so consumers who later call `events()` see the most-recent
+/// state.
+fn default_events_sender() -> watch::Sender<ConnectionEvent> {
+    watch::channel(ConnectionEvent::Connected).0
 }
 
 impl SchwabStreamer {
     pub(crate) fn builder() -> SchwabStreamerBuilder {
         SchwabStreamerBuilder::default()
+    }
+
+    /// Subscribe to connection-state updates for this session.
+    pub fn events(&self) -> watch::Receiver<ConnectionEvent> {
+        self.events_tx.subscribe()
     }
 
     pub fn split(self) -> (SchwabStreamerReadHalf, SchwabStreamerWriteHalf, FrameSender) {
@@ -157,6 +236,7 @@ impl SchwabStreamer {
         let reader = SchwabStreamerReadHalf {
             read_half: FragmentCollectorRead::new(read_half),
             sender: tx.clone(),
+            events_tx: self.events_tx,
         };
 
         let writer = SchwabStreamerWriteHalf {
@@ -216,14 +296,34 @@ impl SchwabStreamer {
 
     pub async fn recv(&mut self) -> Result<StreamerResponse> {
         loop {
-            let frame = self.websocket.read_frame().await?;
+            let frame = match self.websocket.read_frame().await {
+                Ok(f) => f,
+                Err(e) => {
+                    self.events_tx
+                        .send_replace(ConnectionEvent::Disconnected(
+                            DisconnectReason::Transport(e.to_string()),
+                        ));
+                    return Err(e.into());
+                }
+            };
             if frame.opcode == fastwebsockets::OpCode::Text {
-                let raw_response: RawStreamerResponse = serde_json::from_slice(&frame.payload)
-                    .map_err(|e| Error::Decode {
-                        context: "streamer response frame".to_string(),
-                        reason: e.to_string(),
-                    })?;
-                return StreamerResponse::try_from(raw_response);
+                let raw_response: RawStreamerResponse = match serde_json::from_slice(&frame.payload)
+                {
+                    Ok(r) => r,
+                    Err(e) => {
+                        self.events_tx
+                            .send_replace(ConnectionEvent::StreamError {
+                                message: e.to_string(),
+                            });
+                        return Err(Error::Decode {
+                            context: "streamer response frame".to_string(),
+                            reason: e.to_string(),
+                        });
+                    }
+                };
+                let response = StreamerResponse::try_from(raw_response)?;
+                classify_and_emit(&self.events_tx, &response);
+                return Ok(response);
             }
         }
     }
@@ -1526,5 +1626,113 @@ mod parser_tests {
             }
             other => panic!("expected Decode error, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod event_tests {
+    use super::*;
+
+    fn response(code: ResponseCode, command: StreamerCommand, msg: &str) -> StreamerResponse {
+        StreamerResponse::Response(vec![ResponsePayload {
+            request_id: 1,
+            service: Service::Admin,
+            timestamp: 1,
+            command,
+            schwab_client_correlation_id: "x".into(),
+            content: ResponseContent {
+                code,
+                message: msg.into(),
+            },
+        }])
+    }
+
+    #[test]
+    fn login_ok_emits_logged_in() {
+        let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
+        classify_and_emit(&tx, &response(ResponseCode::Ok, StreamerCommand::Login, ""));
+        assert!(rx.has_changed().unwrap());
+        assert_eq!(*rx.borrow_and_update(), ConnectionEvent::LoggedIn);
+    }
+
+    #[test]
+    fn login_denied_emits_disconnected() {
+        let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
+        classify_and_emit(
+            &tx,
+            &response(
+                ResponseCode::LoginDenied,
+                StreamerCommand::Login,
+                "token expired",
+            ),
+        );
+        match rx.borrow_and_update().clone() {
+            ConnectionEvent::Disconnected(DisconnectReason::LoginDenied(msg)) => {
+                assert!(msg.contains("token expired"), "msg = {msg}");
+            }
+            other => panic!("expected Disconnected(LoginDenied), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn close_connection_emits_disconnected_server_close() {
+        let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
+        classify_and_emit(
+            &tx,
+            &response(
+                ResponseCode::CloseConnection,
+                StreamerCommand::Subs,
+                "max connections",
+            ),
+        );
+        assert!(matches!(
+            *rx.borrow_and_update(),
+            ConnectionEvent::Disconnected(DisconnectReason::ServerClose(_))
+        ));
+    }
+
+    #[test]
+    fn stop_streaming_emits_disconnected_stop_streaming() {
+        let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
+        classify_and_emit(
+            &tx,
+            &response(
+                ResponseCode::StopStreaming,
+                StreamerCommand::Subs,
+                "inactivity",
+            ),
+        );
+        assert!(matches!(
+            *rx.borrow_and_update(),
+            ConnectionEvent::Disconnected(DisconnectReason::StopStreaming(_))
+        ));
+    }
+
+    #[test]
+    fn non_admin_ok_response_does_not_emit() {
+        let (tx, rx) = watch::channel(ConnectionEvent::Connected);
+        // SUBS success on LEVELONE_EQUITIES should not flip to LoggedIn.
+        let r = StreamerResponse::Response(vec![ResponsePayload {
+            request_id: 1,
+            service: Service::LevelOneEquities,
+            timestamp: 1,
+            command: StreamerCommand::Subs,
+            schwab_client_correlation_id: "x".into(),
+            content: ResponseContent {
+                code: ResponseCode::Ok,
+                message: "".into(),
+            },
+        }]);
+        classify_and_emit(&tx, &r);
+        // No change observed.
+        assert!(!rx.has_changed().unwrap());
+    }
+
+    #[test]
+    fn data_payload_does_not_emit() {
+        let (tx, rx) = watch::channel(ConnectionEvent::Connected);
+        let r = StreamerResponse::Notify(vec![]);
+        classify_and_emit(&tx, &r);
+        assert!(!rx.has_changed().unwrap());
     }
 }
