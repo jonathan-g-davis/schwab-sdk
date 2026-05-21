@@ -13,6 +13,7 @@ use crate::websocket::WebSocket;
 
 pub mod admin;
 pub mod book;
+pub mod chart;
 pub mod level_one;
 pub mod subscription;
 
@@ -286,6 +287,10 @@ impl StreamerRequest {
     pub fn options_book() -> subscription::SubscriptionBuilder<book::options::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn chart_equity() -> subscription::SubscriptionBuilder<chart::equity::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -353,6 +358,7 @@ pub enum DataContent {
     NyseBook(Vec<book::Content>),
     NasdaqBook(Vec<book::Content>),
     OptionsBook(Vec<book::Content>),
+    ChartEquity(Vec<chart::equity::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -433,6 +439,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
             Ok(DataContent::OptionsBook(book::options::decode_batch(
                 remapped,
             )?))
+        }
+        Service::ChartEquity => {
+            let remapped = transform_keys::<chart::equity::Field>(content)?;
+            Ok(DataContent::ChartEquity(
+                chart::equity::Content::decode_batch(remapped)?,
+            ))
         }
         _ => Ok(DataContent::Raw(content)),
     }
@@ -1095,13 +1107,52 @@ mod parser_tests {
     }
 
     #[test]
-    fn unknown_service_falls_back_to_raw() {
+    fn parses_chart_equity_data_into_typed_content() {
         let frame = r#"{
             "data": [{
                 "service": "CHART_EQUITY",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "AAPL",
+                    "delayed": false,
+                    "1": 183.50, "2": 183.80, "3": 183.45, "4": 183.75,
+                    "5": 125000,
+                    "6": 1234,
+                    "7": 1714949580000,
+                    "8": 19850
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ChartEquity);
+        let DataContent::ChartEquity(items) = &payload.content else {
+            panic!("expected ChartEquity, got {:?}", payload.content);
+        };
+        let candle = &items[0];
+        assert_eq!(candle.key, "AAPL");
+        assert_eq!(candle.open_price, Some(dec!(183.50)));
+        assert_eq!(candle.high_price, Some(dec!(183.80)));
+        assert_eq!(candle.low_price, Some(dec!(183.45)));
+        assert_eq!(candle.close_price, Some(dec!(183.75)));
+        assert_eq!(candle.volume, Some(dec!(125000)));
+        assert_eq!(candle.sequence, Some(1234));
+        assert_eq!(candle.chart_time, Some(1714949580000));
+        assert_eq!(candle.chart_day, Some(19850));
+    }
+
+    #[test]
+    fn unknown_service_falls_back_to_raw() {
+        // SCREENER_EQUITY is not yet typed; should hit the Raw fallback.
+        let frame = r#"{
+            "data": [{
+                "service": "SCREENER_EQUITY",
                 "timestamp": 1,
                 "command": "SUBS",
-                "content": [{"key":"AAPL","1":1,"2":2,"3":3,"4":4}]
+                "content": [{"symbol":"AAPL","1":1,"2":2,"3":3,"4":4}]
             }]
         }"#;
         let StreamerResponse::Data(data) = parse(frame).unwrap() else {
