@@ -13,6 +13,7 @@ use reqwest::RequestBuilder;
 use serde::de::DeserializeOwned;
 
 use crate::api::accounts::Accounts;
+use crate::api::orders::{AllOrders, Orders};
 use crate::api::transactions::Transactions;
 use crate::api::user_preferences::UserPreferences;
 use crate::error::{Error, Result, map_response_to_error};
@@ -50,6 +51,18 @@ impl SchwabClient {
     /// [`crate::api::accounts::Accounts::numbers`].
     pub fn transactions<'a, 'b>(&'a self, account_hash: &'b AccountHash) -> Transactions<'a, 'b> {
         Transactions::new(self, account_hash)
+    }
+
+    /// Accessor for the `/accounts/{accountNumber}/orders*` endpoint
+    /// family (single-account scope).
+    pub fn orders<'a, 'b>(&'a self, account_hash: &'b AccountHash) -> Orders<'a, 'b> {
+        Orders::new(self, account_hash)
+    }
+
+    /// Accessor for `/orders` - the cross-account order list. Schwab caps
+    /// the date window at 60 days for this endpoint.
+    pub fn orders_all(&self) -> AllOrders<'_> {
+        AllOrders::new(self)
     }
 
     /// Connect to the Schwab streamer using the connection details from
