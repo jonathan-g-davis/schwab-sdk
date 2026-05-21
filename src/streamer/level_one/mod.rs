@@ -18,4 +18,5 @@
 
 pub mod equities;
 pub mod futures;
+pub mod futures_options;
 pub mod options;
