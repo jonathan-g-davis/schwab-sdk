@@ -191,6 +191,177 @@ impl OrderRequest {
             _state: PhantomData,
         }
     }
+
+    // --- Convenience shortcuts for common equity SINGLE orders ---
+    //
+    // These return a finished `OrderRequest` and are equivalent to the
+    // explicit builder for the most common one-leg equity flows. For
+    // options, multi-leg spreads, or any non-default duration / session /
+    // special-instruction, use [`Self::single`] and chain the builder.
+
+    /// Equity buy-at-market, day order.
+    pub fn buy_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
+        Self::single().market().equity_buy(symbol, qty).build()
+    }
+
+    /// Equity buy-at-limit, day order.
+    pub fn buy_limit(symbol: impl Into<String>, qty: Decimal, price: Decimal) -> OrderRequest {
+        Self::single().limit(price).equity_buy(symbol, qty).build()
+    }
+
+    /// Equity long-sale at market, day order.
+    pub fn sell_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
+        Self::single().market().equity_sell(symbol, qty).build()
+    }
+
+    /// Equity long-sale at limit, day order.
+    pub fn sell_limit(symbol: impl Into<String>, qty: Decimal, price: Decimal) -> OrderRequest {
+        Self::single().limit(price).equity_sell(symbol, qty).build()
+    }
+
+    /// Equity stop-market sell, day order. Useful for stop-loss exits.
+    pub fn sell_stop(symbol: impl Into<String>, qty: Decimal, stop_price: Decimal) -> OrderRequest {
+        Self::single()
+            .stop(stop_price)
+            .equity_sell(symbol, qty)
+            .build()
+    }
+
+    /// Equity stop-limit sell, day order. Triggered when the market
+    /// crosses `stop_price`, then becomes a limit order at `limit_price`.
+    pub fn sell_stop_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        stop_price: Decimal,
+        limit_price: Decimal,
+    ) -> OrderRequest {
+        Self::single()
+            .stop_limit(stop_price, limit_price)
+            .equity_sell(symbol, qty)
+            .build()
+    }
+
+    // --- Convenience shortcuts for common single-leg option orders ---
+    //
+    // `symbol` should be the Schwab option symbol (e.g.
+    // `"AAPL  240315C00200000"`). For multi-leg option strategies
+    // (vertical, condor, etc.), use [`Self::single`] with `.net_debit` /
+    // `.net_credit` and chain multiple legs.
+
+    /// Option buy-to-open at market, day order. Opens a long option
+    /// position.
+    pub fn buy_to_open_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
+        Self::single()
+            .market()
+            .option_buy_to_open(symbol, qty)
+            .build()
+    }
+
+    /// Option buy-to-open at limit, day order.
+    pub fn buy_to_open_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        price: Decimal,
+    ) -> OrderRequest {
+        Self::single()
+            .limit(price)
+            .option_buy_to_open(symbol, qty)
+            .build()
+    }
+
+    /// Option sell-to-open at market, day order. Writes (shorts) an
+    /// option.
+    pub fn sell_to_open_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
+        Self::single()
+            .market()
+            .option_sell_to_open(symbol, qty)
+            .build()
+    }
+
+    /// Option sell-to-open at limit, day order.
+    pub fn sell_to_open_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        price: Decimal,
+    ) -> OrderRequest {
+        Self::single()
+            .limit(price)
+            .option_sell_to_open(symbol, qty)
+            .build()
+    }
+
+    /// Option buy-to-close at market, day order. Closes a previously
+    /// written (short) option.
+    pub fn buy_to_close_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
+        Self::single()
+            .market()
+            .option_buy_to_close(symbol, qty)
+            .build()
+    }
+
+    /// Option buy-to-close at limit, day order.
+    pub fn buy_to_close_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        price: Decimal,
+    ) -> OrderRequest {
+        Self::single()
+            .limit(price)
+            .option_buy_to_close(symbol, qty)
+            .build()
+    }
+
+    /// Option sell-to-close at market, day order. Closes a long option
+    /// position.
+    pub fn sell_to_close_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
+        Self::single()
+            .market()
+            .option_sell_to_close(symbol, qty)
+            .build()
+    }
+
+    /// Option sell-to-close at limit, day order.
+    pub fn sell_to_close_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        price: Decimal,
+    ) -> OrderRequest {
+        Self::single()
+            .limit(price)
+            .option_sell_to_close(symbol, qty)
+            .build()
+    }
+
+    // --- Composite strategies ---
+
+    /// One-cancels-other: two child orders, the first to fill cancels the
+    /// other. Top-level carries only `orderStrategyType=OCO` and the two
+    /// children; each child is a complete order in its own right
+    /// (typically a `SINGLE`).
+    ///
+    /// The `duration` on each child controls how long that side stays
+    /// live - for a take-profit + stop-loss pair you typically want both
+    /// children set to [`Duration::GoodTillCancel`] via the builder.
+    pub fn oco(child_a: OrderRequest, child_b: OrderRequest) -> OrderRequest {
+        OrderRequest {
+            order_strategy_type: Some(OrderStrategyType::Oco),
+            child_order_strategies: vec![child_a, child_b],
+            ..Default::default()
+        }
+    }
+
+    /// First-trigger-sequence: `parent` is the order Schwab places
+    /// immediately; once it fills, `child` is released. The parent must
+    /// be a complete order (use [`Self::single`] or any of the shortcuts
+    /// above); its `orderStrategyType` is overwritten with `TRIGGER`.
+    ///
+    /// 1st-Trigger-OCO is the composition
+    /// `OrderRequest::trigger(parent, OrderRequest::oco(profit, stop))`.
+    pub fn trigger(mut parent: OrderRequest, child: OrderRequest) -> OrderRequest {
+        parent.order_strategy_type = Some(OrderStrategyType::Trigger);
+        parent.child_order_strategies.push(child);
+        parent
+    }
 }
 
 impl SingleOrderBuilder<NeedsType> {
@@ -541,5 +712,274 @@ mod tests {
                 "request body should not contain {forbidden}, got: {json}"
             );
         }
+    }
+
+    // --- Shortcut equivalence ---
+
+    #[test]
+    fn shortcut_buy_market_equals_explicit_builder() {
+        let a = OrderRequest::buy_market("AAPL", dec!(10));
+        let b = OrderRequest::single()
+            .market()
+            .equity_buy("AAPL", dec!(10))
+            .build();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn shortcut_buy_limit_equals_explicit_builder() {
+        let a = OrderRequest::buy_limit("AAPL", dec!(10), dec!(150.00));
+        let b = OrderRequest::single()
+            .limit(dec!(150.00))
+            .equity_buy("AAPL", dec!(10))
+            .build();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn shortcut_sell_stop_equals_explicit_builder() {
+        let a = OrderRequest::sell_stop("AAPL", dec!(10), dec!(140.00));
+        let b = OrderRequest::single()
+            .stop(dec!(140.00))
+            .equity_sell("AAPL", dec!(10))
+            .build();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn shortcut_sell_stop_limit_equals_explicit_builder() {
+        let a = OrderRequest::sell_stop_limit("AAPL", dec!(10), dec!(140.00), dec!(139.50));
+        let b = OrderRequest::single()
+            .stop_limit(dec!(140.00), dec!(139.50))
+            .equity_sell("AAPL", dec!(10))
+            .build();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn option_shortcut_buy_to_open_market_equals_explicit_builder() {
+        let symbol = "AAPL  240315C00200000";
+        let a = OrderRequest::buy_to_open_market(symbol, dec!(2));
+        let b = OrderRequest::single()
+            .market()
+            .option_buy_to_open(symbol, dec!(2))
+            .build();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
+    }
+
+    #[test]
+    fn option_shortcuts_cover_all_four_instructions() {
+        // Each option shortcut should pin the right Instruction and the
+        // OPTION assetType in the resulting leg.
+        let cases: [(OrderRequest, &str); 4] = [
+            (
+                OrderRequest::buy_to_open_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                "BUY_TO_OPEN",
+            ),
+            (
+                OrderRequest::sell_to_open_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                "SELL_TO_OPEN",
+            ),
+            (
+                OrderRequest::buy_to_close_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                "BUY_TO_CLOSE",
+            ),
+            (
+                OrderRequest::sell_to_close_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                "SELL_TO_CLOSE",
+            ),
+        ];
+        for (req, expected_instruction) in cases {
+            let v = serde_json::to_value(&req).unwrap();
+            let leg = &v["orderLegCollection"][0];
+            assert_eq!(leg["instruction"], expected_instruction);
+            assert_eq!(leg["instrument"]["assetType"], "OPTION");
+            assert_eq!(v["orderStrategyType"], "SINGLE");
+        }
+    }
+
+    // --- OCO and TRIGGER strategies ---
+
+    #[test]
+    fn oco_pair_matches_schwab_example() {
+        // "Sell 2 XYZ at LIMIT 45.97 or Sell 2 XYZ at STOP_LIMIT 37.03/37.00,
+        // whichever fills first cancels the other. Both DAY."
+        let limit_leg = OrderRequest::single()
+            .limit(dec!(45.97))
+            .equity_sell("XYZ", dec!(2))
+            .build();
+        let stop_limit_leg = OrderRequest::single()
+            .stop_limit(dec!(37.03), dec!(37.00))
+            .equity_sell("XYZ", dec!(2))
+            .build();
+        let req = OrderRequest::oco(limit_leg, stop_limit_leg);
+        let actual: serde_json::Value = serde_json::to_value(&req).unwrap();
+        let expected: serde_json::Value = serde_json::from_str(
+            r#"{
+                "orderStrategyType": "OCO",
+                "childOrderStrategies": [
+                    {
+                        "orderType": "LIMIT",
+                        "session": "NORMAL",
+                        "price": 45.97,
+                        "duration": "DAY",
+                        "orderStrategyType": "SINGLE",
+                        "orderLegCollection": [{
+                            "instruction": "SELL",
+                            "quantity": 2,
+                            "instrument": { "symbol": "XYZ", "assetType": "EQUITY" }
+                        }]
+                    },
+                    {
+                        "orderType": "STOP_LIMIT",
+                        "session": "NORMAL",
+                        "price": 37.00,
+                        "stopPrice": 37.03,
+                        "duration": "DAY",
+                        "orderStrategyType": "SINGLE",
+                        "orderLegCollection": [{
+                            "instruction": "SELL",
+                            "quantity": 2,
+                            "instrument": { "symbol": "XYZ", "assetType": "EQUITY" }
+                        }]
+                    }
+                ]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(actual, expected, "got: {}", pretty(&actual));
+    }
+
+    #[test]
+    fn trigger_buy_then_sell_matches_schwab_example() {
+        // "Buy 10 XYZ LIMIT 34.97. If filled, send a SELL 10 XYZ LIMIT
+        // 42.03. Both DAY."
+        let entry = OrderRequest::buy_limit("XYZ", dec!(10), dec!(34.97));
+        let exit = OrderRequest::sell_limit("XYZ", dec!(10), dec!(42.03));
+        let req = OrderRequest::trigger(entry, exit);
+        let actual: serde_json::Value = serde_json::to_value(&req).unwrap();
+        let expected: serde_json::Value = serde_json::from_str(
+            r#"{
+                "orderType": "LIMIT",
+                "session": "NORMAL",
+                "price": 34.97,
+                "duration": "DAY",
+                "orderStrategyType": "TRIGGER",
+                "orderLegCollection": [{
+                    "instruction": "BUY",
+                    "quantity": 10,
+                    "instrument": { "symbol": "XYZ", "assetType": "EQUITY" }
+                }],
+                "childOrderStrategies": [{
+                    "orderType": "LIMIT",
+                    "session": "NORMAL",
+                    "price": 42.03,
+                    "duration": "DAY",
+                    "orderStrategyType": "SINGLE",
+                    "orderLegCollection": [{
+                        "instruction": "SELL",
+                        "quantity": 10,
+                        "instrument": { "symbol": "XYZ", "assetType": "EQUITY" }
+                    }]
+                }]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(actual, expected, "got: {}", pretty(&actual));
+    }
+
+    #[test]
+    fn one_triggers_oco_matches_schwab_example() {
+        // "Buy 5 XYZ LIMIT 14.97 DAY. Once filled, send an OCO of
+        // (SELL 5 XYZ LIMIT 15.27 GTC) and (SELL 5 XYZ STOP 11.27 GTC)."
+        let entry = OrderRequest::buy_limit("XYZ", dec!(5), dec!(14.97));
+        let take_profit = OrderRequest::single()
+            .limit(dec!(15.27))
+            .equity_sell("XYZ", dec!(5))
+            .duration(Duration::GoodTillCancel)
+            .build();
+        let stop_loss = OrderRequest::single()
+            .stop(dec!(11.27))
+            .equity_sell("XYZ", dec!(5))
+            .duration(Duration::GoodTillCancel)
+            .build();
+        let oco = OrderRequest::oco(take_profit, stop_loss);
+        let req = OrderRequest::trigger(entry, oco);
+        let actual: serde_json::Value = serde_json::to_value(&req).unwrap();
+        let expected: serde_json::Value = serde_json::from_str(
+            r#"{
+                "orderStrategyType": "TRIGGER",
+                "session": "NORMAL",
+                "duration": "DAY",
+                "orderType": "LIMIT",
+                "price": 14.97,
+                "orderLegCollection": [{
+                    "instruction": "BUY",
+                    "quantity": 5,
+                    "instrument": { "assetType": "EQUITY", "symbol": "XYZ" }
+                }],
+                "childOrderStrategies": [{
+                    "orderStrategyType": "OCO",
+                    "childOrderStrategies": [
+                        {
+                            "orderStrategyType": "SINGLE",
+                            "session": "NORMAL",
+                            "duration": "GOOD_TILL_CANCEL",
+                            "orderType": "LIMIT",
+                            "price": 15.27,
+                            "orderLegCollection": [{
+                                "instruction": "SELL",
+                                "quantity": 5,
+                                "instrument": { "assetType": "EQUITY", "symbol": "XYZ" }
+                            }]
+                        },
+                        {
+                            "orderStrategyType": "SINGLE",
+                            "session": "NORMAL",
+                            "duration": "GOOD_TILL_CANCEL",
+                            "orderType": "STOP",
+                            "stopPrice": 11.27,
+                            "orderLegCollection": [{
+                                "instruction": "SELL",
+                                "quantity": 5,
+                                "instrument": { "assetType": "EQUITY", "symbol": "XYZ" }
+                            }]
+                        }
+                    ]
+                }]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(actual, expected, "got: {}", pretty(&actual));
+    }
+
+    #[test]
+    fn oco_top_level_has_no_session_or_duration() {
+        // OCO is purely a composition wrapper. Schwab's documented OCO
+        // example shows no top-level session/duration/orderType, only
+        // `orderStrategyType` and `childOrderStrategies`.
+        let a = OrderRequest::sell_limit("XYZ", dec!(1), dec!(50));
+        let b = OrderRequest::sell_stop("XYZ", dec!(1), dec!(40));
+        let req = OrderRequest::oco(a, b);
+        let v = serde_json::to_value(&req).unwrap();
+        let obj = v.as_object().unwrap();
+        assert_eq!(obj.len(), 2);
+        assert!(obj.contains_key("orderStrategyType"));
+        assert!(obj.contains_key("childOrderStrategies"));
     }
 }
