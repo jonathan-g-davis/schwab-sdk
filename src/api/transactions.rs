@@ -72,7 +72,7 @@ impl<'a, 'b> Transactions<'a, 'b> {
     pub async fn get(&self, transaction_id: i64) -> Result<Vec<Transaction>> {
         let hash = self.account_hash.expose_secret();
         let path = format!("/accounts/{hash}/transactions/{transaction_id}");
-        self.client.get_json(&path).await
+        self.client.trader_http().get_json(&path).await
     }
 }
 
@@ -103,8 +103,8 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
         let end = self.end_date.to_rfc3339_opts(SecondsFormat::Millis, true);
         let types = self.types.to_string();
 
-        let mut request = self
-            .client
+        let trader = self.client.trader_http();
+        let mut request = trader
             .get(&format!("/accounts/{hash}/transactions"))
             .query(&[
                 ("startDate", start.as_str()),
@@ -114,7 +114,7 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
         if let Some(sym) = &self.symbol {
             request = request.query(&[("symbol", sym.as_str())]);
         }
-        self.client.execute_json(request).await
+        trader.execute_json(request).await
     }
 }
 

@@ -37,7 +37,10 @@ impl<'a> Accounts<'a> {
     /// encrypted-hash mapping. The hash is what subsequent endpoints
     /// require in the `{accountNumber}` URL path segment.
     pub async fn numbers(&self) -> Result<Vec<AccountNumberHash>> {
-        self.client.get_json("/accounts/accountNumbers").await
+        self.client
+            .trader_http()
+            .get_json("/accounts/accountNumbers")
+            .await
     }
 
     /// Begin a `GET /accounts` request. Defaults to balances only; call
@@ -83,7 +86,7 @@ impl<'a> ListAccountsBuilder<'a> {
         } else {
             "/accounts"
         };
-        self.client.get_json(path).await
+        self.client.trader_http().get_json(path).await
     }
 }
 
@@ -111,7 +114,7 @@ impl<'a, 'b> GetAccountBuilder<'a, 'b> {
         } else {
             format!("/accounts/{hash}")
         };
-        self.client.get_json(&path).await
+        self.client.trader_http().get_json(&path).await
     }
 }
 

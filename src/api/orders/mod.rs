@@ -87,7 +87,7 @@ impl<'a, 'b> Orders<'a, 'b> {
     pub async fn get(&self, order_id: i64) -> Result<Order> {
         let hash = self.account_hash.expose_secret();
         let path = format!("/accounts/{hash}/orders/{order_id}");
-        self.client.get_json(&path).await
+        self.client.trader_http().get_json(&path).await
     }
 
     /// `POST /accounts/{accountNumber}/orders` - place an order.
@@ -110,11 +110,11 @@ impl<'a, 'b> Orders<'a, 'b> {
     pub async fn place(&self, order: impl Into<OrderRequest>) -> Result<i64> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
-        let request = self
-            .client
+        let trader = self.client.trader_http();
+        let request = trader
             .post(&format!("/accounts/{hash}/orders"))
             .json(&order);
-        let response = self.client.execute(request).await?;
+        let response = trader.execute(request).await?;
         parse_order_id_from_location(&response)
     }
 
@@ -127,11 +127,11 @@ impl<'a, 'b> Orders<'a, 'b> {
     pub async fn replace(&self, order_id: i64, order: impl Into<OrderRequest>) -> Result<i64> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
-        let request = self
-            .client
+        let trader = self.client.trader_http();
+        let request = trader
             .put(&format!("/accounts/{hash}/orders/{order_id}"))
             .json(&order);
-        let response = self.client.execute(request).await?;
+        let response = trader.execute(request).await?;
         parse_order_id_from_location(&response)
     }
 
@@ -142,10 +142,9 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// (typically by calling [`Self::get`]).
     pub async fn cancel(&self, order_id: i64) -> Result<()> {
         let hash = self.account_hash.expose_secret();
-        let request = self
-            .client
-            .delete(&format!("/accounts/{hash}/orders/{order_id}"));
-        self.client.execute(request).await?;
+        let trader = self.client.trader_http();
+        let request = trader.delete(&format!("/accounts/{hash}/orders/{order_id}"));
+        trader.execute(request).await?;
         Ok(())
     }
 
@@ -158,11 +157,11 @@ impl<'a, 'b> Orders<'a, 'b> {
     pub async fn preview(&self, order: impl Into<OrderRequest>) -> Result<PreviewOrder> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
-        let request = self
-            .client
+        let trader = self.client.trader_http();
+        let request = trader
             .post(&format!("/accounts/{hash}/previewOrder"))
             .json(&order);
-        self.client.execute_json(request).await
+        trader.execute_json(request).await
     }
 
     /// Begin a `GET /accounts/{accountNumber}/orders` request.
@@ -250,13 +249,11 @@ impl<'a, 'b> ListOrdersBuilder<'a, 'b> {
         let to = self
             .to_entered_time
             .to_rfc3339_opts(SecondsFormat::Millis, true);
-        let mut request = self
-            .client
-            .get(&format!("/accounts/{hash}/orders"))
-            .query(&[
-                ("fromEnteredTime", from.as_str()),
-                ("toEnteredTime", to.as_str()),
-            ]);
+        let trader = self.client.trader_http();
+        let mut request = trader.get(&format!("/accounts/{hash}/orders")).query(&[
+            ("fromEnteredTime", from.as_str()),
+            ("toEnteredTime", to.as_str()),
+        ]);
         if let Some(n) = self.max_results {
             let n_str = n.to_string();
             request = request.query(&[("maxResults", n_str.as_str())]);
@@ -265,7 +262,7 @@ impl<'a, 'b> ListOrdersBuilder<'a, 'b> {
             let s_str = s.to_string();
             request = request.query(&[("status", s_str.as_str())]);
         }
-        self.client.execute_json(request).await
+        trader.execute_json(request).await
     }
 }
 
@@ -296,7 +293,8 @@ impl<'a> ListAllOrdersBuilder<'a> {
         let to = self
             .to_entered_time
             .to_rfc3339_opts(SecondsFormat::Millis, true);
-        let mut request = self.client.get("/orders").query(&[
+        let trader = self.client.trader_http();
+        let mut request = trader.get("/orders").query(&[
             ("fromEnteredTime", from.as_str()),
             ("toEnteredTime", to.as_str()),
         ]);
@@ -308,7 +306,7 @@ impl<'a> ListAllOrdersBuilder<'a> {
             let s_str = s.to_string();
             request = request.query(&[("status", s_str.as_str())]);
         }
-        self.client.execute_json(request).await
+        trader.execute_json(request).await
     }
 }
 
