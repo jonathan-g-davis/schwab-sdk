@@ -112,6 +112,20 @@ impl SchwabClient {
             .bearer_auth(self.auth_token.expose_secret())
     }
 
+    /// Crate-private: build a PUT request with bearer auth attached.
+    pub(crate) fn put(&self, path: &str) -> RequestBuilder {
+        self.client
+            .put(format!("{}{}", self.base_url, path))
+            .bearer_auth(self.auth_token.expose_secret())
+    }
+
+    /// Crate-private: build a DELETE request with bearer auth attached.
+    pub(crate) fn delete(&self, path: &str) -> RequestBuilder {
+        self.client
+            .delete(format!("{}{}", self.base_url, path))
+            .bearer_auth(self.auth_token.expose_secret())
+    }
+
     /// Crate-private: send a prepared [`RequestBuilder`] and return the
     /// raw [`reqwest::Response`] on 2xx. Non-2xx maps to an [`Error`] via
     /// [`map_response_to_error`]. Use this when the caller needs to inspect
