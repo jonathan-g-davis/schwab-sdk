@@ -1,0 +1,57 @@
+//! `GET /userPreference` - Schwab Trader API.
+//!
+//! Returns the caller's accounts, streamer connection info, and market-data
+//! permissions. The `streamerInfo` block is what's passed to
+//! [`crate::SchwabStreamer`] at connection time.
+
+use crate::model::{AccountNumber, CustomerId};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserPreferences {
+    #[serde(rename = "accounts")]
+    pub accounts: Vec<UserPreferenceAccount>,
+    #[serde(rename = "streamerInfo")]
+    pub streamer_info: Vec<StreamerInfo>,
+    #[serde(rename = "offers")]
+    pub offers: Vec<Offer>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserPreferenceAccount {
+    #[serde(rename = "accountNumber")]
+    pub account_number: AccountNumber,
+    #[serde(rename = "primaryAccount")]
+    pub primary_account: bool,
+    #[serde(rename = "type")]
+    pub account_type: String,
+    #[serde(rename = "nickName")]
+    pub nickname: String,
+    #[serde(rename = "accountColor")]
+    pub account_color: String,
+    #[serde(rename = "displayAcctId")]
+    pub display_account_id: AccountNumber,
+    #[serde(rename = "autoPositionEffect")]
+    pub auto_position_effect: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct StreamerInfo {
+    #[serde(rename = "streamerSocketUrl")]
+    pub streamer_socket_url: String,
+    #[serde(rename = "schwabClientCustomerId")]
+    pub schwab_client_customer_id: CustomerId,
+    #[serde(rename = "schwabClientCorrelId")]
+    pub schwab_client_correlation_id: String,
+    #[serde(rename = "schwabClientChannel")]
+    pub schwab_client_channel: String,
+    #[serde(rename = "schwabClientFunctionId")]
+    pub schwab_client_function_id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Offer {
+    #[serde(rename = "level2Permissions")]
+    pub level2_permissions: bool,
+    #[serde(rename = "mktDataPermission")]
+    pub market_data_permission: String,
+}
