@@ -5,8 +5,12 @@
 //! API ([`crate::rest::MARKET_DATA_BASE_URL`] vs
 //! [`crate::rest::TRADER_BASE_URL`]).
 
+pub mod price_history;
 pub mod quotes;
 
+pub use price_history::{
+    Candle, CandleList, FrequencyType, GetPriceHistoryBuilder, PeriodType, PriceHistory,
+};
 pub use quotes::{
     AssetMainType, AssetSubType, EquityQuote, ExtendedMarket, FundStrategy, Fundamental,
     GetQuoteBuilder, ListQuotesBuilder, QuoteEntry, QuoteEquity, QuoteError, QuoteField,
@@ -30,5 +34,11 @@ impl<'a> MarketData<'a> {
     /// for one or more symbols across every supported asset class.
     pub fn quotes(&self) -> Quotes<'a> {
         Quotes::new(self.client)
+    }
+
+    /// Accessor for `/pricehistory` - OHLCV candles for a single symbol
+    /// at a configurable aggregation.
+    pub fn price_history(&self) -> PriceHistory<'a> {
+        PriceHistory::new(self.client)
     }
 }
