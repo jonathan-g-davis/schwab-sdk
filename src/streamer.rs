@@ -300,6 +300,10 @@ impl StreamerRequest {
     pub fn screener_equity() -> subscription::SubscriptionBuilder<screener::equity::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn screener_option() -> subscription::SubscriptionBuilder<screener::option::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -370,6 +374,7 @@ pub enum DataContent {
     ChartEquity(Vec<chart::equity::Content>),
     ChartFutures(Vec<chart::futures::Content>),
     ScreenerEquity(Vec<screener::Content>),
+    ScreenerOption(Vec<screener::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -466,6 +471,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
         Service::ScreenerEquity => {
             let remapped = transform_keys::<screener::equity::Field>(content)?;
             Ok(DataContent::ScreenerEquity(screener::equity::decode_batch(
+                remapped,
+            )?))
+        }
+        Service::ScreenerOption => {
+            let remapped = transform_keys::<screener::option::Field>(content)?;
+            Ok(DataContent::ScreenerOption(screener::option::decode_batch(
                 remapped,
             )?))
         }
@@ -1275,14 +1286,62 @@ mod parser_tests {
     }
 
     #[test]
-    fn unknown_service_falls_back_to_raw() {
-        // SCREENER_OPTION is not yet typed; should hit the Raw fallback.
+    fn parses_screener_option_data_into_typed_content() {
         let frame = r#"{
             "data": [{
                 "service": "SCREENER_OPTION",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "OPTION_CALL_VOLUME_5",
+                    "delayed": false,
+                    "1": 1714949590000,
+                    "2": "VOLUME",
+                    "3": 5,
+                    "4": [{
+                        "description": "AAPL Mar 15 2024 200 Call",
+                        "lastPrice": 5.15,
+                        "marketShare": 0.40,
+                        "netChange": 0.05,
+                        "netPercentChange": 0.9804,
+                        "symbol": "AAPL  240315C00200000",
+                        "totalVolume": 12345,
+                        "trades": 312,
+                        "volume": 8400
+                    }]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ScreenerOption);
+        let DataContent::ScreenerOption(rows) = &payload.content else {
+            panic!("expected ScreenerOption, got {:?}", payload.content);
+        };
+        let row = &rows[0];
+        assert_eq!(row.key, "OPTION_CALL_VOLUME_5");
+        assert_eq!(row.sort_field.as_deref(), Some("VOLUME"));
+        assert_eq!(row.frequency, Some(5));
+        assert_eq!(row.items.len(), 1);
+
+        let item = &row.items[0];
+        assert_eq!(item.symbol.as_deref(), Some("AAPL  240315C00200000"));
+        assert_eq!(item.last_price, Some(dec!(5.15)));
+        assert_eq!(item.net_change, Some(dec!(0.05)));
+        assert_eq!(item.volume, Some(8400));
+    }
+
+    #[test]
+    fn unknown_service_falls_back_to_raw() {
+        // ACCT_ACTIVITY is not yet typed; should hit the Raw fallback.
+        let frame = r#"{
+            "data": [{
+                "service": "ACCT_ACTIVITY",
                 "timestamp": 1,
                 "command": "SUBS",
-                "content": [{"symbol":"AAPL","1":1,"2":2,"3":3,"4":4}]
+                "content": [{"seq":1,"key":"Account Activity","1":"acct","2":"OrderEntryRequest","3":"{}"}]
             }]
         }"#;
         let StreamerResponse::Data(data) = parse(frame).unwrap() else {

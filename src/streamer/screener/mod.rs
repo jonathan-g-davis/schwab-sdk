@@ -17,6 +17,7 @@ use serde::Deserialize;
 use crate::error::{Error, Result};
 
 pub mod equity;
+pub mod option;
 
 /// One screener result row.
 #[derive(Debug, Clone, Deserialize)]
