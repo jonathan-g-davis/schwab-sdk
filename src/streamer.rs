@@ -291,6 +291,10 @@ impl StreamerRequest {
     pub fn chart_equity() -> subscription::SubscriptionBuilder<chart::equity::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn chart_futures() -> subscription::SubscriptionBuilder<chart::futures::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -359,6 +363,7 @@ pub enum DataContent {
     NasdaqBook(Vec<book::Content>),
     OptionsBook(Vec<book::Content>),
     ChartEquity(Vec<chart::equity::Content>),
+    ChartFutures(Vec<chart::futures::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -444,6 +449,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
             let remapped = transform_keys::<chart::equity::Field>(content)?;
             Ok(DataContent::ChartEquity(
                 chart::equity::Content::decode_batch(remapped)?,
+            ))
+        }
+        Service::ChartFutures => {
+            let remapped = transform_keys::<chart::futures::Field>(content)?;
+            Ok(DataContent::ChartFutures(
+                chart::futures::Content::decode_batch(remapped)?,
             ))
         }
         _ => Ok(DataContent::Raw(content)),
@@ -1142,6 +1153,40 @@ mod parser_tests {
         assert_eq!(candle.sequence, Some(1234));
         assert_eq!(candle.chart_time, Some(1714949580000));
         assert_eq!(candle.chart_day, Some(19850));
+    }
+
+    #[test]
+    fn parses_chart_futures_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "CHART_FUTURES",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "/ESZ24",
+                    "delayed": false,
+                    "1": 1714949580000,
+                    "2": 5020.00, "3": 5025.50, "4": 5018.25, "5": 5024.75,
+                    "6": 8520
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ChartFutures);
+        let DataContent::ChartFutures(items) = &payload.content else {
+            panic!("expected ChartFutures, got {:?}", payload.content);
+        };
+        let candle = &items[0];
+        assert_eq!(candle.key, "/ESZ24");
+        assert_eq!(candle.chart_time, Some(1714949580000));
+        assert_eq!(candle.open_price, Some(dec!(5020.00)));
+        assert_eq!(candle.high_price, Some(dec!(5025.50)));
+        assert_eq!(candle.low_price, Some(dec!(5018.25)));
+        assert_eq!(candle.close_price, Some(dec!(5024.75)));
+        assert_eq!(candle.volume, Some(dec!(8520)));
     }
 
     #[test]
