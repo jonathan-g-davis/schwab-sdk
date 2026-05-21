@@ -16,7 +16,26 @@ use crate::api::orders::enums::{
     PriceLinkBasis, PriceLinkType, QuantityType, Session, SpecialInstruction, StopPriceLinkBasis,
     StopPriceLinkType, StopType, TaxLotMethod,
 };
-use rust_decimal::serde::float_option as decimal_opt;
+
+/// Local serde helper for `Option<Decimal>` on **request bodies** that
+/// preserves the textual form of the decimal value. Read-side helpers can
+/// keep using the upstream `float_option` because its deserialize path
+/// preserves the string representation already.
+mod decimal_opt {
+    use rust_decimal::Decimal;
+    use serde::{Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(value: &Option<Decimal>, s: S) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(d) => {
+                let n: serde_json::Number =
+                    d.to_string().parse().map_err(serde::ser::Error::custom)?;
+                n.serialize(s)
+            }
+            None => s.serialize_none(),
+        }
+    }
+}
 
 /// Body of `POST /accounts/{accountNumber}/orders` (place) and
 /// `PUT /accounts/{accountNumber}/orders/{orderId}` (replace). Construct

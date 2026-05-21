@@ -17,6 +17,7 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
 
+use crate::api::macros::string_enum;
 use crate::error::Result;
 use crate::model::{AccountHash, AccountNumber};
 use crate::rest::SchwabClient;
@@ -504,37 +505,21 @@ pub struct AccountApiOptionDeliverable {
     pub asset_type: Option<AssetType>,
 }
 
-/// Schwab `assetType` discriminator. Includes a catch-all so wire values
-/// added after this crate was published deserialize as `Unknown(raw)`.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum AssetType {
-    #[strum(serialize = "EQUITY")]
-    Equity,
-    #[strum(serialize = "MUTUAL_FUND")]
-    MutualFund,
-    #[strum(serialize = "OPTION")]
-    Option,
-    #[strum(serialize = "FUTURE")]
-    Future,
-    #[strum(serialize = "FOREX")]
-    Forex,
-    #[strum(serialize = "INDEX")]
-    Index,
-    #[strum(serialize = "CASH_EQUIVALENT")]
-    CashEquivalent,
-    #[strum(serialize = "FIXED_INCOME")]
-    FixedIncome,
-    #[strum(serialize = "PRODUCT")]
-    Product,
-    #[strum(serialize = "CURRENCY")]
-    Currency,
-    #[strum(serialize = "COLLECTIVE_INVESTMENT")]
-    CollectiveInvestment,
-    #[strum(default)]
-    Unknown(String),
+string_enum! {
+    /// Schwab `assetType` discriminator.
+    AssetType {
+        Equity = "EQUITY",
+        MutualFund = "MUTUAL_FUND",
+        Option = "OPTION",
+        Future = "FUTURE",
+        Forex = "FOREX",
+        Index = "INDEX",
+        CashEquivalent = "CASH_EQUIVALENT",
+        FixedIncome = "FIXED_INCOME",
+        Product = "PRODUCT",
+        Currency = "CURRENCY",
+        CollectiveInvestment = "COLLECTIVE_INVESTMENT",
+    }
 }
 
 impl Default for AssetType {
@@ -543,108 +528,29 @@ impl Default for AssetType {
     }
 }
 
-impl From<AssetType> for String {
-    fn from(value: AssetType) -> Self {
-        value.to_string()
+string_enum! {
+    PutCall {
+        Put = "PUT",
+        Call = "CALL",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-impl From<String> for AssetType {
-    fn from(value: String) -> Self {
-        value
-            .parse()
-            .expect("AssetType FromStr is infallible (strum default)")
+string_enum! {
+    OptionType {
+        Vanilla = "VANILLA",
+        Binary = "BINARY",
+        Barrier = "BARRIER",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum PutCall {
-    #[strum(serialize = "PUT")]
-    Put,
-    #[strum(serialize = "CALL")]
-    Call,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<PutCall> for String {
-    fn from(value: PutCall) -> Self {
-        value.to_string()
-    }
-}
-
-impl From<String> for PutCall {
-    fn from(value: String) -> Self {
-        value
-            .parse()
-            .expect("PutCall FromStr is infallible (strum default)")
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum OptionType {
-    #[strum(serialize = "VANILLA")]
-    Vanilla,
-    #[strum(serialize = "BINARY")]
-    Binary,
-    #[strum(serialize = "BARRIER")]
-    Barrier,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<OptionType> for String {
-    fn from(value: OptionType) -> Self {
-        value.to_string()
-    }
-}
-
-impl From<String> for OptionType {
-    fn from(value: String) -> Self {
-        value
-            .parse()
-            .expect("OptionType FromStr is infallible (strum default)")
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum ApiCurrencyType {
-    #[strum(serialize = "USD")]
-    Usd,
-    #[strum(serialize = "CAD")]
-    Cad,
-    #[strum(serialize = "EUR")]
-    Eur,
-    #[strum(serialize = "JPY")]
-    Jpy,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<ApiCurrencyType> for String {
-    fn from(value: ApiCurrencyType) -> Self {
-        value.to_string()
-    }
-}
-
-impl From<String> for ApiCurrencyType {
-    fn from(value: String) -> Self {
-        value
-            .parse()
-            .expect("ApiCurrencyType FromStr is infallible (strum default)")
+string_enum! {
+    ApiCurrencyType {
+        Usd = "USD",
+        Cad = "CAD",
+        Eur = "EUR",
+        Jpy = "JPY",
     }
 }
 
