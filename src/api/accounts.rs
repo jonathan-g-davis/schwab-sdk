@@ -9,12 +9,109 @@
 //!   linked account.
 //! - `GET /accounts/{accountNumber}` returns the same shape for a single
 //!   account, keyed by the encrypted hash.
+//!
+//! Reached through [`SchwabClient::accounts`](crate::SchwabClient::accounts).
 
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
 
+use crate::error::Result;
 use crate::model::{AccountHash, AccountNumber};
+use crate::rest::SchwabClient;
+
+/// Accessor for the `/accounts*` endpoint family. Construct via
+/// [`SchwabClient::accounts`].
+pub struct Accounts<'a> {
+    client: &'a SchwabClient,
+}
+
+impl<'a> Accounts<'a> {
+    pub(crate) fn new(client: &'a SchwabClient) -> Self {
+        Self { client }
+    }
+
+    /// `GET /accounts/accountNumbers` - plain-account-number to
+    /// encrypted-hash mapping. The hash is what subsequent endpoints
+    /// require in the `{accountNumber}` URL path segment.
+    pub async fn numbers(&self) -> Result<Vec<AccountNumberHash>> {
+        self.client.get_json("/accounts/accountNumbers").await
+    }
+
+    /// Begin a `GET /accounts` request. Defaults to balances only; call
+    /// [`ListAccountsBuilder::with_positions`] to include positions.
+    /// Terminate with [`ListAccountsBuilder::send`].
+    pub fn list(&self) -> ListAccountsBuilder<'a> {
+        ListAccountsBuilder {
+            client: self.client,
+            include_positions: false,
+        }
+    }
+
+    /// Begin a `GET /accounts/{accountNumber}` request for a single account.
+    /// `account_hash` is the encrypted value from [`Self::numbers`], never
+    /// the plain account number.
+    pub fn get<'b>(&self, account_hash: &'b AccountHash) -> GetAccountBuilder<'a, 'b> {
+        GetAccountBuilder {
+            client: self.client,
+            account_hash,
+            include_positions: false,
+        }
+    }
+}
+
+/// In-flight request for `GET /accounts`. Built via [`Accounts::list`].
+#[must_use = "call .send() to execute the request"]
+pub struct ListAccountsBuilder<'a> {
+    client: &'a SchwabClient,
+    include_positions: bool,
+}
+
+impl<'a> ListAccountsBuilder<'a> {
+    /// Add `fields=positions` to the query string. Without this, the
+    /// response carries balances only.
+    pub fn with_positions(mut self) -> Self {
+        self.include_positions = true;
+        self
+    }
+
+    pub async fn send(self) -> Result<Vec<Account>> {
+        let path = if self.include_positions {
+            "/accounts?fields=positions"
+        } else {
+            "/accounts"
+        };
+        self.client.get_json(path).await
+    }
+}
+
+/// In-flight request for `GET /accounts/{accountNumber}`. Built via
+/// [`Accounts::get`].
+#[must_use = "call .send() to execute the request"]
+pub struct GetAccountBuilder<'a, 'b> {
+    client: &'a SchwabClient,
+    account_hash: &'b AccountHash,
+    include_positions: bool,
+}
+
+impl<'a, 'b> GetAccountBuilder<'a, 'b> {
+    /// Add `fields=positions` to the query string. Without this, the
+    /// response carries balances only.
+    pub fn with_positions(mut self) -> Self {
+        self.include_positions = true;
+        self
+    }
+
+    pub async fn send(self) -> Result<Account> {
+        let hash = self.account_hash.expose_secret();
+        let path = if self.include_positions {
+            format!("/accounts/{hash}?fields=positions")
+        } else {
+            format!("/accounts/{hash}")
+        };
+        self.client.get_json(&path).await
+    }
+}
 
 /// `GET /accounts/accountNumbers` response item.
 ///
