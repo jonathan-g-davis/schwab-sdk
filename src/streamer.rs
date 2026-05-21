@@ -260,6 +260,19 @@ impl StreamerRequest {
     pub fn options() -> subscription::SubscriptionBuilder<level_one::options::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn futures() -> subscription::SubscriptionBuilder<level_one::futures::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
+
+    pub fn futures_options()
+    -> subscription::SubscriptionBuilder<level_one::futures_options::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
+
+    pub fn forex() -> subscription::SubscriptionBuilder<level_one::forex::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -321,6 +334,9 @@ pub struct DataPayload {
 pub enum DataContent {
     LevelOneEquities(Vec<level_one::equities::Content>),
     LevelOneOptions(Vec<level_one::options::Content>),
+    LevelOneFutures(Vec<level_one::futures::Content>),
+    LevelOneFuturesOptions(Vec<level_one::futures_options::Content>),
+    LevelOneForex(Vec<level_one::forex::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -366,6 +382,24 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
             let remapped = transform_keys::<level_one::options::Field>(content)?;
             Ok(DataContent::LevelOneOptions(
                 level_one::options::Content::decode_batch(remapped)?,
+            ))
+        }
+        Service::LevelOneFutures => {
+            let remapped = transform_keys::<level_one::futures::Field>(content)?;
+            Ok(DataContent::LevelOneFutures(
+                level_one::futures::Content::decode_batch(remapped)?,
+            ))
+        }
+        Service::LevelOneFuturesOptions => {
+            let remapped = transform_keys::<level_one::futures_options::Field>(content)?;
+            Ok(DataContent::LevelOneFuturesOptions(
+                level_one::futures_options::Content::decode_batch(remapped)?,
+            ))
+        }
+        Service::LevelOneForex => {
+            let remapped = transform_keys::<level_one::forex::Field>(content)?;
+            Ok(DataContent::LevelOneForex(
+                level_one::forex::Content::decode_batch(remapped)?,
             ))
         }
         _ => Ok(DataContent::Raw(content)),
@@ -720,6 +754,138 @@ mod parser_tests {
         // Fields not on wire stay None.
         assert_eq!(aapl.rho, None);
         assert_eq!(aapl.implied_yield, None);
+    }
+
+    #[test]
+    fn parses_level_one_futures_data_into_typed_content() {
+        // /ESZ24 (E-Mini S&P 500 Dec 2024) with quotes, volume, multiplier.
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_FUTURES",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "/ESZ24",
+                    "delayed": false,
+                    "1": 5025.25, "2": 5025.50, "3": 5025.25,
+                    "4": 12, "5": 9,
+                    "8": 1234567, "12": 5050.00, "13": 5005.75,
+                    "16": "E-Mini S&P 500 Dec 24",
+                    "24": 5025.375,
+                    "25": 0.25, "26": 12.50,
+                    "30": true, "31": 50.0, "32": true
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneFutures);
+        let DataContent::LevelOneFutures(items) = &payload.content else {
+            panic!("expected LevelOneFutures, got {:?}", payload.content);
+        };
+        assert_eq!(items.len(), 1);
+        let es = &items[0];
+        assert_eq!(es.key, "/ESZ24");
+        assert_eq!(es.bid_price, Some(dec!(5025.25)));
+        assert_eq!(es.ask_price, Some(dec!(5025.50)));
+        assert_eq!(es.last_price, Some(dec!(5025.25)));
+        assert_eq!(es.bid_size, Some(12));
+        assert_eq!(es.ask_size, Some(9));
+        assert_eq!(es.total_volume, Some(1234567));
+        assert_eq!(es.high_price, Some(dec!(5050.00)));
+        assert_eq!(es.low_price, Some(dec!(5005.75)));
+        assert_eq!(es.description.as_deref(), Some("E-Mini S&P 500 Dec 24"));
+        assert_eq!(es.mark, Some(dec!(5025.375)));
+        assert_eq!(es.tick, Some(dec!(0.25)));
+        assert_eq!(es.tick_amount, Some(dec!(12.50)));
+        assert_eq!(es.future_is_tradable, Some(true));
+        assert_eq!(es.future_multiplier, Some(dec!(50.0)));
+        assert_eq!(es.future_is_active, Some(true));
+    }
+
+    #[test]
+    fn parses_level_one_futures_options_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_FUTURES_OPTIONS",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "./OZCZ23C565",
+                    "delayed": false,
+                    "1": 12.25, "2": 12.50, "3": 12.375,
+                    "4": 5, "5": 7, "8": 234,
+                    "18": 1500.5,
+                    "19": 12.375, "20": 0.25, "21": 12.50,
+                    "22": 50.0,
+                    "24": "/ZCZ23", "25": 565.0,
+                    "28": "C"
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneFuturesOptions);
+        let DataContent::LevelOneFuturesOptions(items) = &payload.content else {
+            panic!("expected LevelOneFuturesOptions");
+        };
+        let item = &items[0];
+        assert_eq!(item.key, "./OZCZ23C565");
+        assert_eq!(item.bid_price, Some(dec!(12.25)));
+        assert_eq!(item.ask_price, Some(dec!(12.50)));
+        assert_eq!(item.total_volume, Some(234));
+        assert_eq!(item.open_interest, Some(dec!(1500.5))); // double per spec
+        assert_eq!(item.mark, Some(dec!(12.375)));
+        assert_eq!(item.future_multiplier, Some(dec!(50.0)));
+        assert_eq!(item.underlying_symbol.as_deref(), Some("/ZCZ23"));
+        assert_eq!(item.strike_price, Some(dec!(565.0)));
+        assert_eq!(item.contract_type.as_deref(), Some("C"));
+    }
+
+    #[test]
+    fn parses_level_one_forex_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_FOREX",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "EUR/USD",
+                    "delayed": false,
+                    "1": 1.0825, "2": 1.0826, "3": 1.08255,
+                    "4": 1000000, "5": 1500000,
+                    "10": 1.0850, "11": 1.0810, "12": 1.0820,
+                    "14": "Euro/US Dollar",
+                    "16": 0.00055, "17": 0.0508,
+                    "19": 5,
+                    "25": true, "29": 1.08255
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneForex);
+        let DataContent::LevelOneForex(items) = &payload.content else {
+            panic!("expected LevelOneForex");
+        };
+        let eur = &items[0];
+        assert_eq!(eur.key, "EUR/USD");
+        assert_eq!(eur.bid_price, Some(dec!(1.0825)));
+        assert_eq!(eur.ask_price, Some(dec!(1.0826)));
+        assert_eq!(eur.last_price, Some(dec!(1.08255)));
+        assert_eq!(eur.bid_size, Some(1_000_000));
+        assert_eq!(eur.ask_size, Some(1_500_000));
+        assert_eq!(eur.description.as_deref(), Some("Euro/US Dollar"));
+        assert_eq!(eur.percent_change, Some(dec!(0.0508)));
+        assert_eq!(eur.digits, Some(5));
+        assert_eq!(eur.is_tradable, Some(true));
+        assert_eq!(eur.mark, Some(dec!(1.08255)));
     }
 
     #[test]
