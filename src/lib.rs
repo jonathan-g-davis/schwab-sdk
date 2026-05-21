@@ -11,6 +11,6 @@ pub mod websocket;
 pub use token_provider::TokenProvider;
 
 pub use error::{Error, Result};
-pub use model::{AccountNumber, AuthToken, CustomerId};
+pub use model::{AccountHash, AccountNumber, AuthToken, CustomerId};
 pub use rest::SchwabClient;
 pub use streamer::SchwabStreamer;

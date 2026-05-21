@@ -7,9 +7,10 @@
 
 use http::Uri;
 
+use crate::api::accounts::{Account, AccountNumberHash};
 use crate::api::user_preferences::UserPreferences;
 use crate::error::{Error, Result, map_response_to_error};
-use crate::model::AuthToken;
+use crate::model::{AccountHash, AuthToken};
 use crate::{SchwabStreamer, websocket};
 
 #[derive(Debug, Clone)]
@@ -40,6 +41,77 @@ impl SchwabClient {
             .await?;
         if response.status().is_success() {
             Ok(response.json::<UserPreferences>().await?)
+        } else {
+            Err(map_response_to_error(response).await)
+        }
+    }
+
+    /// `GET /accounts/accountNumbers` - plain-account-number to encrypted-hash
+    /// mapping. The hash is what subsequent endpoints require in the
+    /// `{accountNumber}` URL path segment.
+    pub async fn get_account_numbers(&self) -> Result<Vec<AccountNumberHash>> {
+        let url = format!("{}/accounts/accountNumbers", self.base_url);
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(self.auth_token.expose_secret())
+            .send()
+            .await?;
+        if response.status().is_success() {
+            Ok(response.json::<Vec<AccountNumberHash>>().await?)
+        } else {
+            Err(map_response_to_error(response).await)
+        }
+    }
+
+    /// `GET /accounts` - balances, optionally with positions, across every
+    /// linked account.
+    pub async fn get_accounts(&self, include_positions: bool) -> Result<Vec<Account>> {
+        let url = if include_positions {
+            format!("{}/accounts?fields=positions", self.base_url)
+        } else {
+            format!("{}/accounts", self.base_url)
+        };
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(self.auth_token.expose_secret())
+            .send()
+            .await?;
+        if response.status().is_success() {
+            Ok(response.json::<Vec<Account>>().await?)
+        } else {
+            Err(map_response_to_error(response).await)
+        }
+    }
+
+    /// `GET /accounts/{accountNumber}` - balances for a single account,
+    /// optionally with positions. `account_hash` is the encrypted value
+    /// returned by [`Self::get_account_numbers`], never the plain account
+    /// number.
+    pub async fn get_account(
+        &self,
+        account_hash: &AccountHash,
+        include_positions: bool,
+    ) -> Result<Account> {
+        let base = format!(
+            "{}/accounts/{}",
+            self.base_url,
+            account_hash.expose_secret()
+        );
+        let url = if include_positions {
+            format!("{base}?fields=positions")
+        } else {
+            base
+        };
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(self.auth_token.expose_secret())
+            .send()
+            .await?;
+        if response.status().is_success() {
+            Ok(response.json::<Account>().await?)
         } else {
             Err(map_response_to_error(response).await)
         }
