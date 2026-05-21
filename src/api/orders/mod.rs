@@ -9,6 +9,13 @@
 //! - `GET /orders` - same shape, across every linked account. Date range
 //!   is capped at 60 days.
 //! - `POST /accounts/{accountNumber}/orders` - place an order.
+//! - `PUT /accounts/{accountNumber}/orders/{orderId}` - replace an order.
+//!   Schwab cancels the existing order and creates a new one; the new
+//!   `orderId` is returned via the `Location` header.
+//! - `DELETE /accounts/{accountNumber}/orders/{orderId}` - cancel an order.
+//! - `POST /accounts/{accountNumber}/previewOrder` - preview an order
+//!   without placing it. Returns Schwab's projected commissions, fees,
+//!   buying-power impact, and validation alerts / rejects.
 //!
 //! `{accountNumber}` is the encrypted [`AccountHash`], not the plain
 //! account number. `orderId` is the Schwab-assigned `int64` returned in
@@ -21,6 +28,8 @@
 //! - [`response`] - the [`Order`] response struct and its nested types.
 //! - [`request`] - the [`OrderRequest`] body and the typestate builder
 //!   ([`OrderRequest::single`]).
+//! - [`preview`] - the [`PreviewOrder`] response shape returned by
+//!   [`Orders::preview`].
 //!
 //! ## Idempotency
 //!
@@ -33,10 +42,16 @@
 //! quantity.
 
 pub mod enums;
+pub mod preview;
 pub mod request;
 pub mod response;
 
 pub use enums::*;
+pub use preview::{
+    AdvancedOrderType, AmountIndicator, ApiRuleAction, Commission, CommissionAndFee, CommissionLeg,
+    CommissionValue, FeeLeg, FeeValue, Fees, OrderBalance, OrderLeg, OrderStrategy,
+    OrderValidationDetail, OrderValidationResult, PreviewOrder, SettlementInstruction,
+};
 pub use request::{
     AcceptsLeg, NeedsLeg, NeedsType, OrderInstrumentRequest, OrderLegRequest, OrderRequest, Ready,
     SingleOrderBuilder,
@@ -95,6 +110,51 @@ impl<'a, 'b> Orders<'a, 'b> {
             .json(order);
         let response = self.client.execute(request).await?;
         parse_order_id_from_location(&response)
+    }
+
+    /// `PUT /accounts/{accountNumber}/orders/{orderId}` - replace an order.
+    ///
+    /// Schwab cancels `order_id` and creates a brand-new order from the
+    /// supplied [`OrderRequest`]; the returned `i64` is the **new** order's
+    /// id, parsed from the response `Location` header. The original
+    /// `order_id` is no longer valid after a successful replace.
+    pub async fn replace(&self, order_id: i64, order: &OrderRequest) -> Result<i64> {
+        let hash = self.account_hash.expose_secret();
+        let request = self
+            .client
+            .put(&format!("/accounts/{hash}/orders/{order_id}"))
+            .json(order);
+        let response = self.client.execute(request).await?;
+        parse_order_id_from_location(&response)
+    }
+
+    /// `DELETE /accounts/{accountNumber}/orders/{orderId}` - cancel an
+    /// order. Schwab returns 200 with an empty body on success; this
+    /// method discards the response and returns `Ok(())`. Inspecting the
+    /// order's terminal state after cancel is the caller's responsibility
+    /// (typically by calling [`Self::get`]).
+    pub async fn cancel(&self, order_id: i64) -> Result<()> {
+        let hash = self.account_hash.expose_secret();
+        let request = self
+            .client
+            .delete(&format!("/accounts/{hash}/orders/{order_id}"));
+        self.client.execute(request).await?;
+        Ok(())
+    }
+
+    /// `POST /accounts/{accountNumber}/previewOrder` - preview an order
+    /// without submitting it. Returns Schwab's projected commissions,
+    /// fees, buying-power impact, and validation result (which may
+    /// include `rejects` even though the response status is 200; callers
+    /// should inspect [`PreviewOrder::order_validation_result`] before
+    /// treating the preview as approval).
+    pub async fn preview(&self, order: &OrderRequest) -> Result<PreviewOrder> {
+        let hash = self.account_hash.expose_secret();
+        let request = self
+            .client
+            .post(&format!("/accounts/{hash}/previewOrder"))
+            .json(order);
+        self.client.execute_json(request).await
     }
 
     /// Begin a `GET /accounts/{accountNumber}/orders` request.
