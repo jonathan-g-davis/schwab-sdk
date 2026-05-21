@@ -104,6 +104,27 @@ impl SchwabClient {
             .bearer_auth(self.auth_token.expose_secret())
     }
 
+    /// Crate-private: build a POST request with bearer auth attached.
+    /// Builders chain `.json(&body)` and other reqwest methods on it.
+    pub(crate) fn post(&self, path: &str) -> RequestBuilder {
+        self.client
+            .post(format!("{}{}", self.base_url, path))
+            .bearer_auth(self.auth_token.expose_secret())
+    }
+
+    /// Crate-private: send a prepared [`RequestBuilder`] and return the
+    /// raw [`reqwest::Response`] on 2xx. Non-2xx maps to an [`Error`] via
+    /// [`map_response_to_error`]. Use this when the caller needs to inspect
+    /// response headers (e.g. parsing the `Location` header after a 201).
+    pub(crate) async fn execute(&self, request: RequestBuilder) -> Result<reqwest::Response> {
+        let response = request.send().await?;
+        if response.status().is_success() {
+            Ok(response)
+        } else {
+            Err(map_response_to_error(response).await)
+        }
+    }
+
     /// Crate-private: send a prepared [`RequestBuilder`] and decode the
     /// JSON body into `T` on 2xx, or map the response to an [`Error`] via
     /// [`map_response_to_error`].
@@ -111,12 +132,8 @@ impl SchwabClient {
         &self,
         request: RequestBuilder,
     ) -> Result<T> {
-        let response = request.send().await?;
-        if response.status().is_success() {
-            Ok(response.json::<T>().await?)
-        } else {
-            Err(map_response_to_error(response).await)
-        }
+        let response = self.execute(request).await?;
+        Ok(response.json::<T>().await?)
     }
 
     /// Convenience: GET + decode for endpoints that take no query

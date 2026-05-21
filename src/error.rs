@@ -52,6 +52,14 @@ pub enum Error {
     MissingPreference(&'static str),
     #[error("invalid uri: {0}")]
     InvalidUri(String),
+    /// Schwab returned 201 from a place / replace order endpoint without
+    /// a `Location` header, so the new order's id is unrecoverable.
+    #[error("response missing Location header")]
+    MissingLocationHeader,
+    /// The `Location` header was present but did not parse into the
+    /// expected `.../orders/{orderId}` shape.
+    #[error("invalid Location header: {0}")]
+    InvalidLocationHeader(String),
 }
 
 impl Error {
@@ -77,7 +85,9 @@ impl Error {
             | Error::Decode { .. }
             | Error::Build(_)
             | Error::MissingPreference(_)
-            | Error::InvalidUri(_) => false,
+            | Error::InvalidUri(_)
+            | Error::MissingLocationHeader
+            | Error::InvalidLocationHeader(_) => false,
         }
     }
 
