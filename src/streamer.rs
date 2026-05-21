@@ -1,15 +1,15 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::error::{Error, Result};
+use crate::model::{AuthToken, CustomerId};
+use crate::websocket::WebSocket;
 use derive_builder::Builder;
 use fastwebsockets::FragmentCollectorRead;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 pub use subscription::Command as SubscriptionCommand;
 use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
-use crate::error::{Error, Result};
-use crate::model::{AuthToken, CustomerId};
-use crate::websocket::WebSocket;
 
 pub mod account_activity;
 pub mod admin;
@@ -24,8 +24,12 @@ pub mod subscription_tracker;
 pub use events::{ConnectionEvent, DisconnectReason};
 pub use subscription_tracker::SubscriptionTracker;
 
-type ReadHalf = fastwebsockets::FragmentCollectorRead<tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
-type WriteHalf = fastwebsockets::WebSocketWrite<tokio::io::WriteHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
+type ReadHalf = fastwebsockets::FragmentCollectorRead<
+    tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>,
+>;
+type WriteHalf = fastwebsockets::WebSocketWrite<
+    tokio::io::WriteHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>,
+>;
 
 pub struct SchwabStreamerReadHalf {
     read_half: ReadHalf,
@@ -40,10 +44,9 @@ impl SchwabStreamerReadHalf {
             let frame = match self.read_half.read_frame(&mut send_fn).await {
                 Ok(f) => f,
                 Err(e) => {
-                    self.events_tx
-                        .send_replace(ConnectionEvent::Disconnected(
-                            DisconnectReason::Transport(e.to_string()),
-                        ));
+                    self.events_tx.send_replace(ConnectionEvent::Disconnected(
+                        DisconnectReason::Transport(e.to_string()),
+                    ));
                     return Err(e.into());
                 }
             };
@@ -52,10 +55,9 @@ impl SchwabStreamerReadHalf {
                 {
                     Ok(r) => r,
                     Err(e) => {
-                        self.events_tx
-                            .send_replace(ConnectionEvent::StreamError {
-                                message: e.to_string(),
-                            });
+                        self.events_tx.send_replace(ConnectionEvent::StreamError {
+                            message: e.to_string(),
+                        });
                         return Err(Error::Decode {
                             context: "streamer response frame".to_string(),
                             reason: e.to_string(),
@@ -84,8 +86,7 @@ fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &Stre
         return;
     };
     for r in responses {
-        let is_login =
-            r.service == Service::Admin && r.command == StreamerCommand::Login;
+        let is_login = r.service == Service::Admin && r.command == StreamerCommand::Login;
         match r.content.code {
             ResponseCode::Ok if is_login => {
                 events_tx.send_replace(ConnectionEvent::LoggedIn);
@@ -152,9 +153,9 @@ impl SchwabStreamerWriteHalf {
             reason: e.to_string(),
         })?;
         self.sender
-            .send(fastwebsockets::Frame::text(
-                fastwebsockets::Payload::Owned(serialized.into()),
-            ))
+            .send(fastwebsockets::Frame::text(fastwebsockets::Payload::Owned(
+                serialized.into(),
+            )))
             .await
             .map_err(|_| Error::ChannelClosed)?;
         Ok(())
@@ -299,10 +300,9 @@ impl SchwabStreamer {
             let frame = match self.websocket.read_frame().await {
                 Ok(f) => f,
                 Err(e) => {
-                    self.events_tx
-                        .send_replace(ConnectionEvent::Disconnected(
-                            DisconnectReason::Transport(e.to_string()),
-                        ));
+                    self.events_tx.send_replace(ConnectionEvent::Disconnected(
+                        DisconnectReason::Transport(e.to_string()),
+                    ));
                     return Err(e.into());
                 }
             };
@@ -311,10 +311,9 @@ impl SchwabStreamer {
                 {
                     Ok(r) => r,
                     Err(e) => {
-                        self.events_tx
-                            .send_replace(ConnectionEvent::StreamError {
-                                message: e.to_string(),
-                            });
+                        self.events_tx.send_replace(ConnectionEvent::StreamError {
+                            message: e.to_string(),
+                        });
                         return Err(Error::Decode {
                             context: "streamer response frame".to_string(),
                             reason: e.to_string(),
@@ -372,8 +371,8 @@ impl StreamerRequest {
         subscription::SubscriptionBuilder::default()
     }
 
-    pub fn futures_options()
-    -> subscription::SubscriptionBuilder<level_one::futures_options::Field> {
+    pub fn futures_options() -> subscription::SubscriptionBuilder<level_one::futures_options::Field>
+    {
         subscription::SubscriptionBuilder::default()
     }
 
@@ -1243,7 +1242,10 @@ mod parser_tests {
 
         assert_eq!(msft.ask_side_levels.len(), 1);
         assert_eq!(msft.ask_side_levels[0].price, dec!(425.15));
-        assert_eq!(msft.ask_side_levels[0].market_makers[0].market_maker_id, "MMD");
+        assert_eq!(
+            msft.ask_side_levels[0].market_makers[0].market_maker_id,
+            "MMD"
+        );
     }
 
     #[test]
@@ -1289,11 +1291,17 @@ mod parser_tests {
         assert_eq!(opt.bid_side_levels.len(), 1);
         assert_eq!(opt.bid_side_levels[0].price, dec!(5.10));
         assert_eq!(opt.bid_side_levels[0].aggregate_size, 12);
-        assert_eq!(opt.bid_side_levels[0].market_makers[0].market_maker_id, "MMX");
+        assert_eq!(
+            opt.bid_side_levels[0].market_makers[0].market_maker_id,
+            "MMX"
+        );
 
         assert_eq!(opt.ask_side_levels.len(), 1);
         assert_eq!(opt.ask_side_levels[0].price, dec!(5.20));
-        assert_eq!(opt.ask_side_levels[0].market_makers[0].market_maker_id, "MMY");
+        assert_eq!(
+            opt.ask_side_levels[0].market_makers[0].market_maker_id,
+            "MMY"
+        );
     }
 
     #[test]

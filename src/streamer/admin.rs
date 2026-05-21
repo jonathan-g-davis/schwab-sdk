@@ -16,8 +16,7 @@ pub struct Login {
 
 impl From<Login> for StreamerRequest {
     fn from(login: Login) -> Self {
-        let parameters =
-            serde_json::to_value(login).expect("Login serialization is infallible");
+        let parameters = serde_json::to_value(login).expect("Login serialization is infallible");
         StreamerRequest {
             service: Service::Admin,
             command: StreamerCommand::Login,

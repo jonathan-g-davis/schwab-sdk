@@ -109,7 +109,10 @@ mod tests {
 
     #[test]
     fn snake_case_field_names_round_trip() {
-        assert_eq!(Field::MarketSnapshotTime.to_string(), "market_snapshot_time");
+        assert_eq!(
+            Field::MarketSnapshotTime.to_string(),
+            "market_snapshot_time"
+        );
         assert_eq!(Field::BidSideLevels.to_string(), "bid_side_levels");
         assert_eq!(Field::AskSideLevels.to_string(), "ask_side_levels");
     }
