@@ -1,0 +1,34 @@
+//! Schwab Market Data API.
+//!
+//! Reached through [`SchwabClient::market_data`](crate::SchwabClient::market_data).
+//! All endpoints in this family hit a different base URL than the Trader
+//! API ([`crate::rest::MARKET_DATA_BASE_URL`] vs
+//! [`crate::rest::TRADER_BASE_URL`]).
+
+pub mod quotes;
+
+pub use quotes::{
+    AssetMainType, AssetSubType, EquityQuote, ExtendedMarket, FundStrategy, Fundamental,
+    GetQuoteBuilder, ListQuotesBuilder, QuoteEntry, QuoteEquity, QuoteError, QuoteField,
+    QuoteResponse, QuoteType, Quotes, ReferenceEquity, RegularMarket,
+};
+
+use crate::rest::SchwabClient;
+
+/// Accessor for the Market Data API endpoint families. Construct via
+/// [`SchwabClient::market_data`](crate::SchwabClient::market_data).
+pub struct MarketData<'a> {
+    client: &'a SchwabClient,
+}
+
+impl<'a> MarketData<'a> {
+    pub(crate) fn new(client: &'a SchwabClient) -> Self {
+        Self { client }
+    }
+
+    /// Accessor for `/quotes` and `/{symbol}/quotes` - snapshot quotes
+    /// for one or more symbols across every supported asset class.
+    pub fn quotes(&self) -> Quotes<'a> {
+        Quotes::new(self.client)
+    }
+}

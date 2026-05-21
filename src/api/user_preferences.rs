@@ -24,7 +24,7 @@ impl<'a> UserPreferences<'a> {
 
     /// `GET /userPreference` - returns the caller's preferences.
     pub async fn get(&self) -> Result<UserPreference> {
-        self.client.get_json("/userPreference").await
+        self.client.trader_http().get_json("/userPreference").await
     }
 }
 
