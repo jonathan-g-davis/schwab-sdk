@@ -69,7 +69,10 @@ pub struct MarketMaker {
     pub quote_time: u64,
 }
 
-pub(crate) fn decode_batch(remapped: serde_json::Value, service_label: &str) -> Result<Vec<Content>> {
+pub(crate) fn decode_batch(
+    remapped: serde_json::Value,
+    service_label: &str,
+) -> Result<Vec<Content>> {
     serde_json::from_value(remapped).map_err(|e| Error::Decode {
         context: format!("{service_label} content"),
         reason: e.to_string(),

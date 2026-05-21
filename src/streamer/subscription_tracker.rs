@@ -62,8 +62,10 @@ impl SubscriptionTracker {
 
         match request.command {
             StreamerCommand::Subs => {
-                self.state
-                    .insert(request.service.clone(), ServiceSubscription { keys, fields });
+                self.state.insert(
+                    request.service.clone(),
+                    ServiceSubscription { keys, fields },
+                );
             }
             StreamerCommand::Add => {
                 let entry = self.state.entry(request.service.clone()).or_default();
@@ -100,12 +102,7 @@ impl SubscriptionTracker {
             if sub.keys.is_empty() {
                 continue;
             }
-            let keys_csv = sub
-                .keys
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(",");
+            let keys_csv = sub.keys.iter().cloned().collect::<Vec<_>>().join(",");
             let fields_csv = sub
                 .fields
                 .iter()
@@ -265,10 +262,7 @@ mod tests {
     #[test]
     fn unsubs_removes_keys_and_drops_empty_services() {
         let mut t = SubscriptionTracker::new();
-        t.observe(&equities_subs(
-            &["AAPL", "MSFT"],
-            &[EquitiesField::Symbol],
-        ));
+        t.observe(&equities_subs(&["AAPL", "MSFT"], &[EquitiesField::Symbol]));
         t.observe(&equities_unsubs(&["AAPL"]));
         assert_eq!(keys_csv(&t.active_requests()[0]), "MSFT");
 

@@ -196,12 +196,7 @@ mod tests {
     fn fields_serialize_as_numeric_index() {
         let params = SubscriptionParameters {
             keys: vec!["EUR/USD".to_string()],
-            fields: vec![
-                Field::Symbol,
-                Field::BidPrice,
-                Field::AskPrice,
-                Field::Mark,
-            ],
+            fields: vec![Field::Symbol, Field::BidPrice, Field::AskPrice, Field::Mark],
         };
         let serialized = serde_json::to_string(&params).unwrap();
         assert_eq!(serialized, r#"{"keys":"EUR/USD","fields":"0,1,2,29"}"#);
