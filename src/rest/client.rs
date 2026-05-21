@@ -1,16 +1,19 @@
 //! REST client core.
 //!
-//! [`SchwabClient`] is a thin reqwest wrapper that owns the bearer
-//! credential and the base URL. Endpoint logic lives in [`crate::api`];
-//! this module knows about HTTP, JSON, and Schwab's error response shape,
-//! and nothing else.
+//! [`SchwabClient`] owns the bearer credential and the base URL and exposes
+//! namespace accessors (e.g. [`SchwabClient::accounts`]) into the typed
+//! endpoint builders in [`crate::api`]. The endpoint modules themselves
+//! own the URL paths, request shapes, response shapes, and any optional
+//! parameters; this module only provides the transport primitive
+//! ([`SchwabClient::get_json`]) the builders dispatch through.
 
 use http::Uri;
+use serde::de::DeserializeOwned;
 
-use crate::api::accounts::{Account, AccountNumberHash};
+use crate::api::accounts::Accounts;
 use crate::api::user_preferences::UserPreferences;
 use crate::error::{Error, Result, map_response_to_error};
-use crate::model::{AccountHash, AuthToken};
+use crate::model::AuthToken;
 use crate::{SchwabStreamer, websocket};
 
 #[derive(Debug, Clone)]
@@ -29,96 +32,20 @@ impl SchwabClient {
         }
     }
 
-    pub async fn get_user_preferences(&self) -> Result<UserPreferences> {
-        let url = format!("{}/userPreference", self.base_url);
-        // `auth_token` reveal is scoped to header construction; do not store
-        // or pass the raw string elsewhere.
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(self.auth_token.expose_secret())
-            .send()
-            .await?;
-        if response.status().is_success() {
-            Ok(response.json::<UserPreferences>().await?)
-        } else {
-            Err(map_response_to_error(response).await)
-        }
+    /// Accessor for the `/accounts*` endpoint family.
+    pub fn accounts(&self) -> Accounts<'_> {
+        Accounts::new(self)
     }
 
-    /// `GET /accounts/accountNumbers` - plain-account-number to encrypted-hash
-    /// mapping. The hash is what subsequent endpoints require in the
-    /// `{accountNumber}` URL path segment.
-    pub async fn get_account_numbers(&self) -> Result<Vec<AccountNumberHash>> {
-        let url = format!("{}/accounts/accountNumbers", self.base_url);
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(self.auth_token.expose_secret())
-            .send()
-            .await?;
-        if response.status().is_success() {
-            Ok(response.json::<Vec<AccountNumberHash>>().await?)
-        } else {
-            Err(map_response_to_error(response).await)
-        }
+    /// Accessor for `/userPreference`.
+    pub fn user_preferences(&self) -> UserPreferences<'_> {
+        UserPreferences::new(self)
     }
 
-    /// `GET /accounts` - balances, optionally with positions, across every
-    /// linked account.
-    pub async fn get_accounts(&self, include_positions: bool) -> Result<Vec<Account>> {
-        let url = if include_positions {
-            format!("{}/accounts?fields=positions", self.base_url)
-        } else {
-            format!("{}/accounts", self.base_url)
-        };
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(self.auth_token.expose_secret())
-            .send()
-            .await?;
-        if response.status().is_success() {
-            Ok(response.json::<Vec<Account>>().await?)
-        } else {
-            Err(map_response_to_error(response).await)
-        }
-    }
-
-    /// `GET /accounts/{accountNumber}` - balances for a single account,
-    /// optionally with positions. `account_hash` is the encrypted value
-    /// returned by [`Self::get_account_numbers`], never the plain account
-    /// number.
-    pub async fn get_account(
-        &self,
-        account_hash: &AccountHash,
-        include_positions: bool,
-    ) -> Result<Account> {
-        let base = format!(
-            "{}/accounts/{}",
-            self.base_url,
-            account_hash.expose_secret()
-        );
-        let url = if include_positions {
-            format!("{base}?fields=positions")
-        } else {
-            base
-        };
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(self.auth_token.expose_secret())
-            .send()
-            .await?;
-        if response.status().is_success() {
-            Ok(response.json::<Account>().await?)
-        } else {
-            Err(map_response_to_error(response).await)
-        }
-    }
-
+    /// Connect to the Schwab streamer using the connection details from
+    /// `/userPreference`. Returns a ready-to-login [`SchwabStreamer`].
     pub async fn streamer(&self) -> Result<SchwabStreamer> {
-        let user_preferences = self.get_user_preferences().await?;
+        let user_preferences = self.user_preferences().get().await?;
         let streamer_info = user_preferences
             .streamer_info
             .into_iter()
@@ -137,5 +64,28 @@ impl SchwabClient {
             .function_id(streamer_info.schwab_client_function_id)
             .build()
             .map_err(|e| Error::Build(e.to_string()))
+    }
+
+    /// Crate-private transport: GET `{base_url}{path}` with bearer auth,
+    /// decode the JSON body into `T` on 2xx, or map the response to an
+    /// [`Error`] via [`map_response_to_error`].
+    ///
+    /// `path` is appended verbatim, so callers are responsible for any
+    /// query-string formatting and for URL-encoding path segments.
+    pub(crate) async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
+        let url = format!("{}{}", self.base_url, path);
+        // Auth-token reveal is scoped to header construction; the exposed
+        // string does not leave this stack frame.
+        let response = self
+            .client
+            .get(url)
+            .bearer_auth(self.auth_token.expose_secret())
+            .send()
+            .await?;
+        if response.status().is_success() {
+            Ok(response.json::<T>().await?)
+        } else {
+            Err(map_response_to_error(response).await)
+        }
     }
 }

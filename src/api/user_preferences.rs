@@ -1,13 +1,37 @@
 //! `GET /userPreference` - Schwab Trader API.
 //!
 //! Returns the caller's accounts, streamer connection info, and market-data
-//! permissions. The `streamerInfo` block is what's passed to
+//! permissions. The `streamerInfo` block is what is passed to
 //! [`crate::SchwabStreamer`] at connection time.
+//!
+//! Reached through
+//! [`SchwabClient::user_preferences`](crate::SchwabClient::user_preferences).
 
+use crate::error::Result;
 use crate::model::{AccountNumber, CustomerId};
+use crate::rest::SchwabClient;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct UserPreferences {
+/// Accessor for `/userPreference`. Construct via
+/// [`SchwabClient::user_preferences`].
+pub struct UserPreferences<'a> {
+    client: &'a SchwabClient,
+}
+
+impl<'a> UserPreferences<'a> {
+    pub(crate) fn new(client: &'a SchwabClient) -> Self {
+        Self { client }
+    }
+
+    /// `GET /userPreference` - returns the caller's preferences.
+    pub async fn get(&self) -> Result<UserPreference> {
+        self.client.get_json("/userPreference").await
+    }
+}
+
+/// `GET /userPreference` response body. Schwab's OpenAPI schema names this
+/// `UserPreference` (singular), even though most of its fields are arrays.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct UserPreference {
     #[serde(rename = "accounts")]
     pub accounts: Vec<UserPreferenceAccount>,
     #[serde(rename = "streamerInfo")]
@@ -16,7 +40,7 @@ pub struct UserPreferences {
     pub offers: Vec<Offer>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct UserPreferenceAccount {
     #[serde(rename = "accountNumber")]
     pub account_number: AccountNumber,
@@ -34,7 +58,7 @@ pub struct UserPreferenceAccount {
     pub auto_position_effect: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct StreamerInfo {
     #[serde(rename = "streamerSocketUrl")]
     pub streamer_socket_url: String,
@@ -48,7 +72,7 @@ pub struct StreamerInfo {
     pub schwab_client_function_id: String,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct Offer {
     #[serde(rename = "level2Permissions")]
     pub level2_permissions: bool,
