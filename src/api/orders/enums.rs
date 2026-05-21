@@ -2,49 +2,11 @@
 //!
 //! Every variant has a `Unknown(String)` catch-all so wire values added by
 //! Schwab after this crate was published deserialize cleanly. The
-//! [`string_enum!`] macro is the single declaration site for the boilerplate
-//! (`Display`, `EnumString`, `Serialize`/`Deserialize` via `String`,
-//! `From<X> for String`, `From<String> for X`).
+//! `string_enum!` macro lives in [`crate::api::macros`].
 
 use serde::{Deserialize, Serialize};
 
-/// Declare a string-enum with a `Unknown(String)` catch-all so wire values
-/// added after this crate was published deserialize cleanly.
-macro_rules! string_enum {
-    (
-        $(#[$meta:meta])*
-        $name:ident {
-            $( $(#[$variant_meta:meta])* $variant:ident = $wire:literal ),* $(,)?
-        }
-    ) => {
-        $(#[$meta])*
-        #[derive(
-            Debug, Clone, PartialEq, Eq, Hash,
-            strum::Display, strum::EnumString,
-            Serialize, Deserialize,
-        )]
-        #[serde(into = "String", from = "String")]
-        pub enum $name {
-            $(
-                $(#[$variant_meta])*
-                #[strum(serialize = $wire)]
-                $variant,
-            )*
-            #[strum(default)]
-            Unknown(String),
-        }
-
-        impl From<$name> for String {
-            fn from(v: $name) -> Self { v.to_string() }
-        }
-
-        impl From<String> for $name {
-            fn from(v: String) -> Self {
-                v.parse().expect(concat!(stringify!($name), " FromStr is infallible (strum default)"))
-            }
-        }
-    };
-}
+use crate::api::macros::string_enum;
 
 string_enum! {
     Session {

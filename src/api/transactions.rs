@@ -21,6 +21,7 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
 
+use crate::api::macros::string_enum;
 use crate::error::Result;
 use crate::model::{AccountHash, AccountNumber};
 use crate::rest::SchwabClient;
@@ -288,307 +289,117 @@ pub struct TransactionApiOptionDeliverable {
 
 // --- Enums ---
 
-/// `types` query parameter for [`Transactions::list`] and the `type` field
-/// on a [`Transaction`].
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum TransactionType {
-    #[strum(serialize = "TRADE")]
-    Trade,
-    #[strum(serialize = "RECEIVE_AND_DELIVER")]
-    ReceiveAndDeliver,
-    #[strum(serialize = "DIVIDEND_OR_INTEREST")]
-    DividendOrInterest,
-    #[strum(serialize = "ACH_RECEIPT")]
-    AchReceipt,
-    #[strum(serialize = "ACH_DISBURSEMENT")]
-    AchDisbursement,
-    #[strum(serialize = "CASH_RECEIPT")]
-    CashReceipt,
-    #[strum(serialize = "CASH_DISBURSEMENT")]
-    CashDisbursement,
-    #[strum(serialize = "ELECTRONIC_FUND")]
-    ElectronicFund,
-    #[strum(serialize = "WIRE_OUT")]
-    WireOut,
-    #[strum(serialize = "WIRE_IN")]
-    WireIn,
-    #[strum(serialize = "JOURNAL")]
-    Journal,
-    #[strum(serialize = "MEMORANDUM")]
-    Memorandum,
-    #[strum(serialize = "MARGIN_CALL")]
-    MarginCall,
-    #[strum(serialize = "MONEY_MARKET")]
-    MoneyMarket,
-    #[strum(serialize = "SMA_ADJUSTMENT")]
-    SmaAdjustment,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<TransactionType> for String {
-    fn from(value: TransactionType) -> Self {
-        value.to_string()
+string_enum! {
+    /// `types` query parameter for [`Transactions::list`] and the `type`
+    /// field on a [`Transaction`].
+    TransactionType {
+        Trade = "TRADE",
+        ReceiveAndDeliver = "RECEIVE_AND_DELIVER",
+        DividendOrInterest = "DIVIDEND_OR_INTEREST",
+        AchReceipt = "ACH_RECEIPT",
+        AchDisbursement = "ACH_DISBURSEMENT",
+        CashReceipt = "CASH_RECEIPT",
+        CashDisbursement = "CASH_DISBURSEMENT",
+        ElectronicFund = "ELECTRONIC_FUND",
+        WireOut = "WIRE_OUT",
+        WireIn = "WIRE_IN",
+        Journal = "JOURNAL",
+        Memorandum = "MEMORANDUM",
+        MarginCall = "MARGIN_CALL",
+        MoneyMarket = "MONEY_MARKET",
+        SmaAdjustment = "SMA_ADJUSTMENT",
     }
 }
 
-impl From<String> for TransactionType {
-    fn from(value: String) -> Self {
-        value
-            .parse()
-            .expect("TransactionType FromStr is infallible (strum default)")
+string_enum! {
+    ActivityType {
+        ActivityCorrection = "ACTIVITY_CORRECTION",
+        Execution = "EXECUTION",
+        OrderAction = "ORDER_ACTION",
+        Transfer = "TRANSFER",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum ActivityType {
-    #[strum(serialize = "ACTIVITY_CORRECTION")]
-    ActivityCorrection,
-    #[strum(serialize = "EXECUTION")]
-    Execution,
-    #[strum(serialize = "ORDER_ACTION")]
-    OrderAction,
-    #[strum(serialize = "TRANSFER")]
-    Transfer,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<ActivityType> for String {
-    fn from(v: ActivityType) -> Self {
-        v.to_string()
+string_enum! {
+    TransactionStatus {
+        Valid = "VALID",
+        Invalid = "INVALID",
+        Pending = "PENDING",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-impl From<String> for ActivityType {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("ActivityType FromStr is infallible (strum default)")
+string_enum! {
+    SubAccount {
+        Cash = "CASH",
+        Margin = "MARGIN",
+        Short = "SHORT",
+        Div = "DIV",
+        Income = "INCOME",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum TransactionStatus {
-    #[strum(serialize = "VALID")]
-    Valid,
-    #[strum(serialize = "INVALID")]
-    Invalid,
-    #[strum(serialize = "PENDING")]
-    Pending,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<TransactionStatus> for String {
-    fn from(v: TransactionStatus) -> Self {
-        v.to_string()
+string_enum! {
+    UserType {
+        Advisor = "ADVISOR_USER",
+        Broker = "BROKER_USER",
+        Client = "CLIENT_USER",
+        System = "SYSTEM_USER",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-impl From<String> for TransactionStatus {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("TransactionStatus FromStr is infallible (strum default)")
+string_enum! {
+    FeeType {
+        Commission = "COMMISSION",
+        SecFee = "SEC_FEE",
+        StrFee = "STR_FEE",
+        RFee = "R_FEE",
+        CdscFee = "CDSC_FEE",
+        OptRegFee = "OPT_REG_FEE",
+        AdditionalFee = "ADDITIONAL_FEE",
+        MiscellaneousFee = "MISCELLANEOUS_FEE",
+        FuturesExchangeFee = "FUTURES_EXCHANGE_FEE",
+        LowProceedsCommission = "LOW_PROCEEDS_COMMISSION",
+        BaseCharge = "BASE_CHARGE",
+        GeneralCharge = "GENERAL_CHARGE",
+        GstFee = "GST_FEE",
+        TafFee = "TAF_FEE",
+        IndexOptionFee = "INDEX_OPTION_FEE",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum SubAccount {
-    #[strum(serialize = "CASH")]
-    Cash,
-    #[strum(serialize = "MARGIN")]
-    Margin,
-    #[strum(serialize = "SHORT")]
-    Short,
-    #[strum(serialize = "DIV")]
-    Div,
-    #[strum(serialize = "INCOME")]
-    Income,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<SubAccount> for String {
-    fn from(v: SubAccount) -> Self {
-        v.to_string()
+string_enum! {
+    PositionEffect {
+        Opening = "OPENING",
+        Closing = "CLOSING",
+        Automatic = "AUTOMATIC",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
-impl From<String> for SubAccount {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("SubAccount FromStr is infallible (strum default)")
+string_enum! {
+    /// Asset-type discriminator for [`TransactionInstrument`]. The
+    /// transaction schema permits more variants than account positions
+    /// (e.g. `FUTURE`, `FOREX`), so this is a distinct enum from
+    /// [`crate::api::accounts::AssetType`]; both share the same
+    /// wire-string space and forward-compat catch-all.
+    AssetType {
+        Equity = "EQUITY",
+        Option = "OPTION",
+        Index = "INDEX",
+        MutualFund = "MUTUAL_FUND",
+        CashEquivalent = "CASH_EQUIVALENT",
+        FixedIncome = "FIXED_INCOME",
+        Currency = "CURRENCY",
+        CollectiveInvestment = "COLLECTIVE_INVESTMENT",
+        Forex = "FOREX",
+        Future = "FUTURE",
+        Product = "PRODUCT",
     }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum UserType {
-    #[strum(serialize = "ADVISOR_USER")]
-    Advisor,
-    #[strum(serialize = "BROKER_USER")]
-    Broker,
-    #[strum(serialize = "CLIENT_USER")]
-    Client,
-    #[strum(serialize = "SYSTEM_USER")]
-    System,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<UserType> for String {
-    fn from(v: UserType) -> Self {
-        v.to_string()
-    }
-}
-
-impl From<String> for UserType {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("UserType FromStr is infallible (strum default)")
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum FeeType {
-    #[strum(serialize = "COMMISSION")]
-    Commission,
-    #[strum(serialize = "SEC_FEE")]
-    SecFee,
-    #[strum(serialize = "STR_FEE")]
-    StrFee,
-    #[strum(serialize = "R_FEE")]
-    RFee,
-    #[strum(serialize = "CDSC_FEE")]
-    CdscFee,
-    #[strum(serialize = "OPT_REG_FEE")]
-    OptRegFee,
-    #[strum(serialize = "ADDITIONAL_FEE")]
-    AdditionalFee,
-    #[strum(serialize = "MISCELLANEOUS_FEE")]
-    MiscellaneousFee,
-    #[strum(serialize = "FUTURES_EXCHANGE_FEE")]
-    FuturesExchangeFee,
-    #[strum(serialize = "LOW_PROCEEDS_COMMISSION")]
-    LowProceedsCommission,
-    #[strum(serialize = "BASE_CHARGE")]
-    BaseCharge,
-    #[strum(serialize = "GENERAL_CHARGE")]
-    GeneralCharge,
-    #[strum(serialize = "GST_FEE")]
-    GstFee,
-    #[strum(serialize = "TAF_FEE")]
-    TafFee,
-    #[strum(serialize = "INDEX_OPTION_FEE")]
-    IndexOptionFee,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<FeeType> for String {
-    fn from(v: FeeType) -> Self {
-        v.to_string()
-    }
-}
-
-impl From<String> for FeeType {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("FeeType FromStr is infallible (strum default)")
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum PositionEffect {
-    #[strum(serialize = "OPENING")]
-    Opening,
-    #[strum(serialize = "CLOSING")]
-    Closing,
-    #[strum(serialize = "AUTOMATIC")]
-    Automatic,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<PositionEffect> for String {
-    fn from(v: PositionEffect) -> Self {
-        v.to_string()
-    }
-}
-
-impl From<String> for PositionEffect {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("PositionEffect FromStr is infallible (strum default)")
-    }
-}
-
-/// Asset-type discriminator for [`TransactionInstrument`]. The transaction
-/// schema permits more variants than account positions (e.g. `FUTURE`,
-/// `FOREX`), so this is a distinct enum from
-/// [`crate::api::accounts::AssetType`]; both share the same wire-string
-/// space and forward-compat catch-all.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum AssetType {
-    #[strum(serialize = "EQUITY")]
-    Equity,
-    #[strum(serialize = "OPTION")]
-    Option,
-    #[strum(serialize = "INDEX")]
-    Index,
-    #[strum(serialize = "MUTUAL_FUND")]
-    MutualFund,
-    #[strum(serialize = "CASH_EQUIVALENT")]
-    CashEquivalent,
-    #[strum(serialize = "FIXED_INCOME")]
-    FixedIncome,
-    #[strum(serialize = "CURRENCY")]
-    Currency,
-    #[strum(serialize = "COLLECTIVE_INVESTMENT")]
-    CollectiveInvestment,
-    #[strum(serialize = "FOREX")]
-    Forex,
-    #[strum(serialize = "FUTURE")]
-    Future,
-    #[strum(serialize = "PRODUCT")]
-    Product,
-    #[strum(default)]
-    Unknown(String),
 }
 
 impl Default for AssetType {
@@ -597,44 +408,11 @@ impl Default for AssetType {
     }
 }
 
-impl From<AssetType> for String {
-    fn from(v: AssetType) -> Self {
-        v.to_string()
-    }
-}
-
-impl From<String> for AssetType {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("AssetType FromStr is infallible (strum default)")
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, strum::Display, strum::EnumString, Serialize, Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-pub enum PutCall {
-    #[strum(serialize = "PUT")]
-    Put,
-    #[strum(serialize = "CALL")]
-    Call,
-    #[strum(serialize = "UNKNOWN")]
-    UnknownSchwab,
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<PutCall> for String {
-    fn from(v: PutCall) -> Self {
-        v.to_string()
-    }
-}
-
-impl From<String> for PutCall {
-    fn from(v: String) -> Self {
-        v.parse()
-            .expect("PutCall FromStr is infallible (strum default)")
+string_enum! {
+    PutCall {
+        Put = "PUT",
+        Call = "CALL",
+        UnknownSchwab = "UNKNOWN",
     }
 }
 
