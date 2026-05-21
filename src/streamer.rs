@@ -11,6 +11,7 @@ use crate::error::{Error, Result};
 use crate::model::{AuthToken, CustomerId};
 use crate::websocket::WebSocket;
 
+pub mod account_activity;
 pub mod admin;
 pub mod book;
 pub mod chart;
@@ -304,6 +305,10 @@ impl StreamerRequest {
     pub fn screener_option() -> subscription::SubscriptionBuilder<screener::option::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn account_activity() -> subscription::SubscriptionBuilder<account_activity::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -375,6 +380,7 @@ pub enum DataContent {
     ChartFutures(Vec<chart::futures::Content>),
     ScreenerEquity(Vec<screener::Content>),
     ScreenerOption(Vec<screener::Content>),
+    AccountActivity(Vec<account_activity::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -479,6 +485,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
             Ok(DataContent::ScreenerOption(screener::option::decode_batch(
                 remapped,
             )?))
+        }
+        Service::AccountActivity => {
+            let remapped = transform_keys::<account_activity::Field>(content)?;
+            Ok(DataContent::AccountActivity(
+                account_activity::Content::decode_batch(remapped)?,
+            ))
         }
         _ => Ok(DataContent::Raw(content)),
     }
@@ -1334,24 +1346,94 @@ mod parser_tests {
     }
 
     #[test]
-    fn unknown_service_falls_back_to_raw() {
-        // ACCT_ACTIVITY is not yet typed; should hit the Raw fallback.
+    fn parses_account_activity_data_into_typed_content() {
         let frame = r#"{
             "data": [{
                 "service": "ACCT_ACTIVITY",
-                "timestamp": 1,
+                "timestamp": 1714949592301,
                 "command": "SUBS",
-                "content": [{"seq":1,"key":"Account Activity","1":"acct","2":"OrderEntryRequest","3":"{}"}]
+                "content": [{
+                    "seq": 42,
+                    "key": "my-correl-id",
+                    "delayed": false,
+                    "0": "my-correl-id",
+                    "1": "12345678",
+                    "2": "OrderEntryRequest",
+                    "3": "{\"orderId\":\"ABC\",\"symbol\":\"AAPL\",\"quantity\":10}"
+                }]
             }]
         }"#;
         let StreamerResponse::Data(data) = parse(frame).unwrap() else {
             panic!("expected Data");
         };
-        match &data[0].content {
-            DataContent::Raw(v) => {
-                assert!(v.is_array(), "expected raw array, got {v:?}");
-            }
-            other => panic!("expected Raw fallback, got {other:?}"),
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::AccountActivity);
+        let DataContent::AccountActivity(items) = &payload.content else {
+            panic!("expected AccountActivity, got {:?}", payload.content);
+        };
+        let msg = &items[0];
+        assert_eq!(msg.key, "my-correl-id");
+        assert_eq!(msg.seq, Some(42));
+        assert_eq!(msg.subscription_key.as_deref(), Some("my-correl-id"));
+        assert_eq!(
+            msg.account.as_ref().map(|a| a.expose_secret().to_string()),
+            Some("12345678".to_string())
+        );
+        assert_eq!(msg.message_type.as_deref(), Some("OrderEntryRequest"));
+        assert!(
+            msg.message_data
+                .as_deref()
+                .map(|s| s.contains("AAPL"))
+                .unwrap_or(false),
+            "message_data should preserve raw payload"
+        );
+    }
+
+    #[test]
+    fn account_in_account_activity_redacts_on_debug() {
+        // Compile-time check that Account is the redacted newtype.
+        let frame = r#"{
+            "data": [{
+                "service": "ACCT_ACTIVITY",
+                "timestamp": 1,
+                "command": "SUBS",
+                "content": [{
+                    "seq": 1, "key": "k", "delayed": false,
+                    "1": "12345678"
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let DataContent::AccountActivity(items) = &data[0].content else {
+            panic!("expected AccountActivity");
+        };
+        let debug = format!("{:?}", items[0]);
+        assert!(
+            !debug.contains("12345678"),
+            "account number leaked through Debug: {debug}"
+        );
+    }
+
+    #[test]
+    fn unknown_service_string_is_a_decode_error() {
+        // Every documented Schwab service has a typed dispatcher arm and a
+        // matching `Service` variant. A service string Schwab adds later
+        // currently fails at the `Service` enum boundary. The
+        // `DataContent::Raw` variant is reserved for the day `Service` grows
+        // an `Unknown(String)` fallback.
+        let frame = r#"{
+            "data": [{
+                "service": "BOND_BOOK",
+                "timestamp": 1,
+                "command": "SUBS",
+                "content": [{"key":"AAA","1":1}]
+            }]
+        }"#;
+        match parse(frame) {
+            Err(Error::Decode { .. }) => {}
+            other => panic!("expected Decode error, got {other:?}"),
         }
     }
 
