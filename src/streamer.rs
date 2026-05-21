@@ -404,7 +404,7 @@ impl TryFrom<RawDataPayload> for DataPayload {
                 });
             }
         };
-        let content = decode_service_content(payload.service, payload.content)?;
+        let content = decode_service_content(&payload.service, payload.content)?;
         Ok(DataPayload {
             service: payload.service,
             timestamp: payload.timestamp,
@@ -414,7 +414,7 @@ impl TryFrom<RawDataPayload> for DataPayload {
     }
 }
 
-fn decode_service_content(service: Service, content: serde_json::Value) -> Result<DataContent> {
+fn decode_service_content(service: &Service, content: serde_json::Value) -> Result<DataContent> {
     match service {
         Service::LevelOneEquities => {
             let remapped = transform_keys::<level_one::equities::Field>(content)?;
@@ -492,7 +492,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
                 account_activity::Content::decode_batch(remapped)?,
             ))
         }
-        _ => Ok(DataContent::Raw(content)),
+        // ADMIN carries login/logout responses, not data; if one ever shows
+        // up here, forward it as Raw rather than failing.
+        Service::Admin => Ok(DataContent::Raw(content)),
+        // Forward-compat: any service Schwab adds later is forwarded with
+        // its raw content array. The numeric-keyed field map is preserved.
+        Service::Unknown(_) => Ok(DataContent::Raw(content)),
     }
 }
 
@@ -563,36 +568,72 @@ impl TryFrom<RawStreamerResponse> for StreamerResponse {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+/// Schwab streamer service identifier.
+///
+/// Open enum: any wire string Schwab adds later that does not match a known
+/// variant decodes into [`Service::Unknown`] with the raw identifier
+/// preserved. Consumers can still see the original name and the dispatcher
+/// routes such messages to [`DataContent::Raw`].
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    strum::Display,
+    strum::EnumString,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(into = "String", from = "String")]
 pub enum Service {
-    #[serde(rename = "ADMIN")]
+    #[strum(serialize = "ADMIN")]
     Admin,
-    #[serde(rename = "LEVELONE_EQUITIES")]
+    #[strum(serialize = "LEVELONE_EQUITIES")]
     LevelOneEquities,
-    #[serde(rename = "LEVELONE_OPTIONS")]
+    #[strum(serialize = "LEVELONE_OPTIONS")]
     LevelOneOptions,
-    #[serde(rename = "LEVELONE_FUTURES")]
+    #[strum(serialize = "LEVELONE_FUTURES")]
     LevelOneFutures,
-    #[serde(rename = "LEVELONE_FUTURES_OPTIONS")]
+    #[strum(serialize = "LEVELONE_FUTURES_OPTIONS")]
     LevelOneFuturesOptions,
-    #[serde(rename = "LEVELONE_FOREX")]
+    #[strum(serialize = "LEVELONE_FOREX")]
     LevelOneForex,
-    #[serde(rename = "NYSE_BOOK")]
+    #[strum(serialize = "NYSE_BOOK")]
     NyseBook,
-    #[serde(rename = "NASDAQ_BOOK")]
+    #[strum(serialize = "NASDAQ_BOOK")]
     NasdaqBook,
-    #[serde(rename = "OPTIONS_BOOK")]
+    #[strum(serialize = "OPTIONS_BOOK")]
     OptionsBook,
-    #[serde(rename = "CHART_EQUITY")]
+    #[strum(serialize = "CHART_EQUITY")]
     ChartEquity,
-    #[serde(rename = "CHART_FUTURES")]
+    #[strum(serialize = "CHART_FUTURES")]
     ChartFutures,
-    #[serde(rename = "SCREENER_EQUITY")]
+    #[strum(serialize = "SCREENER_EQUITY")]
     ScreenerEquity,
-    #[serde(rename = "SCREENER_OPTION")]
+    #[strum(serialize = "SCREENER_OPTION")]
     ScreenerOption,
-    #[serde(rename = "ACCT_ACTIVITY")]
+    #[strum(serialize = "ACCT_ACTIVITY")]
     AccountActivity,
+    /// A service identifier Schwab sent that this crate does not recognize.
+    /// The raw wire string is preserved so consumers can route on it.
+    #[strum(default)]
+    Unknown(String),
+}
+
+impl From<Service> for String {
+    fn from(s: Service) -> Self {
+        s.to_string()
+    }
+}
+
+impl From<String> for Service {
+    fn from(s: String) -> Self {
+        // `EnumString` with `#[strum(default)]` makes `FromStr` infallible:
+        // unrecognized strings land in `Service::Unknown(s)`.
+        s.parse()
+            .expect("Service FromStr is infallible (strum default)")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -1417,24 +1458,42 @@ mod parser_tests {
     }
 
     #[test]
-    fn unknown_service_string_is_a_decode_error() {
-        // Every documented Schwab service has a typed dispatcher arm and a
-        // matching `Service` variant. A service string Schwab adds later
-        // currently fails at the `Service` enum boundary. The
-        // `DataContent::Raw` variant is reserved for the day `Service` grows
-        // an `Unknown(String)` fallback.
+    fn unknown_service_falls_back_to_raw() {
+        // A service Schwab adds later that we have not yet typed decodes
+        // into `Service::Unknown` and dispatches to `DataContent::Raw` with
+        // the raw content array preserved.
         let frame = r#"{
             "data": [{
                 "service": "BOND_BOOK",
                 "timestamp": 1,
                 "command": "SUBS",
-                "content": [{"key":"AAA","1":1}]
+                "content": [{"key":"AAA","1":1,"2":2}]
             }]
         }"#;
-        match parse(frame) {
-            Err(Error::Decode { .. }) => {}
-            other => panic!("expected Decode error, got {other:?}"),
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        assert_eq!(
+            data[0].service,
+            Service::Unknown("BOND_BOOK".to_string()),
+            "expected Unknown(BOND_BOOK), got {:?}",
+            data[0].service
+        );
+        match &data[0].content {
+            DataContent::Raw(v) => {
+                assert!(v.is_array(), "expected raw array, got {v:?}");
+            }
+            other => panic!("expected Raw fallback, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn unknown_service_round_trips_through_serde() {
+        let svc = Service::Unknown("BOND_BOOK".to_string());
+        let json = serde_json::to_string(&svc).unwrap();
+        assert_eq!(json, r#""BOND_BOOK""#);
+        let restored: Service = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored, svc);
     }
 
     #[test]
