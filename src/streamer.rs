@@ -15,6 +15,7 @@ pub mod admin;
 pub mod book;
 pub mod chart;
 pub mod level_one;
+pub mod screener;
 pub mod subscription;
 
 type ReadHalf = fastwebsockets::FragmentCollectorRead<tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
@@ -295,6 +296,10 @@ impl StreamerRequest {
     pub fn chart_futures() -> subscription::SubscriptionBuilder<chart::futures::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn screener_equity() -> subscription::SubscriptionBuilder<screener::equity::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -364,6 +369,7 @@ pub enum DataContent {
     OptionsBook(Vec<book::Content>),
     ChartEquity(Vec<chart::equity::Content>),
     ChartFutures(Vec<chart::futures::Content>),
+    ScreenerEquity(Vec<screener::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -456,6 +462,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
             Ok(DataContent::ChartFutures(
                 chart::futures::Content::decode_batch(remapped)?,
             ))
+        }
+        Service::ScreenerEquity => {
+            let remapped = transform_keys::<screener::equity::Field>(content)?;
+            Ok(DataContent::ScreenerEquity(screener::equity::decode_batch(
+                remapped,
+            )?))
         }
         _ => Ok(DataContent::Raw(content)),
     }
@@ -1190,11 +1202,84 @@ mod parser_tests {
     }
 
     #[test]
-    fn unknown_service_falls_back_to_raw() {
-        // SCREENER_EQUITY is not yet typed; should hit the Raw fallback.
+    fn parses_screener_equity_data_into_typed_content() {
+        // Two-item ranking on NYSE volume, 5-minute window. Items carry
+        // camelCase named fields per Schwab's spec.
         let frame = r#"{
             "data": [{
                 "service": "SCREENER_EQUITY",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "NYSE_VOLUME_5",
+                    "delayed": false,
+                    "1": 1714949590000,
+                    "2": "VOLUME",
+                    "3": 5,
+                    "4": [
+                        {
+                            "description": "Apple Inc.",
+                            "lastPrice": 183.50,
+                            "marketShare": 1.25,
+                            "netChange": 0.75,
+                            "netPercentChange": 0.4106,
+                            "symbol": "AAPL",
+                            "totalVolume": 163224109,
+                            "trades": 95012,
+                            "volume": 12500000
+                        },
+                        {
+                            "description": "Microsoft Corp.",
+                            "lastPrice": 425.10,
+                            "marketShare": 0.85,
+                            "netChange": -1.20,
+                            "netPercentChange": -0.2814,
+                            "symbol": "MSFT",
+                            "totalVolume": 22500000,
+                            "trades": 41200,
+                            "volume": 7250000
+                        }
+                    ]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ScreenerEquity);
+        let DataContent::ScreenerEquity(rows) = &payload.content else {
+            panic!("expected ScreenerEquity, got {:?}", payload.content);
+        };
+        let row = &rows[0];
+        assert_eq!(row.key, "NYSE_VOLUME_5");
+        assert_eq!(row.timestamp, Some(1714949590000));
+        assert_eq!(row.sort_field.as_deref(), Some("VOLUME"));
+        assert_eq!(row.frequency, Some(5));
+        assert_eq!(row.items.len(), 2);
+
+        let aapl = &row.items[0];
+        assert_eq!(aapl.symbol.as_deref(), Some("AAPL"));
+        assert_eq!(aapl.description.as_deref(), Some("Apple Inc."));
+        assert_eq!(aapl.last_price, Some(dec!(183.50)));
+        assert_eq!(aapl.market_share, Some(dec!(1.25)));
+        assert_eq!(aapl.net_change, Some(dec!(0.75)));
+        assert_eq!(aapl.net_percent_change, Some(dec!(0.4106)));
+        assert_eq!(aapl.total_volume, Some(163224109));
+        assert_eq!(aapl.trades, Some(95012));
+        assert_eq!(aapl.volume, Some(12500000));
+
+        let msft = &row.items[1];
+        assert_eq!(msft.symbol.as_deref(), Some("MSFT"));
+        assert_eq!(msft.net_change, Some(dec!(-1.20)));
+    }
+
+    #[test]
+    fn unknown_service_falls_back_to_raw() {
+        // SCREENER_OPTION is not yet typed; should hit the Raw fallback.
+        let frame = r#"{
+            "data": [{
+                "service": "SCREENER_OPTION",
                 "timestamp": 1,
                 "command": "SUBS",
                 "content": [{"symbol":"AAPL","1":1,"2":2,"3":3,"4":4}]
