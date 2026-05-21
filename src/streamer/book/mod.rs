@@ -19,6 +19,7 @@ use crate::error::{Error, Result};
 
 pub mod nasdaq;
 pub mod nyse;
+pub mod options;
 
 /// Top-level book payload. One per subscribed symbol per tick.
 #[derive(Debug, Clone, Deserialize)]

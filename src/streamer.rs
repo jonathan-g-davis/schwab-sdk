@@ -282,6 +282,10 @@ impl StreamerRequest {
     pub fn nasdaq_book() -> subscription::SubscriptionBuilder<book::nasdaq::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn options_book() -> subscription::SubscriptionBuilder<book::options::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -348,6 +352,7 @@ pub enum DataContent {
     LevelOneForex(Vec<level_one::forex::Content>),
     NyseBook(Vec<book::Content>),
     NasdaqBook(Vec<book::Content>),
+    OptionsBook(Vec<book::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -420,6 +425,12 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
         Service::NasdaqBook => {
             let remapped = transform_keys::<book::nasdaq::Field>(content)?;
             Ok(DataContent::NasdaqBook(book::nasdaq::decode_batch(
+                remapped,
+            )?))
+        }
+        Service::OptionsBook => {
+            let remapped = transform_keys::<book::options::Field>(content)?;
+            Ok(DataContent::OptionsBook(book::options::decode_batch(
                 remapped,
             )?))
         }
@@ -1031,6 +1042,56 @@ mod parser_tests {
         assert_eq!(msft.ask_side_levels.len(), 1);
         assert_eq!(msft.ask_side_levels[0].price, dec!(425.15));
         assert_eq!(msft.ask_side_levels[0].market_makers[0].market_maker_id, "MMD");
+    }
+
+    #[test]
+    fn parses_options_book_data_into_typed_content() {
+        // Same shape as NYSE/NASDAQ book; instrument key is a Schwab option
+        // symbol. One bid level, one ask level, single MM each.
+        let frame = r#"{
+            "data": [{
+                "service": "OPTIONS_BOOK",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "AAPL  240315C00200000",
+                    "delayed": false,
+                    "1": 1714949592300,
+                    "2": [{
+                        "0": 5.10,
+                        "1": 12,
+                        "2": 1,
+                        "3": [{"0": "MMX", "1": 12, "2": 1714949592000}]
+                    }],
+                    "3": [{
+                        "0": 5.20,
+                        "1": 8,
+                        "2": 1,
+                        "3": [{"0": "MMY", "1": 8, "2": 1714949592200}]
+                    }]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::OptionsBook);
+        let DataContent::OptionsBook(items) = &payload.content else {
+            panic!("expected OptionsBook, got {:?}", payload.content);
+        };
+        let opt = &items[0];
+        assert_eq!(opt.key, "AAPL  240315C00200000");
+        assert_eq!(opt.market_snapshot_time, 1714949592300);
+
+        assert_eq!(opt.bid_side_levels.len(), 1);
+        assert_eq!(opt.bid_side_levels[0].price, dec!(5.10));
+        assert_eq!(opt.bid_side_levels[0].aggregate_size, 12);
+        assert_eq!(opt.bid_side_levels[0].market_makers[0].market_maker_id, "MMX");
+
+        assert_eq!(opt.ask_side_levels.len(), 1);
+        assert_eq!(opt.ask_side_levels[0].price, dec!(5.20));
+        assert_eq!(opt.ask_side_levels[0].market_makers[0].market_maker_id, "MMY");
     }
 
     #[test]
