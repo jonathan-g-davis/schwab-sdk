@@ -17,4 +17,5 @@
 //! indexed fields are `Option<T>`.
 
 pub mod equities;
+pub mod futures;
 pub mod options;
