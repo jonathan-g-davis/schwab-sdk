@@ -12,6 +12,7 @@ use crate::model::{AuthToken, CustomerId};
 use crate::websocket::WebSocket;
 
 pub mod admin;
+pub mod book;
 pub mod level_one;
 pub mod subscription;
 
@@ -273,6 +274,10 @@ impl StreamerRequest {
     pub fn forex() -> subscription::SubscriptionBuilder<level_one::forex::Field> {
         subscription::SubscriptionBuilder::default()
     }
+
+    pub fn nyse_book() -> subscription::SubscriptionBuilder<book::nyse::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
 }
 
 #[serde_as]
@@ -337,6 +342,7 @@ pub enum DataContent {
     LevelOneFutures(Vec<level_one::futures::Content>),
     LevelOneFuturesOptions(Vec<level_one::futures_options::Content>),
     LevelOneForex(Vec<level_one::forex::Content>),
+    NyseBook(Vec<book::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -401,6 +407,10 @@ fn decode_service_content(service: Service, content: serde_json::Value) -> Resul
             Ok(DataContent::LevelOneForex(
                 level_one::forex::Content::decode_batch(remapped)?,
             ))
+        }
+        Service::NyseBook => {
+            let remapped = transform_keys::<book::nyse::Field>(content)?;
+            Ok(DataContent::NyseBook(book::nyse::decode_batch(remapped)?))
         }
         _ => Ok(DataContent::Raw(content)),
     }
@@ -886,6 +896,67 @@ mod parser_tests {
         assert_eq!(eur.digits, Some(5));
         assert_eq!(eur.is_tradable, Some(true));
         assert_eq!(eur.mark, Some(dec!(1.08255)));
+    }
+
+    #[test]
+    fn parses_nyse_book_data_into_typed_content() {
+        // One bid level at 150.00 with two market makers and one ask level
+        // at 150.05 with a single market maker.
+        let frame = r#"{
+            "data": [{
+                "service": "NYSE_BOOK",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "AAPL",
+                    "delayed": false,
+                    "1": 1714949592300,
+                    "2": [{
+                        "0": 150.00,
+                        "1": 1000,
+                        "2": 2,
+                        "3": [
+                            {"0": "MM1", "1": 600, "2": 1714949592000},
+                            {"0": "MM2", "1": 400, "2": 1714949592100}
+                        ]
+                    }],
+                    "3": [{
+                        "0": 150.05,
+                        "1": 500,
+                        "2": 1,
+                        "3": [{"0": "MM3", "1": 500, "2": 1714949592200}]
+                    }]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::NyseBook);
+        let DataContent::NyseBook(items) = &payload.content else {
+            panic!("expected NyseBook, got {:?}", payload.content);
+        };
+        let aapl = &items[0];
+        assert_eq!(aapl.key, "AAPL");
+        assert_eq!(aapl.market_snapshot_time, 1714949592300);
+
+        assert_eq!(aapl.bid_side_levels.len(), 1);
+        let bid = &aapl.bid_side_levels[0];
+        assert_eq!(bid.price, dec!(150.00));
+        assert_eq!(bid.aggregate_size, 1000);
+        assert_eq!(bid.market_maker_count, 2);
+        assert_eq!(bid.market_makers.len(), 2);
+        assert_eq!(bid.market_makers[0].market_maker_id, "MM1");
+        assert_eq!(bid.market_makers[0].size, 600);
+        assert_eq!(bid.market_makers[0].quote_time, 1714949592000);
+
+        assert_eq!(aapl.ask_side_levels.len(), 1);
+        let ask = &aapl.ask_side_levels[0];
+        assert_eq!(ask.price, dec!(150.05));
+        assert_eq!(ask.aggregate_size, 500);
+        assert_eq!(ask.market_maker_count, 1);
+        assert_eq!(ask.market_makers[0].market_maker_id, "MM3");
     }
 
     #[test]
