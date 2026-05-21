@@ -1,3 +1,7 @@
+//! `LEVELONE_EQUITIES` streamer service.
+//!
+//! Delivery type: Change. Fields not present on a tick stay `None`.
+
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;

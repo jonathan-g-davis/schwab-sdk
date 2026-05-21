@@ -12,7 +12,7 @@ use crate::model::{AuthToken, CustomerId};
 use crate::websocket::WebSocket;
 
 pub mod admin;
-pub mod level_one_equities;
+pub mod level_one;
 pub mod subscription;
 
 type ReadHalf = fastwebsockets::FragmentCollectorRead<tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
@@ -253,7 +253,11 @@ impl StreamerRequest {
         admin::Logout
     }
 
-    pub fn equities() -> subscription::SubscriptionBuilder<level_one_equities::Field> {
+    pub fn equities() -> subscription::SubscriptionBuilder<level_one::equities::Field> {
+        subscription::SubscriptionBuilder::default()
+    }
+
+    pub fn options() -> subscription::SubscriptionBuilder<level_one::options::Field> {
         subscription::SubscriptionBuilder::default()
     }
 }
@@ -315,7 +319,8 @@ pub struct DataPayload {
 /// destructure them by hand until a typed variant is added.
 #[derive(Debug, Clone)]
 pub enum DataContent {
-    LevelOneEquities(Vec<level_one_equities::Content>),
+    LevelOneEquities(Vec<level_one::equities::Content>),
+    LevelOneOptions(Vec<level_one::options::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
     /// field keys remapped to their snake_case names where the streamer
@@ -352,9 +357,15 @@ impl TryFrom<RawDataPayload> for DataPayload {
 fn decode_service_content(service: Service, content: serde_json::Value) -> Result<DataContent> {
     match service {
         Service::LevelOneEquities => {
-            let remapped = transform_keys::<level_one_equities::Field>(content)?;
+            let remapped = transform_keys::<level_one::equities::Field>(content)?;
             Ok(DataContent::LevelOneEquities(
-                level_one_equities::Content::decode_batch(remapped)?,
+                level_one::equities::Content::decode_batch(remapped)?,
+            ))
+        }
+        Service::LevelOneOptions => {
+            let remapped = transform_keys::<level_one::options::Field>(content)?;
+            Ok(DataContent::LevelOneOptions(
+                level_one::options::Content::decode_batch(remapped)?,
             ))
         }
         _ => Ok(DataContent::Raw(content)),
@@ -655,6 +666,60 @@ mod parser_tests {
             panic!("expected LevelOneEquities");
         };
         assert_eq!(items[0].bid_price, Some(dec!(1.0)));
+    }
+
+    #[test]
+    fn parses_level_one_options_data_into_typed_content() {
+        // An ATM-ish AAPL call: bid 5.10 / ask 5.20, last 5.15, delta 0.52,
+        // gamma 0.04, theta -0.08, vega 0.13, 7 DTE.
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_OPTIONS",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "AAPL  240315C00200000",
+                    "delayed": false,
+                    "assetMainType": "OPTION",
+                    "2": 5.10, "3": 5.20, "4": 5.15,
+                    "8": 12345, "9": 6789,
+                    "20": 200.0, "21": "C", "22": "AAPL",
+                    "27": 7, "28": 0.52, "29": 0.04, "30": -0.08, "31": 0.13,
+                    "37": 5.15,
+                    "48": true
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneOptions);
+
+        let DataContent::LevelOneOptions(items) = &payload.content else {
+            panic!("expected LevelOneOptions, got {:?}", payload.content);
+        };
+        assert_eq!(items.len(), 1);
+        let aapl = &items[0];
+        assert_eq!(aapl.key, "AAPL  240315C00200000");
+        assert_eq!(aapl.bid_price, Some(dec!(5.10)));
+        assert_eq!(aapl.ask_price, Some(dec!(5.20)));
+        assert_eq!(aapl.last_price, Some(dec!(5.15)));
+        assert_eq!(aapl.total_volume, Some(12345));
+        assert_eq!(aapl.open_interest, Some(6789));
+        assert_eq!(aapl.strike_price, Some(dec!(200.0)));
+        assert_eq!(aapl.contract_type.as_deref(), Some("C"));
+        assert_eq!(aapl.underlying.as_deref(), Some("AAPL"));
+        assert_eq!(aapl.days_to_expiration, Some(7));
+        assert_eq!(aapl.delta, Some(dec!(0.52)));
+        assert_eq!(aapl.gamma, Some(dec!(0.04)));
+        assert_eq!(aapl.theta, Some(dec!(-0.08)));
+        assert_eq!(aapl.vega, Some(dec!(0.13)));
+        assert_eq!(aapl.mark_price, Some(dec!(5.15)));
+        assert_eq!(aapl.is_penny_pilot, Some(true));
+        // Fields not on wire stay None.
+        assert_eq!(aapl.rho, None);
+        assert_eq!(aapl.implied_yield, None);
     }
 
     #[test]
