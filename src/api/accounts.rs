@@ -12,6 +12,7 @@
 //!
 //! Reached through [`SchwabClient::accounts`](crate::SchwabClient::accounts).
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
@@ -483,10 +484,8 @@ pub struct AccountsInstrument {
     pub underlying_symbol: Option<String>,
 
     // Fixed-income-specific fields. `None` on non-fixed-income asset types.
-    // Schwab ships ISO-8601 timestamps as strings; date parsing is left to
-    // the consumer for now (no chrono dep on this crate yet).
     #[serde(default, rename = "maturityDate")]
-    pub maturity_date: Option<String>,
+    pub maturity_date: Option<DateTime<Utc>>,
     #[serde(default, with = "decimal_opt")]
     pub factor: Option<Decimal>,
     #[serde(default, with = "decimal_opt", rename = "variableRate")]
