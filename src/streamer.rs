@@ -18,6 +18,9 @@ pub mod chart;
 pub mod level_one;
 pub mod screener;
 pub mod subscription;
+pub mod subscription_tracker;
+
+pub use subscription_tracker::SubscriptionTracker;
 
 type ReadHalf = fastwebsockets::FragmentCollectorRead<tokio::io::ReadHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
 type WriteHalf = fastwebsockets::WebSocketWrite<tokio::io::WriteHalf<hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>>>;
