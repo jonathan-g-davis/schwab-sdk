@@ -6,11 +6,11 @@
 //! `SecretBox`-backed newtype with:
 //!
 //! - `Clone` (via `CloneableSecret`).
-//! - `Debug` that redacts via `secrecy`
-//!   (`Name(SecretBox<NameInner>([REDACTED]))`).
+//! - `Debug` that redacts via `secrecy`.
 //! - `Serialize` / `Deserialize` over the inner string (gated by
 //!   `SerializableSecret`).
 //! - `new(impl Into<String>)` and `expose_secret() -> &str`.
+//! - `From<&str>`, `From<String>`, and `From<SecretString>` for convenience.
 
 use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SecretString, SerializableSecret};
 use serde::{Deserialize, Serialize};
@@ -80,7 +80,7 @@ sensitive_string_newtype! {
 }
 
 sensitive_string_newtype! {
-    /// Schwab account number. PII-equivalent — appears in REST paths
+    /// Schwab account number. PII-equivalent - appears in REST paths
     /// (`/accounts/{accountNumber}/...`) and in account-activity events.
     ///
     /// Redacted in logs via `secrecy`.

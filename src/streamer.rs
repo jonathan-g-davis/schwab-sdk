@@ -7,7 +7,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 pub use subscription::Command as SubscriptionCommand;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use crate::client::{Error, Result};
+use crate::error::{Error, Result};
 use crate::model::{AuthToken, CustomerId};
 use crate::websocket::WebSocket;
 
@@ -297,12 +297,30 @@ struct RawDataPayload {
     content: serde_json::Value,
 }
 
+/// One element of a `data` array on a streamer frame, already decoded into a
+/// service-specific typed shape.
 #[derive(Debug, Clone)]
 pub struct DataPayload {
     pub service: Service,
     pub timestamp: u64,
     pub command: SubscriptionCommand,
-    pub content: serde_json::Value,
+    pub content: DataContent,
+}
+
+/// Typed content per streamer service.
+///
+/// Each variant corresponds to a service whose payload `schwab-rs` decodes
+/// into typed fields. Services not yet typed land in [`DataContent::Raw`]
+/// with Schwab's numeric-keyed JSON object preserved, so callers can still
+/// destructure them by hand until a typed variant is added.
+#[derive(Debug, Clone)]
+pub enum DataContent {
+    LevelOneEquities(Vec<level_one_equities::Content>),
+    /// Untyped fallback for services that don't have a typed variant yet.
+    /// The inner value is the raw `content` array from Schwab with numeric
+    /// field keys remapped to their snake_case names where the streamer
+    /// knows the field set, and left numeric otherwise.
+    Raw(serde_json::Value),
 }
 
 impl TryFrom<RawDataPayload> for DataPayload {
@@ -321,7 +339,7 @@ impl TryFrom<RawDataPayload> for DataPayload {
                 });
             }
         };
-        let content = transform_keys_for_service(payload.service, payload.content)?;
+        let content = decode_service_content(payload.service, payload.content)?;
         Ok(DataPayload {
             service: payload.service,
             timestamp: payload.timestamp,
@@ -331,13 +349,15 @@ impl TryFrom<RawDataPayload> for DataPayload {
     }
 }
 
-fn transform_keys_for_service(
-    service: Service,
-    content: serde_json::Value,
-) -> Result<serde_json::Value> {
+fn decode_service_content(service: Service, content: serde_json::Value) -> Result<DataContent> {
     match service {
-        Service::LevelOneEquities => transform_keys::<level_one_equities::Field>(content),
-        _ => Ok(content),
+        Service::LevelOneEquities => {
+            let remapped = transform_keys::<level_one_equities::Field>(content)?;
+            Ok(DataContent::LevelOneEquities(
+                level_one_equities::Content::decode_batch(remapped)?,
+            ))
+        }
+        _ => Ok(DataContent::Raw(content)),
     }
 }
 
@@ -476,4 +496,214 @@ pub enum ResponseCode {
     SucceededCommandAdd,
     SucceededCommandView,
     StopStreaming,
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use super::*;
+    use rust_decimal_macros::dec;
+
+    fn parse(raw: &str) -> Result<StreamerResponse> {
+        let raw_response: RawStreamerResponse =
+            serde_json::from_slice(raw.as_bytes()).map_err(|e| Error::Decode {
+                context: "test fixture".to_string(),
+                reason: e.to_string(),
+            })?;
+        StreamerResponse::try_from(raw_response)
+    }
+
+    #[test]
+    fn parses_login_success_response() {
+        let frame = r#"{
+            "response": [{
+                "service": "ADMIN",
+                "command": "LOGIN",
+                "requestid": "1",
+                "SchwabClientCorrelId": "5be0b7e7-5b8b-4fd3-9bed-7f49106cfe96",
+                "timestamp": 1669828276886,
+                "content": { "code": 0, "msg": "server=s0166bdv-1;status=PN" }
+            }]
+        }"#;
+        match parse(frame).unwrap() {
+            StreamerResponse::Response(responses) => {
+                assert_eq!(responses.len(), 1);
+                let r = &responses[0];
+                assert_eq!(r.service, Service::Admin);
+                assert_eq!(r.command, StreamerCommand::Login);
+                assert_eq!(r.request_id, 1);
+                assert_eq!(r.content.code, ResponseCode::Ok);
+                assert!(r.content.message.contains("status=PN"));
+            }
+            other => panic!("expected Response, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_login_denied_response() {
+        let frame = r#"{
+            "response": [{
+                "service": "ADMIN",
+                "command": "LOGIN",
+                "requestid": "1",
+                "SchwabClientCorrelId": "x",
+                "timestamp": 1669828982588,
+                "content": { "code": 3, "msg": "Login Denied.: token is invalid or has expired." }
+            }]
+        }"#;
+        let StreamerResponse::Response(responses) = parse(frame).unwrap() else {
+            panic!("expected Response");
+        };
+        assert_eq!(responses[0].content.code, ResponseCode::LoginDenied);
+    }
+
+    #[test]
+    fn parses_heartbeat_notify() {
+        let frame = r#"{"notify":[{"heartbeat":"1668715930582"}]}"#;
+        let StreamerResponse::Notify(heartbeats) = parse(frame).unwrap() else {
+            panic!("expected Notify");
+        };
+        assert_eq!(heartbeats.len(), 1);
+        assert_eq!(heartbeats[0].heartbeat, 1668715930582);
+    }
+
+    #[test]
+    fn parses_level_one_equities_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_EQUITIES",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [
+                    {
+                        "key": "SCHW",
+                        "delayed": false,
+                        "assetMainType": "EQUITY",
+                        "assetSubType": "COE",
+                        "cusip": "808513105",
+                        "1": 76.08, "2": 76.49, "3": 76.44,
+                        "4": 3, "5": 1, "8": 5414735, "10": 76.47
+                    },
+                    {
+                        "key": "AAPL",
+                        "delayed": false,
+                        "assetMainType": "EQUITY",
+                        "assetSubType": "COE",
+                        "cusip": "037833100",
+                        "1": 183.75, "2": 183.8, "3": 183.8,
+                        "4": 1, "5": 2, "8": 163224109, "10": 187
+                    }
+                ]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        assert_eq!(data.len(), 1);
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneEquities);
+        assert_eq!(payload.timestamp, 1714949592301);
+        assert_eq!(payload.command, SubscriptionCommand::Subscribe);
+
+        let DataContent::LevelOneEquities(items) = &payload.content else {
+            panic!("expected LevelOneEquities, got {:?}", payload.content);
+        };
+        assert_eq!(items.len(), 2);
+
+        let schw = &items[0];
+        assert_eq!(schw.key, "SCHW");
+        assert!(!schw.delayed);
+        assert_eq!(schw.cusip.as_deref(), Some("808513105"));
+        assert_eq!(schw.bid_price, Some(dec!(76.08)));
+        assert_eq!(schw.ask_price, Some(dec!(76.49)));
+        assert_eq!(schw.last_price, Some(dec!(76.44)));
+        assert_eq!(schw.bid_size, Some(3));
+        assert_eq!(schw.ask_size, Some(1));
+        assert_eq!(schw.total_volume, Some(5414735));
+        assert_eq!(schw.high_price, Some(dec!(76.47)));
+        // Fields not present on the wire stay None.
+        assert_eq!(schw.low_price, None);
+        assert_eq!(schw.dividend_yield, None);
+
+        let aapl = &items[1];
+        assert_eq!(aapl.key, "AAPL");
+        assert_eq!(aapl.bid_price, Some(dec!(183.75)));
+        assert_eq!(aapl.last_price, Some(dec!(183.8)));
+    }
+
+    #[test]
+    fn unknown_numeric_field_does_not_fail_parse() {
+        // Schwab adds a new field 99 we haven't typed yet. The remapper
+        // should keep the raw "99" key (so it's accessible if anyone drops
+        // down to Raw), and the typed struct ignores it via #[serde(default)]
+        // and unknown-field tolerance (Deserialize is non-deny by default).
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_EQUITIES",
+                "timestamp": 1,
+                "command": "SUBS",
+                "content": [{
+                    "key": "X", "delayed": false,
+                    "1": 1.0, "99": "future-field"
+                }]
+            }]
+        }"#;
+        let response = parse(frame).expect("forward-compat parse failed");
+        let StreamerResponse::Data(data) = response else {
+            panic!("expected Data");
+        };
+        let DataContent::LevelOneEquities(items) = &data[0].content else {
+            panic!("expected LevelOneEquities");
+        };
+        assert_eq!(items[0].bid_price, Some(dec!(1.0)));
+    }
+
+    #[test]
+    fn unknown_service_falls_back_to_raw() {
+        let frame = r#"{
+            "data": [{
+                "service": "CHART_EQUITY",
+                "timestamp": 1,
+                "command": "SUBS",
+                "content": [{"key":"AAPL","1":1,"2":2,"3":3,"4":4}]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        match &data[0].content {
+            DataContent::Raw(v) => {
+                assert!(v.is_array(), "expected raw array, got {v:?}");
+            }
+            other => panic!("expected Raw fallback, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_json_returns_decode_error() {
+        let result = parse("not json at all");
+        match result {
+            Err(Error::Decode { .. }) => {}
+            other => panic!("expected Decode error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn malformed_data_content_returns_decode_error() {
+        // `content` is supposed to be an array; passing a number triggers
+        // the array-expected branch in `transform_keys`.
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_EQUITIES",
+                "timestamp": 1,
+                "command": "SUBS",
+                "content": 42
+            }]
+        }"#;
+        match parse(frame) {
+            Err(Error::Decode { context, .. }) => {
+                assert!(context.contains("content"), "context = {context}");
+            }
+            other => panic!("expected Decode error, got {other:?}"),
+        }
+    }
 }
