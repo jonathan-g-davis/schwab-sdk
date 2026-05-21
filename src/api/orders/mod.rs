@@ -98,16 +98,22 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// Callers may then use [`Self::get`] to fetch the placed order's
     /// status and execution detail.
     ///
+    /// Accepts any `impl Into<OrderRequest>` - the shortcuts (e.g.
+    /// [`OrderRequest::buy_market`]) and the typestate builder both
+    /// satisfy this, so callers can pass them in without an explicit
+    /// `.build()`. A pre-built `OrderRequest` works too.
+    ///
     /// Schwab has no client-controllable idempotency key, so a transient
     /// failure here may have placed the order anyway. Implementers should
     /// deduplicate orders after a transient failure by listing orders
     /// and matching by entered-time window, symbol, side, and quantity.
-    pub async fn place(&self, order: &OrderRequest) -> Result<i64> {
+    pub async fn place(&self, order: impl Into<OrderRequest>) -> Result<i64> {
+        let order = order.into();
         let hash = self.account_hash.expose_secret();
         let request = self
             .client
             .post(&format!("/accounts/{hash}/orders"))
-            .json(order);
+            .json(&order);
         let response = self.client.execute(request).await?;
         parse_order_id_from_location(&response)
     }
@@ -115,15 +121,16 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// `PUT /accounts/{accountNumber}/orders/{orderId}` - replace an order.
     ///
     /// Schwab cancels `order_id` and creates a brand-new order from the
-    /// supplied [`OrderRequest`]; the returned `i64` is the **new** order's
+    /// supplied order body; the returned `i64` is the **new** order's
     /// id, parsed from the response `Location` header. The original
     /// `order_id` is no longer valid after a successful replace.
-    pub async fn replace(&self, order_id: i64, order: &OrderRequest) -> Result<i64> {
+    pub async fn replace(&self, order_id: i64, order: impl Into<OrderRequest>) -> Result<i64> {
+        let order = order.into();
         let hash = self.account_hash.expose_secret();
         let request = self
             .client
             .put(&format!("/accounts/{hash}/orders/{order_id}"))
-            .json(order);
+            .json(&order);
         let response = self.client.execute(request).await?;
         parse_order_id_from_location(&response)
     }
@@ -148,12 +155,13 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// include `rejects` even though the response status is 200; callers
     /// should inspect [`PreviewOrder::order_validation_result`] before
     /// treating the preview as approval).
-    pub async fn preview(&self, order: &OrderRequest) -> Result<PreviewOrder> {
+    pub async fn preview(&self, order: impl Into<OrderRequest>) -> Result<PreviewOrder> {
+        let order = order.into();
         let hash = self.account_hash.expose_secret();
         let request = self
             .client
             .post(&format!("/accounts/{hash}/previewOrder"))
-            .json(order);
+            .json(&order);
         self.client.execute_json(request).await
     }
 

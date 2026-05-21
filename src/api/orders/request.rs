@@ -194,142 +194,147 @@ impl OrderRequest {
 
     // --- Convenience shortcuts for common equity SINGLE orders ---
     //
-    // These return a finished `OrderRequest` and are equivalent to the
-    // explicit builder for the most common one-leg equity flows. For
-    // options, multi-leg spreads, or any non-default duration / session /
-    // special-instruction, use [`Self::single`] and chain the builder.
+    // These return a [`SingleOrderBuilder`] in the [`Ready`] state, so
+    // callers may chain optional setters (`.duration()`, `.session()`,
+    // `.special_instruction()`) and finish with `.build()`. For the
+    // simplest case the call site reads `.buy_market(sym, qty).build()`.
+    //
+    // OCO / TRIGGER factories accept either a built `OrderRequest` or a
+    // `SingleOrderBuilder<Ready>` via `impl Into<OrderRequest>`, so the
+    // builder can be passed straight through without an explicit `.build()`.
 
-    /// Equity buy-at-market, day order.
-    pub fn buy_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
-        Self::single().market().equity_buy(symbol, qty).build()
+    /// Equity buy-at-market, default day order.
+    pub fn buy_market(symbol: impl Into<String>, qty: Decimal) -> SingleOrderBuilder<Ready> {
+        Self::single().market().equity_buy(symbol, qty)
     }
 
-    /// Equity buy-at-limit, day order.
-    pub fn buy_limit(symbol: impl Into<String>, qty: Decimal, price: Decimal) -> OrderRequest {
-        Self::single().limit(price).equity_buy(symbol, qty).build()
+    /// Equity buy-at-limit, default day order.
+    pub fn buy_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        price: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().limit(price).equity_buy(symbol, qty)
     }
 
-    /// Equity long-sale at market, day order.
-    pub fn sell_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
-        Self::single().market().equity_sell(symbol, qty).build()
+    /// Equity long-sale at market, default day order.
+    pub fn sell_market(symbol: impl Into<String>, qty: Decimal) -> SingleOrderBuilder<Ready> {
+        Self::single().market().equity_sell(symbol, qty)
     }
 
-    /// Equity long-sale at limit, day order.
-    pub fn sell_limit(symbol: impl Into<String>, qty: Decimal, price: Decimal) -> OrderRequest {
-        Self::single().limit(price).equity_sell(symbol, qty).build()
+    /// Equity long-sale at limit, default day order.
+    pub fn sell_limit(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        price: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().limit(price).equity_sell(symbol, qty)
     }
 
-    /// Equity stop-market sell, day order. Useful for stop-loss exits.
-    pub fn sell_stop(symbol: impl Into<String>, qty: Decimal, stop_price: Decimal) -> OrderRequest {
-        Self::single()
-            .stop(stop_price)
-            .equity_sell(symbol, qty)
-            .build()
+    /// Equity stop-market sell, default day order. Useful for stop-loss
+    /// exits.
+    pub fn sell_stop(
+        symbol: impl Into<String>,
+        qty: Decimal,
+        stop_price: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().stop(stop_price).equity_sell(symbol, qty)
     }
 
-    /// Equity stop-limit sell, day order. Triggered when the market
-    /// crosses `stop_price`, then becomes a limit order at `limit_price`.
+    /// Equity stop-limit sell, default day order. Triggered when the
+    /// market crosses `stop_price`, then becomes a limit order at
+    /// `limit_price`.
     pub fn sell_stop_limit(
         symbol: impl Into<String>,
         qty: Decimal,
         stop_price: Decimal,
         limit_price: Decimal,
-    ) -> OrderRequest {
+    ) -> SingleOrderBuilder<Ready> {
         Self::single()
             .stop_limit(stop_price, limit_price)
             .equity_sell(symbol, qty)
-            .build()
     }
 
     // --- Convenience shortcuts for common single-leg option orders ---
     //
     // `symbol` should be the Schwab option symbol (e.g.
-    // `"AAPL  240315C00200000"`). For multi-leg option strategies
-    // (vertical, condor, etc.), use [`Self::single`] with `.net_debit` /
-    // `.net_credit` and chain multiple legs.
+    // `"AAPL  240315C00200000"`). Return a [`SingleOrderBuilder<Ready>`]
+    // for chaining. For multi-leg option strategies (vertical, condor,
+    // etc.), use [`Self::single`] with `.net_debit` / `.net_credit` and
+    // chain multiple legs.
 
-    /// Option buy-to-open at market, day order. Opens a long option
-    /// position.
-    pub fn buy_to_open_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
-        Self::single()
-            .market()
-            .option_buy_to_open(symbol, qty)
-            .build()
+    /// Option buy-to-open at market, default day order. Opens a long
+    /// option position.
+    pub fn buy_to_open_market(
+        symbol: impl Into<String>,
+        qty: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().market().option_buy_to_open(symbol, qty)
     }
 
-    /// Option buy-to-open at limit, day order.
+    /// Option buy-to-open at limit, default day order.
     pub fn buy_to_open_limit(
         symbol: impl Into<String>,
         qty: Decimal,
         price: Decimal,
-    ) -> OrderRequest {
-        Self::single()
-            .limit(price)
-            .option_buy_to_open(symbol, qty)
-            .build()
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().limit(price).option_buy_to_open(symbol, qty)
     }
 
-    /// Option sell-to-open at market, day order. Writes (shorts) an
-    /// option.
-    pub fn sell_to_open_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
-        Self::single()
-            .market()
-            .option_sell_to_open(symbol, qty)
-            .build()
+    /// Option sell-to-open at market, default day order. Writes (shorts)
+    /// an option.
+    pub fn sell_to_open_market(
+        symbol: impl Into<String>,
+        qty: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().market().option_sell_to_open(symbol, qty)
     }
 
-    /// Option sell-to-open at limit, day order.
+    /// Option sell-to-open at limit, default day order.
     pub fn sell_to_open_limit(
         symbol: impl Into<String>,
         qty: Decimal,
         price: Decimal,
-    ) -> OrderRequest {
-        Self::single()
-            .limit(price)
-            .option_sell_to_open(symbol, qty)
-            .build()
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().limit(price).option_sell_to_open(symbol, qty)
     }
 
-    /// Option buy-to-close at market, day order. Closes a previously
-    /// written (short) option.
-    pub fn buy_to_close_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
-        Self::single()
-            .market()
-            .option_buy_to_close(symbol, qty)
-            .build()
+    /// Option buy-to-close at market, default day order. Closes a
+    /// previously written (short) option.
+    pub fn buy_to_close_market(
+        symbol: impl Into<String>,
+        qty: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().market().option_buy_to_close(symbol, qty)
     }
 
-    /// Option buy-to-close at limit, day order.
+    /// Option buy-to-close at limit, default day order.
     pub fn buy_to_close_limit(
         symbol: impl Into<String>,
         qty: Decimal,
         price: Decimal,
-    ) -> OrderRequest {
-        Self::single()
-            .limit(price)
-            .option_buy_to_close(symbol, qty)
-            .build()
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().limit(price).option_buy_to_close(symbol, qty)
     }
 
-    /// Option sell-to-close at market, day order. Closes a long option
-    /// position.
-    pub fn sell_to_close_market(symbol: impl Into<String>, qty: Decimal) -> OrderRequest {
-        Self::single()
-            .market()
-            .option_sell_to_close(symbol, qty)
-            .build()
+    /// Option sell-to-close at market, default day order. Closes a long
+    /// option position.
+    pub fn sell_to_close_market(
+        symbol: impl Into<String>,
+        qty: Decimal,
+    ) -> SingleOrderBuilder<Ready> {
+        Self::single().market().option_sell_to_close(symbol, qty)
     }
 
-    /// Option sell-to-close at limit, day order.
+    /// Option sell-to-close at limit, default day order.
     pub fn sell_to_close_limit(
         symbol: impl Into<String>,
         qty: Decimal,
         price: Decimal,
-    ) -> OrderRequest {
+    ) -> SingleOrderBuilder<Ready> {
         Self::single()
             .limit(price)
             .option_sell_to_close(symbol, qty)
-            .build()
     }
 
     // --- Composite strategies ---
@@ -339,28 +344,45 @@ impl OrderRequest {
     /// children; each child is a complete order in its own right
     /// (typically a `SINGLE`).
     ///
+    /// Accepts either a finished `OrderRequest` or any
+    /// [`SingleOrderBuilder<Ready>`]; the shortcuts and the explicit
+    /// builder both satisfy `impl Into<OrderRequest>`.
+    ///
     /// The `duration` on each child controls how long that side stays
     /// live - for a take-profit + stop-loss pair you typically want both
     /// children set to [`Duration::GoodTillCancel`] via the builder.
-    pub fn oco(child_a: OrderRequest, child_b: OrderRequest) -> OrderRequest {
+    pub fn oco(child_a: impl Into<OrderRequest>, child_b: impl Into<OrderRequest>) -> OrderRequest {
         OrderRequest {
             order_strategy_type: Some(OrderStrategyType::Oco),
-            child_order_strategies: vec![child_a, child_b],
+            child_order_strategies: vec![child_a.into(), child_b.into()],
             ..Default::default()
         }
     }
 
     /// First-trigger-sequence: `parent` is the order Schwab places
-    /// immediately; once it fills, `child` is released. The parent must
-    /// be a complete order (use [`Self::single`] or any of the shortcuts
-    /// above); its `orderStrategyType` is overwritten with `TRIGGER`.
+    /// immediately; once it fills, `child` is released. The parent's
+    /// `orderStrategyType` is overwritten with `TRIGGER`.
+    ///
+    /// Both arguments accept any `impl Into<OrderRequest>` - the
+    /// shortcuts return a [`SingleOrderBuilder<Ready>`] which is
+    /// converted transparently.
     ///
     /// 1st-Trigger-OCO is the composition
     /// `OrderRequest::trigger(parent, OrderRequest::oco(profit, stop))`.
-    pub fn trigger(mut parent: OrderRequest, child: OrderRequest) -> OrderRequest {
+    pub fn trigger(
+        parent: impl Into<OrderRequest>,
+        child: impl Into<OrderRequest>,
+    ) -> OrderRequest {
+        let mut parent: OrderRequest = parent.into();
         parent.order_strategy_type = Some(OrderStrategyType::Trigger);
-        parent.child_order_strategies.push(child);
+        parent.child_order_strategies.push(child.into());
         parent
+    }
+}
+
+impl From<SingleOrderBuilder<Ready>> for OrderRequest {
+    fn from(builder: SingleOrderBuilder<Ready>) -> Self {
+        builder.build()
     }
 }
 
@@ -718,7 +740,7 @@ mod tests {
 
     #[test]
     fn shortcut_buy_market_equals_explicit_builder() {
-        let a = OrderRequest::buy_market("AAPL", dec!(10));
+        let a = OrderRequest::buy_market("AAPL", dec!(10)).build();
         let b = OrderRequest::single()
             .market()
             .equity_buy("AAPL", dec!(10))
@@ -731,7 +753,7 @@ mod tests {
 
     #[test]
     fn shortcut_buy_limit_equals_explicit_builder() {
-        let a = OrderRequest::buy_limit("AAPL", dec!(10), dec!(150.00));
+        let a = OrderRequest::buy_limit("AAPL", dec!(10), dec!(150.00)).build();
         let b = OrderRequest::single()
             .limit(dec!(150.00))
             .equity_buy("AAPL", dec!(10))
@@ -744,7 +766,7 @@ mod tests {
 
     #[test]
     fn shortcut_sell_stop_equals_explicit_builder() {
-        let a = OrderRequest::sell_stop("AAPL", dec!(10), dec!(140.00));
+        let a = OrderRequest::sell_stop("AAPL", dec!(10), dec!(140.00)).build();
         let b = OrderRequest::single()
             .stop(dec!(140.00))
             .equity_sell("AAPL", dec!(10))
@@ -757,7 +779,7 @@ mod tests {
 
     #[test]
     fn shortcut_sell_stop_limit_equals_explicit_builder() {
-        let a = OrderRequest::sell_stop_limit("AAPL", dec!(10), dec!(140.00), dec!(139.50));
+        let a = OrderRequest::sell_stop_limit("AAPL", dec!(10), dec!(140.00), dec!(139.50)).build();
         let b = OrderRequest::single()
             .stop_limit(dec!(140.00), dec!(139.50))
             .equity_sell("AAPL", dec!(10))
@@ -771,7 +793,7 @@ mod tests {
     #[test]
     fn option_shortcut_buy_to_open_market_equals_explicit_builder() {
         let symbol = "AAPL  240315C00200000";
-        let a = OrderRequest::buy_to_open_market(symbol, dec!(2));
+        let a = OrderRequest::buy_to_open_market(symbol, dec!(2)).build();
         let b = OrderRequest::single()
             .market()
             .option_buy_to_open(symbol, dec!(2))
@@ -788,19 +810,23 @@ mod tests {
         // OPTION assetType in the resulting leg.
         let cases: [(OrderRequest, &str); 4] = [
             (
-                OrderRequest::buy_to_open_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                OrderRequest::buy_to_open_limit("XYZ  240315C00500000", dec!(1), dec!(6.45))
+                    .build(),
                 "BUY_TO_OPEN",
             ),
             (
-                OrderRequest::sell_to_open_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                OrderRequest::sell_to_open_limit("XYZ  240315C00500000", dec!(1), dec!(6.45))
+                    .build(),
                 "SELL_TO_OPEN",
             ),
             (
-                OrderRequest::buy_to_close_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                OrderRequest::buy_to_close_limit("XYZ  240315C00500000", dec!(1), dec!(6.45))
+                    .build(),
                 "BUY_TO_CLOSE",
             ),
             (
-                OrderRequest::sell_to_close_limit("XYZ  240315C00500000", dec!(1), dec!(6.45)),
+                OrderRequest::sell_to_close_limit("XYZ  240315C00500000", dec!(1), dec!(6.45))
+                    .build(),
                 "SELL_TO_CLOSE",
             ),
         ];
@@ -811,6 +837,35 @@ mod tests {
             assert_eq!(leg["instrument"]["assetType"], "OPTION");
             assert_eq!(v["orderStrategyType"], "SINGLE");
         }
+    }
+
+    #[test]
+    fn shortcut_supports_chaining_optional_setters() {
+        let req = OrderRequest::buy_limit("AAPL", dec!(10), dec!(150.00))
+            .duration(Duration::GoodTillCancel)
+            .session(Session::Seamless)
+            .special_instruction(SpecialInstruction::AllOrNone)
+            .build();
+        assert_eq!(req.duration, Some(Duration::GoodTillCancel));
+        assert_eq!(req.session, Some(Session::Seamless));
+        assert_eq!(req.special_instruction, Some(SpecialInstruction::AllOrNone));
+        // Underlying order shape is preserved.
+        assert_eq!(req.order_type, Some(OrderType::Limit));
+        assert_eq!(req.price, Some(dec!(150.00)));
+    }
+
+    #[test]
+    fn oco_accepts_shortcut_builders_via_into() {
+        // OCO takes `impl Into<OrderRequest>`, so the shortcut return
+        // type (a `SingleOrderBuilder<Ready>`) flows in without
+        // requiring the caller to `.build()` first.
+        let oco = OrderRequest::oco(
+            OrderRequest::sell_limit("XYZ", dec!(1), dec!(50)),
+            OrderRequest::sell_stop("XYZ", dec!(1), dec!(40)),
+        );
+        let v = serde_json::to_value(&oco).unwrap();
+        assert_eq!(v["orderStrategyType"], "OCO");
+        assert_eq!(v["childOrderStrategies"].as_array().unwrap().len(), 2);
     }
 
     // --- OCO and TRIGGER strategies ---
