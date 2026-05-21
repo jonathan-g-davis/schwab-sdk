@@ -17,6 +17,7 @@ use serde::Deserialize;
 
 use crate::error::{Error, Result};
 
+pub mod nasdaq;
 pub mod nyse;
 
 /// Top-level book payload. One per subscribed symbol per tick.
