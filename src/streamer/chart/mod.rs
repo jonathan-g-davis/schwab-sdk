@@ -9,3 +9,4 @@
 //! structs.
 
 pub mod equity;
+pub mod futures;
