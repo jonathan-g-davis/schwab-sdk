@@ -80,11 +80,20 @@ sensitive_string_newtype! {
 }
 
 sensitive_string_newtype! {
-    /// Schwab account number. PII-equivalent - appears in REST paths
-    /// (`/accounts/{accountNumber}/...`) and in account-activity events.
+    /// Schwab account number. PII-equivalent - appears in account-activity
+    /// events and in response bodies for account lookups.
     ///
     /// Redacted in logs via `secrecy`.
     pub AccountNumber, AccountNumberInner
+}
+
+sensitive_string_newtype! {
+    /// Encrypted account-number hash returned by `GET /accounts/accountNumbers`.
+    /// Schwab requires this value (not the plain account number) in the
+    /// `{accountNumber}` path segment of subsequent REST calls.
+    ///
+    /// Still account-linked, so redacted in logs via `secrecy`.
+    pub AccountHash, AccountHashInner
 }
 
 #[cfg(test)]
@@ -149,5 +158,22 @@ mod tests {
         assert_eq!(json, r#""12345678""#);
         let restored: AccountNumber = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.expose_secret(), "12345678");
+    }
+
+    #[test]
+    fn account_hash_debug_is_redacted() {
+        let hash = AccountHash::new("ABCDEF0123456789");
+        let debug = format!("{hash:?}");
+        assert!(!debug.contains("ABCDEF0123456789"));
+        assert!(debug.contains("REDACTED"));
+    }
+
+    #[test]
+    fn account_hash_round_trips() {
+        let hash = AccountHash::new("ABCDEF0123456789");
+        let json = serde_json::to_string(&hash).unwrap();
+        assert_eq!(json, r#""ABCDEF0123456789""#);
+        let restored: AccountHash = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.expose_secret(), "ABCDEF0123456789");
     }
 }
