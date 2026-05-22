@@ -11,7 +11,6 @@ pub mod events;
 pub mod level_one;
 pub mod screener;
 pub mod subscription;
-pub mod subscription_tracker;
 
 pub use connection::{
     FrameSender, SchwabStreamer, SchwabStreamerReadHalf, SchwabStreamerWriteHalf,
@@ -23,4 +22,3 @@ pub use response::{
     DataContent, DataPayload, Heartbeat, ResponseContent, ResponsePayload, StreamerResponse,
 };
 pub use subscription::Command as SubscriptionCommand;
-pub use subscription_tracker::SubscriptionTracker;
