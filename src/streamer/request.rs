@@ -1,7 +1,7 @@
 use crate::streamer::{account_activity, admin, book, chart, level_one, screener, subscription};
 use crate::{
     CustomerId,
-    streamer::protocol::{StreamerCommand, Service},
+    streamer::protocol::{Service, StreamerCommand},
 };
 
 #[derive(Debug, Clone, serde::Serialize)]

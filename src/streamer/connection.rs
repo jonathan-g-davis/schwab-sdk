@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 use crate::error::{Error, Result};
 use crate::secrets::{AuthToken, CustomerId};
 use crate::streamer::events::{ConnectionEvent, DisconnectReason};
-use crate::streamer::protocol::{StreamerCommand, ResponseCode, Service};
+use crate::streamer::protocol::{ResponseCode, Service, StreamerCommand};
 use crate::streamer::request::{RequestPayload, StreamerRequest};
 use crate::streamer::response::{RawStreamerResponse, StreamerResponse};
 use crate::websocket::WebSocket;
@@ -319,7 +319,7 @@ impl SchwabStreamer {
 mod tests {
     use super::*;
     use crate::streamer::events::{ConnectionEvent, DisconnectReason};
-    use crate::streamer::protocol::{StreamerCommand, ResponseCode, Service};
+    use crate::streamer::protocol::{ResponseCode, Service, StreamerCommand};
     use crate::streamer::response::{ResponseContent, ResponsePayload};
 
     fn response(code: ResponseCode, command: StreamerCommand, msg: &str) -> StreamerResponse {
@@ -349,7 +349,11 @@ mod tests {
         let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
         classify_and_emit(
             &tx,
-            &response(ResponseCode::LoginDenied, StreamerCommand::Login, "token expired"),
+            &response(
+                ResponseCode::LoginDenied,
+                StreamerCommand::Login,
+                "token expired",
+            ),
         );
         match rx.borrow_and_update().clone() {
             ConnectionEvent::Disconnected(DisconnectReason::LoginDenied(msg)) => {
@@ -381,7 +385,11 @@ mod tests {
         let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
         classify_and_emit(
             &tx,
-            &response(ResponseCode::StopStreaming, StreamerCommand::Subs, "inactivity"),
+            &response(
+                ResponseCode::StopStreaming,
+                StreamerCommand::Subs,
+                "inactivity",
+            ),
         );
         assert!(matches!(
             *rx.borrow_and_update(),
