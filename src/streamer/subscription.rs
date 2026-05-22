@@ -26,6 +26,22 @@ impl From<Command> for StreamerCommand {
     }
 }
 
+impl TryFrom<StreamerCommand> for Command {
+    type Error = String;
+
+    fn try_from(command: StreamerCommand) -> Result<Self, Self::Error> {
+        match command {
+            StreamerCommand::Subs => Ok(Command::Subscribe),
+            StreamerCommand::Add => Ok(Command::Add),
+            StreamerCommand::Unsubs => Ok(Command::Unsubscribe),
+            StreamerCommand::View => Ok(Command::View),
+            StreamerCommand::Login | StreamerCommand::Logout => {
+                Err(format!("Invalid subscription command: {command:?}"))
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Builder)]
 #[builder(pattern = "owned")]
 pub struct Subscription<T> {

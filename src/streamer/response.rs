@@ -85,18 +85,11 @@ impl TryFrom<RawDataPayload> for DataPayload {
     type Error = Error;
 
     fn try_from(payload: RawDataPayload) -> Result<Self> {
-        let command = match payload.command {
-            Command::Subs => SubscriptionCommand::Subscribe,
-            Command::Add => SubscriptionCommand::Add,
-            Command::Unsubs => SubscriptionCommand::Unsubscribe,
-            Command::View => SubscriptionCommand::View,
-            other => {
-                return Err(Error::Decode {
-                    context: "data payload command".to_string(),
-                    reason: format!("unexpected command {other:?}"),
-                });
-            }
-        };
+        let command =
+            SubscriptionCommand::try_from(payload.command).map_err(|e| Error::Decode {
+                context: "data payload command".to_string(),
+                reason: e,
+            })?;
         let content = decode_service_content(&payload.service, payload.content)?;
         Ok(DataPayload {
             service: payload.service,
