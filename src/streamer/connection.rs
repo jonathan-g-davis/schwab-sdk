@@ -15,16 +15,16 @@ use crate::streamer::response::{RawStreamerResponse, StreamerResponse};
 use crate::websocket::WebSocket;
 
 type Upgraded = hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>;
-type ReadHalf = FragmentCollectorRead<tokio::io::ReadHalf<Upgraded>>;
-type WriteHalf = WebSocketWrite<tokio::io::WriteHalf<Upgraded>>;
+type WsReadHalf = FragmentCollectorRead<tokio::io::ReadHalf<Upgraded>>;
+type WsWriteHalf = WebSocketWrite<tokio::io::WriteHalf<Upgraded>>;
 
-pub struct SchwabStreamerReadHalf {
-    read_half: ReadHalf,
+pub struct ReadHalf {
+    read_half: WsReadHalf,
     sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
     events_tx: watch::Sender<ConnectionEvent>,
 }
 
-impl SchwabStreamerReadHalf {
+impl ReadHalf {
     pub async fn recv(&mut self) -> Result<StreamerResponse> {
         let mut send_fn = Box::new(|frame| self.sender.send(frame));
         loop {
@@ -99,7 +99,7 @@ fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &Stre
 }
 
 #[derive(Debug, Clone)]
-pub struct SchwabStreamerWriteHalf {
+pub struct WriteHalf {
     sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
     customer_id: CustomerId,
     correlation_id: String,
@@ -108,7 +108,7 @@ pub struct SchwabStreamerWriteHalf {
     request_id: Arc<AtomicU64>,
 }
 
-impl SchwabStreamerWriteHalf {
+impl WriteHalf {
     pub async fn login(&self, auth_token: AuthToken) -> Result<()> {
         let request = StreamerRequest::login()
             .authorization(auth_token)
@@ -151,7 +151,7 @@ impl SchwabStreamerWriteHalf {
 
 pub struct FrameSender {
     receiver: mpsc::Receiver<fastwebsockets::Frame<'static>>,
-    write_half: WriteHalf,
+    write_half: WsWriteHalf,
 }
 
 impl FrameSender {
@@ -217,17 +217,17 @@ impl SchwabStreamer {
         self.events_tx.subscribe()
     }
 
-    pub fn split(self) -> (SchwabStreamerReadHalf, SchwabStreamerWriteHalf, FrameSender) {
+    pub fn split(self) -> (ReadHalf, WriteHalf, FrameSender) {
         let (tx, rx) = mpsc::channel::<fastwebsockets::Frame<'static>>(100);
         let (read_half, write_half) = self.websocket.split(tokio::io::split);
 
-        let reader = SchwabStreamerReadHalf {
+        let reader = ReadHalf {
             read_half: FragmentCollectorRead::new(read_half),
             sender: tx.clone(),
             events_tx: self.events_tx,
         };
 
-        let writer = SchwabStreamerWriteHalf {
+        let writer = WriteHalf {
             sender: tx,
             customer_id: self.customer_id,
             correlation_id: self.correlation_id,

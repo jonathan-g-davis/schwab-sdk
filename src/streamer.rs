@@ -13,7 +13,7 @@ pub mod screener;
 pub mod subscription;
 
 pub use connection::{
-    FrameSender, SchwabStreamer, SchwabStreamerReadHalf, SchwabStreamerWriteHalf,
+    FrameSender, SchwabStreamer, ReadHalf, WriteHalf,
 };
 pub use events::{ConnectionEvent, DisconnectReason};
 pub use protocol::{ResponseCode, Service, StreamerCommand};
