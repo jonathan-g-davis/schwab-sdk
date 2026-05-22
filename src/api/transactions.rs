@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::api::macros::string_enum;
 use crate::client::SchwabClient;
 use crate::error::Result;
-use crate::model::{AccountHash, AccountNumber};
+use crate::secrets::{AccountHash, AccountNumber};
 
 /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
 /// family. Construct via [`SchwabClient::transactions`].

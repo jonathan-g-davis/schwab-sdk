@@ -7,7 +7,7 @@ use tokio::sync::{mpsc, watch};
 use tokio_util::sync::CancellationToken;
 
 use crate::error::{Error, Result};
-use crate::model::{AuthToken, CustomerId};
+use crate::secrets::{AuthToken, CustomerId};
 use crate::streamer::events::{ConnectionEvent, DisconnectReason};
 use crate::streamer::protocol::{Command, ResponseCode, Service};
 use crate::streamer::request::{RequestPayload, StreamerRequest};
