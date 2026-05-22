@@ -1,7 +1,7 @@
 use derive_builder::Builder;
 
 use crate::model::AuthToken;
-use crate::streamer::{Service, StreamerCommand, StreamerRequest};
+use crate::streamer::{Command, Service, StreamerRequest};
 
 #[derive(Debug, Clone, serde::Serialize, Builder)]
 #[builder(pattern = "owned")]
@@ -19,7 +19,7 @@ impl From<Login> for StreamerRequest {
         let parameters = serde_json::to_value(login).expect("Login serialization is infallible");
         StreamerRequest {
             service: Service::Admin,
-            command: StreamerCommand::Login,
+            command: Command::Login,
             parameters,
         }
     }
@@ -31,7 +31,7 @@ impl From<Logout> for StreamerRequest {
     fn from(_: Logout) -> Self {
         StreamerRequest {
             service: Service::Admin,
-            command: StreamerCommand::Logout,
+            command: Command::Logout,
             parameters: serde_json::json!({}),
         }
     }

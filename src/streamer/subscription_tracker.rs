@@ -34,7 +34,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use crate::streamer::{Service, StreamerCommand, StreamerRequest};
+use crate::streamer::{Command, Service, StreamerRequest};
 
 #[derive(Debug, Clone, Default)]
 pub struct SubscriptionTracker {
@@ -61,20 +61,20 @@ impl SubscriptionTracker {
         let (keys, fields) = parse_keys_fields(&request.parameters);
 
         match request.command {
-            StreamerCommand::Subs => {
+            Command::Subs => {
                 self.state.insert(
                     request.service.clone(),
                     ServiceSubscription { keys, fields },
                 );
             }
-            StreamerCommand::Add => {
+            Command::Add => {
                 let entry = self.state.entry(request.service.clone()).or_default();
                 entry.keys.extend(keys);
                 if !fields.is_empty() {
                     entry.fields = fields;
                 }
             }
-            StreamerCommand::Unsubs => {
+            Command::Unsubs => {
                 if let Some(entry) = self.state.get_mut(&request.service) {
                     for k in &keys {
                         entry.keys.remove(k);
@@ -84,12 +84,12 @@ impl SubscriptionTracker {
                     }
                 }
             }
-            StreamerCommand::View => {
+            Command::View => {
                 if let Some(entry) = self.state.get_mut(&request.service) {
                     entry.fields = fields;
                 }
             }
-            StreamerCommand::Login | StreamerCommand::Logout => {}
+            Command::Login | Command::Logout => {}
         }
     }
 
@@ -115,7 +115,7 @@ impl SubscriptionTracker {
             });
             out.push(StreamerRequest {
                 service: service.clone(),
-                command: StreamerCommand::Subs,
+                command: Command::Subs,
                 parameters,
             });
         }
@@ -159,6 +159,7 @@ fn parse_keys_fields(params: &serde_json::Value) -> (BTreeSet<String>, BTreeSet<
 mod tests {
     use super::*;
     use crate::streamer::level_one::equities::Field as EquitiesField;
+    use crate::streamer::protocol::Command as StreamerCommand;
     use crate::streamer::subscription::{Command, Subscription};
 
     fn equities_subs(keys: &[&str], fields: &[EquitiesField]) -> StreamerRequest {
