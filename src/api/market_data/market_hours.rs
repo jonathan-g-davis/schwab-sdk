@@ -14,8 +14,8 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
 use crate::api::macros::string_enum;
-use crate::error::Result;
 use crate::client::SchwabClient;
+use crate::error::Result;
 
 /// Accessor for `/markets*`. Construct via
 /// [`MarketData::market_hours`](super::MarketData::market_hours).
