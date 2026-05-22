@@ -21,16 +21,6 @@
 //! account number. `orderId` is the Schwab-assigned `int64` returned in
 //! the `Location` header of a successful place / replace.
 //!
-//! ## Module layout
-//!
-//! - [`enums`] - the string-valued enums shared across request and response
-//!   shapes, each with a forward-compat `Unknown(String)` catch-all.
-//! - [`response`] - the [`Order`] response struct and its nested types.
-//! - [`request`] - the [`OrderRequest`] body and the typestate builder
-//!   ([`OrderRequest::single`]).
-//! - [`preview`] - the [`PreviewOrder`] response shape returned by
-//!   [`Orders::preview`].
-//!
 //! ## Idempotency
 //!
 //! Schwab's Trader API exposes **no client-controllable idempotency key**.
@@ -41,10 +31,10 @@
 //! failure and matching by entered-time window, symbol, side, and
 //! quantity.
 
-pub mod enums;
-pub mod preview;
-pub mod request;
-pub mod response;
+mod enums;
+mod preview;
+mod request;
+mod response;
 
 pub use enums::*;
 pub use preview::{

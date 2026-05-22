@@ -21,9 +21,9 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
 
-use crate::api::macros::string_enum;
 use crate::client::SchwabClient;
 use crate::error::Result;
+use crate::macros::string_enum;
 use crate::secrets::{AccountHash, AccountNumber};
 
 /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
@@ -385,7 +385,7 @@ string_enum! {
     /// Asset-type discriminator for [`TransactionInstrument`]. The
     /// transaction schema permits more variants than account positions
     /// (e.g. `FUTURE`, `FOREX`), so this is a distinct enum from
-    /// [`crate::api::accounts::AssetType`]; both share the same
+    /// [`crate::accounts::AssetType`]; both share the same
     /// wire-string space and forward-compat catch-all.
     AssetType {
         Equity = "EQUITY",

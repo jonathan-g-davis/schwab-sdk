@@ -4,8 +4,7 @@
 //! and the two Schwab base URLs (trader and market-data). It exposes:
 //!
 //! - public namespace accessors (e.g. [`SchwabClient::accounts`],
-//!   [`SchwabClient::market_data`]) into the typed endpoint builders in
-//!   [`crate::api`], and
+//!   [`SchwabClient::market_data`]) into the typed endpoint builders, and
 //! - two crate-private transport accessors ([`SchwabClient::trader_http`]
 //!   and [`SchwabClient::market_data_http`]) that return a [`Transport`]
 //!   handle scoped to one API family. Endpoint builders dispatch
@@ -20,13 +19,13 @@ use http::Uri;
 use reqwest::{Method, RequestBuilder};
 use serde::de::DeserializeOwned;
 
-use crate::api::accounts::Accounts;
-use crate::api::market_data::MarketData;
-use crate::api::orders::{AllOrders, Orders};
-use crate::api::transactions::Transactions;
-use crate::api::user_preferences::UserPreferences;
+use crate::accounts::Accounts;
 use crate::error::{Error, Result, map_response_to_error};
+use crate::market_data::MarketData;
+use crate::orders::{AllOrders, Orders};
 use crate::secrets::{AccountHash, AuthToken};
+use crate::transactions::Transactions;
+use crate::user_preferences::UserPreferences;
 use crate::{SchwabStreamer, websocket};
 
 /// Production base URL for Schwab's Trader API.
@@ -80,7 +79,7 @@ impl SchwabClient {
 
     /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
     /// family. `account_hash` is the encrypted value from
-    /// [`crate::api::accounts::Accounts::numbers`].
+    /// [`crate::accounts::Accounts::numbers`].
     pub fn transactions<'a, 'b>(&'a self, account_hash: &'b AccountHash) -> Transactions<'a, 'b> {
         Transactions::new(self, account_hash)
     }

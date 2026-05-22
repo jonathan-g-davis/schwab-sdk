@@ -1,14 +1,14 @@
 //! Response shapes for the `/orders` and `/accounts/{n}/orders*` GET
 //! endpoints. The construction-side types live in
-//! [`super::request`](crate::api::orders::request).
+//! [`super::request`](crate::orders::request).
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 
-use crate::api::accounts::AccountsInstrument;
-use crate::api::orders::enums::*;
+use crate::accounts::AccountsInstrument;
+use crate::orders::enums::*;
 
 /// One order, as returned by the read endpoints. Schwab marks almost no
 /// field as required, so everything outside the discriminator-bearing

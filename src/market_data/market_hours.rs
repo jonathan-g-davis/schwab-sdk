@@ -13,9 +13,9 @@ use std::collections::HashMap;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-use crate::api::macros::string_enum;
 use crate::client::SchwabClient;
 use crate::error::Result;
+use crate::macros::string_enum;
 
 /// Accessor for `/markets*`. Construct via
 /// [`MarketData::market_hours`](super::MarketData::market_hours).

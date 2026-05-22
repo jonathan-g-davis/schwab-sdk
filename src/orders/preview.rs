@@ -1,7 +1,7 @@
 //! Response shape for `POST /accounts/{accountNumber}/previewOrder`.
 //!
 //! Preview returns Schwab's view of what would happen if an
-//! [`OrderRequest`](crate::api::orders::OrderRequest) were submitted:
+//! [`OrderRequest`](crate::orders::OrderRequest) were submitted:
 //! computed commissions, fees, projected buying-power impact, and any
 //! validation alerts / rejects the order would trigger.
 
@@ -10,9 +10,9 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
 
-use crate::api::accounts::AssetType;
-use crate::api::macros::string_enum;
-use crate::api::orders::enums::{
+use crate::accounts::AssetType;
+use crate::macros::string_enum;
+use crate::orders::enums::{
     ApiOrderStatus, ComplexOrderStrategyType, Duration, Instruction, OrderStrategyType, OrderType,
     Session,
 };
@@ -31,7 +31,7 @@ pub struct PreviewOrder {
 }
 
 /// The "order as Schwab would record it" projection inside a preview.
-/// Closely shadows [`Order`](crate::api::orders::Order) but with
+/// Closely shadows [`Order`](crate::orders::Order) but with
 /// preview-specific fields (`orderBalance`, `advancedOrderType`,
 /// `orderVersion`, etc.).
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -97,7 +97,7 @@ pub struct OrderBalance {
 }
 
 /// Per-leg preview entry. Distinct from the response-side
-/// [`OrderLegCollection`](crate::api::orders::OrderLegCollection): preview
+/// [`OrderLegCollection`](crate::orders::OrderLegCollection): preview
 /// adds market quotes (bid/ask/last/mark) and a projected commission.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct OrderLeg {
@@ -253,7 +253,7 @@ string_enum! {
 string_enum! {
     /// Fee type discriminator used inside the preview's commission and fee
     /// breakdowns. Distinct from
-    /// [`crate::api::transactions::FeeType`]; the preview spec lists more
+    /// [`crate::transactions::FeeType`]; the preview spec lists more
     /// variants (futures-specific fees, taxes) than the transactions spec.
     FeeType {
         Commission = "COMMISSION",
