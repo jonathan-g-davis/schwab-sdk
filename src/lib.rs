@@ -1,6 +1,7 @@
 //! `schwab-sdk` - a typed Rust client for the Charles Schwab Trader API.
 
 mod client;
+mod constants;
 mod websocket;
 
 pub(crate) mod macros;
@@ -14,11 +15,11 @@ pub mod streamer;
 pub mod transactions;
 pub mod user_preferences;
 
-pub use client::{MARKET_DATA_BASE_URL, SchwabClient, TRADER_BASE_URL};
-pub use error::{Error, ErrorBody, Result};
-pub use secrets::{
-    AccountHash, AccountNumber, AuthToken, CustomerId, DEFAULT_AUTH_TOKEN_EXPIRY,
-    DEFAULT_REFRESH_TOKEN_EXPIRY,
+pub use client::SchwabClient;
+pub use constants::{
+    DEFAULT_AUTH_TOKEN_EXPIRY, DEFAULT_REFRESH_TOKEN_EXPIRY, MARKET_DATA_BASE_URL, TRADER_BASE_URL,
 };
+pub use error::{Error, ErrorBody, Result};
+pub use secrets::{AccountHash, AccountNumber, AuthToken, CustomerId};
 pub use streamer::{SchwabStreamer, StreamerResponse};
 pub use websocket::WebSocketError;

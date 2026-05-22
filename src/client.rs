@@ -20,6 +20,7 @@ use reqwest::{Method, RequestBuilder};
 use serde::de::DeserializeOwned;
 
 use crate::accounts::Accounts;
+use crate::constants::{MARKET_DATA_BASE_URL, TRADER_BASE_URL};
 use crate::error::{Error, Result, map_response_to_error};
 use crate::market_data::MarketData;
 use crate::orders::{AllOrders, Orders};
@@ -27,11 +28,6 @@ use crate::secrets::{AccountHash, AuthToken};
 use crate::transactions::Transactions;
 use crate::user_preferences::UserPreferences;
 use crate::{SchwabStreamer, websocket};
-
-/// Production base URL for Schwab's Trader API.
-pub const TRADER_BASE_URL: &str = "https://api.schwabapi.com/trader/v1";
-/// Production base URL for Schwab's Market Data API.
-pub const MARKET_DATA_BASE_URL: &str = "https://api.schwabapi.com/marketdata/v1";
 
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
