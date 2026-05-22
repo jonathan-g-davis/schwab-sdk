@@ -5,11 +5,16 @@
 //! API ([`crate::rest::MARKET_DATA_BASE_URL`] vs
 //! [`crate::rest::TRADER_BASE_URL`]).
 
+pub mod instruments;
 pub mod market_hours;
 pub mod movers;
 pub mod price_history;
 pub mod quotes;
 
+pub use instruments::{
+    Bond, FundamentalInst, Instrument, InstrumentAssetType, InstrumentResponse, Instruments,
+    InstrumentsResponse, Projection,
+};
 pub use market_hours::{
     GetMarketHoursBuilder, Hours, Interval, ListMarketHoursBuilder, Market, MarketHours,
     MarketHoursResponse, MarketType,
@@ -61,5 +66,11 @@ impl<'a> MarketData<'a> {
     /// within an index.
     pub fn movers(&self) -> Movers<'a> {
         Movers::new(self.client)
+    }
+
+    /// Accessor for `/instruments*` - instrument search by symbol /
+    /// description and lookup by CUSIP.
+    pub fn instruments(&self) -> Instruments<'a> {
+        Instruments::new(self.client)
     }
 }
