@@ -5,12 +5,20 @@
 //! API ([`crate::rest::MARKET_DATA_BASE_URL`] vs
 //! [`crate::rest::TRADER_BASE_URL`]).
 
+pub mod chains;
+pub mod expiration_chain;
 pub mod instruments;
 pub mod market_hours;
 pub mod movers;
 pub mod price_history;
 pub mod quotes;
 
+pub use chains::{
+    Chains, ContractType, Entitlement, ExpirationMonth, ExpirationType, GetChainBuilder,
+    OptionChain, OptionContract, OptionContractMap, OptionDeliverables, OptionRange,
+    OptionStrategy, OptionType, PutCall, SettlementType, Underlying, UnderlyingExchange,
+};
+pub use expiration_chain::{Expiration, ExpirationChain, ExpirationChainResponse};
 pub use instruments::{
     Bond, FundamentalInst, Instrument, InstrumentAssetType, InstrumentResponse, Instruments,
     InstrumentsResponse, Projection,
@@ -72,5 +80,17 @@ impl<'a> MarketData<'a> {
     /// description and lookup by CUSIP.
     pub fn instruments(&self) -> Instruments<'a> {
         Instruments::new(self.client)
+    }
+
+    /// Accessor for `/chains` - the option chain for an optionable
+    /// symbol, grouped by expiration and strike.
+    pub fn chains(&self) -> Chains<'a> {
+        Chains::new(self.client)
+    }
+
+    /// Accessor for `/expirationchain` - the option expiration series
+    /// for an optionable symbol, without per-expiration contracts.
+    pub fn expiration_chain(&self) -> ExpirationChain<'a> {
+        ExpirationChain::new(self.client)
     }
 }
