@@ -5,9 +5,14 @@
 //! API ([`crate::rest::MARKET_DATA_BASE_URL`] vs
 //! [`crate::rest::TRADER_BASE_URL`]).
 
+pub mod market_hours;
 pub mod price_history;
 pub mod quotes;
 
+pub use market_hours::{
+    GetMarketHoursBuilder, Hours, Interval, ListMarketHoursBuilder, Market, MarketHours,
+    MarketHoursResponse, MarketType,
+};
 pub use price_history::{
     Candle, CandleList, FrequencyType, GetPriceHistoryBuilder, PeriodType, PriceHistory,
 };
@@ -40,5 +45,11 @@ impl<'a> MarketData<'a> {
     /// at a configurable aggregation.
     pub fn price_history(&self) -> PriceHistory<'a> {
         PriceHistory::new(self.client)
+    }
+
+    /// Accessor for `/markets*` - market hours and session windows for
+    /// one or more markets on a given date.
+    pub fn market_hours(&self) -> MarketHours<'a> {
+        MarketHours::new(self.client)
     }
 }
