@@ -1,6 +1,6 @@
 use super::{account_activity, book, chart, level_one, screener};
 use crate::error::{Error, Result};
-use crate::streamer::protocol::{Command, ResponseCode, Service};
+use crate::streamer::protocol::{StreamerCommand, ResponseCode, Service};
 use crate::streamer::subscription::Command as SubscriptionCommand;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 
@@ -13,7 +13,7 @@ pub struct ResponsePayload {
     pub service: Service,
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     pub timestamp: u64,
-    pub command: Command,
+    pub command: StreamerCommand,
     #[serde(rename = "SchwabClientCorrelId")]
     pub schwab_client_correlation_id: String,
     pub content: ResponseContent,
@@ -39,7 +39,7 @@ pub(super) struct RawDataPayload {
     service: Service,
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     timestamp: u64,
-    command: Command,
+    command: StreamerCommand,
     content: serde_json::Value,
 }
 
@@ -286,7 +286,7 @@ mod tests {
                 assert_eq!(responses.len(), 1);
                 let r = &responses[0];
                 assert_eq!(r.service, Service::Admin);
-                assert_eq!(r.command, Command::Login);
+                assert_eq!(r.command, StreamerCommand::Login);
                 assert_eq!(r.request_id, 1);
                 assert_eq!(r.content.code, ResponseCode::Ok);
                 assert!(r.content.message.contains("status=PN"));
