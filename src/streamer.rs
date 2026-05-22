@@ -16,7 +16,7 @@ pub use connection::{
     FrameSender, SchwabStreamer, SchwabStreamerReadHalf, SchwabStreamerWriteHalf,
 };
 pub use events::{ConnectionEvent, DisconnectReason};
-pub use protocol::{Command, ResponseCode, Service};
+pub use protocol::{StreamerCommand, ResponseCode, Service};
 pub use request::StreamerRequest;
 pub use response::{
     DataContent, DataPayload, Heartbeat, ResponseContent, ResponsePayload, StreamerResponse,

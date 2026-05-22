@@ -1,7 +1,7 @@
 use derive_builder::Builder;
 use serde_with::{SerializeAs, StringWithSeparator, formats::CommaSeparator, serde_as};
 
-use crate::streamer::protocol::Command as StreamerCommand;
+use crate::streamer::protocol::StreamerCommand;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Command {

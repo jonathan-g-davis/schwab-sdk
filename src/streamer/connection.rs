@@ -9,7 +9,7 @@ use tokio_util::sync::CancellationToken;
 use crate::error::{Error, Result};
 use crate::secrets::{AuthToken, CustomerId};
 use crate::streamer::events::{ConnectionEvent, DisconnectReason};
-use crate::streamer::protocol::{Command, ResponseCode, Service};
+use crate::streamer::protocol::{StreamerCommand, ResponseCode, Service};
 use crate::streamer::request::{RequestPayload, StreamerRequest};
 use crate::streamer::response::{RawStreamerResponse, StreamerResponse};
 use crate::websocket::WebSocket;
@@ -73,7 +73,7 @@ fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &Stre
         return;
     };
     for r in responses {
-        let is_login = r.service == Service::Admin && r.command == Command::Login;
+        let is_login = r.service == Service::Admin && r.command == StreamerCommand::Login;
         match r.content.code {
             ResponseCode::Ok if is_login => {
                 events_tx.send_replace(ConnectionEvent::LoggedIn);
@@ -319,10 +319,10 @@ impl SchwabStreamer {
 mod tests {
     use super::*;
     use crate::streamer::events::{ConnectionEvent, DisconnectReason};
-    use crate::streamer::protocol::{Command, ResponseCode, Service};
+    use crate::streamer::protocol::{StreamerCommand, ResponseCode, Service};
     use crate::streamer::response::{ResponseContent, ResponsePayload};
 
-    fn response(code: ResponseCode, command: Command, msg: &str) -> StreamerResponse {
+    fn response(code: ResponseCode, command: StreamerCommand, msg: &str) -> StreamerResponse {
         StreamerResponse::Response(vec![ResponsePayload {
             request_id: 1,
             service: Service::Admin,
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn login_ok_emits_logged_in() {
         let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
-        classify_and_emit(&tx, &response(ResponseCode::Ok, Command::Login, ""));
+        classify_and_emit(&tx, &response(ResponseCode::Ok, StreamerCommand::Login, ""));
         assert!(rx.has_changed().unwrap());
         assert_eq!(*rx.borrow_and_update(), ConnectionEvent::LoggedIn);
     }
@@ -349,7 +349,7 @@ mod tests {
         let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
         classify_and_emit(
             &tx,
-            &response(ResponseCode::LoginDenied, Command::Login, "token expired"),
+            &response(ResponseCode::LoginDenied, StreamerCommand::Login, "token expired"),
         );
         match rx.borrow_and_update().clone() {
             ConnectionEvent::Disconnected(DisconnectReason::LoginDenied(msg)) => {
@@ -366,7 +366,7 @@ mod tests {
             &tx,
             &response(
                 ResponseCode::CloseConnection,
-                Command::Subs,
+                StreamerCommand::Subs,
                 "max connections",
             ),
         );
@@ -381,7 +381,7 @@ mod tests {
         let (tx, mut rx) = watch::channel(ConnectionEvent::Connected);
         classify_and_emit(
             &tx,
-            &response(ResponseCode::StopStreaming, Command::Subs, "inactivity"),
+            &response(ResponseCode::StopStreaming, StreamerCommand::Subs, "inactivity"),
         );
         assert!(matches!(
             *rx.borrow_and_update(),
@@ -397,7 +397,7 @@ mod tests {
             request_id: 1,
             service: Service::LevelOneEquities,
             timestamp: 1,
-            command: Command::Subs,
+            command: StreamerCommand::Subs,
             schwab_client_correlation_id: "x".into(),
             content: ResponseContent {
                 code: ResponseCode::Ok,

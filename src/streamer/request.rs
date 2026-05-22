@@ -1,7 +1,7 @@
 use crate::streamer::{account_activity, admin, book, chart, level_one, screener, subscription};
 use crate::{
     CustomerId,
-    streamer::protocol::{Command, Service},
+    streamer::protocol::{StreamerCommand, Service},
 };
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -11,7 +11,7 @@ pub(super) struct RequestPayload {
     #[serde(rename = "service")]
     pub service: Service,
     #[serde(rename = "command")]
-    pub command: Command,
+    pub command: StreamerCommand,
     #[serde(rename = "parameters")]
     pub parameters: serde_json::Value,
     #[serde(rename = "SchwabClientCustomerId")]
@@ -22,7 +22,7 @@ pub(super) struct RequestPayload {
 
 pub struct StreamerRequest {
     pub(super) service: Service,
-    pub(super) command: Command,
+    pub(super) command: StreamerCommand,
     pub(super) parameters: serde_json::Value,
 }
 

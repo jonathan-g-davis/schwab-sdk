@@ -67,7 +67,7 @@ impl From<String> for Service {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum Command {
+pub enum StreamerCommand {
     #[serde(rename = "LOGIN")]
     Login,
     #[serde(rename = "SUBS")]
