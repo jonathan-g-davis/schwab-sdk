@@ -1,7 +1,7 @@
 use derive_builder::Builder;
 
 use crate::secrets::AuthToken;
-use crate::streamer::{StreamerCommand, Service, StreamerRequest};
+use crate::streamer::{Service, StreamerCommand, StreamerRequest};
 
 #[derive(Debug, Clone, serde::Serialize, Builder)]
 #[builder(pattern = "owned")]

@@ -1,6 +1,6 @@
 use super::{account_activity, book, chart, level_one, screener};
 use crate::error::{Error, Result};
-use crate::streamer::protocol::{StreamerCommand, ResponseCode, Service};
+use crate::streamer::protocol::{ResponseCode, Service, StreamerCommand};
 use crate::streamer::subscription::Command as SubscriptionCommand;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 

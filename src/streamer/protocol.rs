@@ -82,15 +82,21 @@ pub enum StreamerCommand {
     Logout,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde_repr::Deserialize_repr)]
-#[repr(u8)]
+/// Status code on a streamer `response` frame, reporting the outcome of the
+/// command the frame acknowledges.
+///
+/// Open enum: a numeric code Schwab adds later that does not match a known
+/// variant decodes into [`ResponseCode::Unknown`] with the raw value
+/// preserved, so an unrecognized code never fails the whole frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize)]
+#[serde(from = "u8")]
 pub enum ResponseCode {
-    Ok = 0,
-    LoginDenied = 3,
-    UnknownFailure = 9,
-    ServiceNotAvailable = 11,
-    CloseConnection = 12,
-    ReachedSymbolLimit = 19,
+    Ok,
+    LoginDenied,
+    UnknownFailure,
+    ServiceNotAvailable,
+    CloseConnection,
+    ReachedSymbolLimit,
     StreamConnNotFound,
     BadCommandFormat,
     FailedCommandSubs,
@@ -102,4 +108,115 @@ pub enum ResponseCode {
     SucceededCommandAdd,
     SucceededCommandView,
     StopStreaming,
+    /// A status code Schwab sent that this crate does not recognize. The
+    /// raw wire value is preserved so callers can still route on it.
+    Unknown(u8),
+}
+
+impl From<u8> for ResponseCode {
+    fn from(code: u8) -> Self {
+        match code {
+            0 => ResponseCode::Ok,
+            3 => ResponseCode::LoginDenied,
+            9 => ResponseCode::UnknownFailure,
+            11 => ResponseCode::ServiceNotAvailable,
+            12 => ResponseCode::CloseConnection,
+            19 => ResponseCode::ReachedSymbolLimit,
+            20 => ResponseCode::StreamConnNotFound,
+            21 => ResponseCode::BadCommandFormat,
+            22 => ResponseCode::FailedCommandSubs,
+            23 => ResponseCode::FailedCommandUnsubs,
+            24 => ResponseCode::FailedCommandAdd,
+            25 => ResponseCode::FailedCommandView,
+            26 => ResponseCode::SucceededCommandSubs,
+            27 => ResponseCode::SucceededCommandUnsubs,
+            28 => ResponseCode::SucceededCommandAdd,
+            29 => ResponseCode::SucceededCommandView,
+            30 => ResponseCode::StopStreaming,
+            other => ResponseCode::Unknown(other),
+        }
+    }
+}
+
+impl ResponseCode {
+    /// `true` if the code reports that the acknowledged command succeeded.
+    /// Every other code, including [`ResponseCode::Unknown`], is a failure
+    /// or a connection-lifecycle signal the caller must handle.
+    pub fn is_success(&self) -> bool {
+        matches!(
+            self,
+            ResponseCode::Ok
+                | ResponseCode::SucceededCommandSubs
+                | ResponseCode::SucceededCommandUnsubs
+                | ResponseCode::SucceededCommandAdd
+                | ResponseCode::SucceededCommandView
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_response_codes_deserialize() {
+        assert_eq!(
+            serde_json::from_str::<ResponseCode>("0").unwrap(),
+            ResponseCode::Ok
+        );
+        assert_eq!(
+            serde_json::from_str::<ResponseCode>("3").unwrap(),
+            ResponseCode::LoginDenied
+        );
+        assert_eq!(
+            serde_json::from_str::<ResponseCode>("30").unwrap(),
+            ResponseCode::StopStreaming
+        );
+    }
+
+    #[test]
+    fn unknown_response_code_falls_back() {
+        // A code Schwab assigns after this crate was published must not
+        // fail the response frame.
+        assert_eq!(
+            serde_json::from_str::<ResponseCode>("99").unwrap(),
+            ResponseCode::Unknown(99)
+        );
+    }
+
+    #[test]
+    fn unassigned_codes_in_range_fall_back_to_unknown() {
+        // Values with no documented meaning (1, 2, 4-8, 10, ...) decode as
+        // Unknown rather than failing.
+        assert_eq!(
+            serde_json::from_str::<ResponseCode>("1").unwrap(),
+            ResponseCode::Unknown(1)
+        );
+        assert_eq!(
+            serde_json::from_str::<ResponseCode>("10").unwrap(),
+            ResponseCode::Unknown(10)
+        );
+    }
+
+    #[test]
+    fn out_of_range_code_is_a_decode_error() {
+        // The wire value is a u8; a larger number is a genuine decode
+        // failure, not an Unknown code.
+        assert!(serde_json::from_str::<ResponseCode>("256").is_err());
+    }
+
+    #[test]
+    fn is_success_only_for_ok_and_succeeded_codes() {
+        assert!(ResponseCode::Ok.is_success());
+        assert!(ResponseCode::SucceededCommandSubs.is_success());
+        assert!(ResponseCode::SucceededCommandUnsubs.is_success());
+        assert!(ResponseCode::SucceededCommandAdd.is_success());
+        assert!(ResponseCode::SucceededCommandView.is_success());
+
+        assert!(!ResponseCode::LoginDenied.is_success());
+        assert!(!ResponseCode::FailedCommandSubs.is_success());
+        assert!(!ResponseCode::ServiceNotAvailable.is_success());
+        assert!(!ResponseCode::StopStreaming.is_success());
+        assert!(!ResponseCode::Unknown(99).is_success());
+    }
 }
