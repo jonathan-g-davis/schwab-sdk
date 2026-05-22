@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::macros::string_enum;
 use crate::error::Result;
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for `/instruments*`. Construct via
 /// [`MarketData::instruments`](super::MarketData::instruments).

@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use super::chains::{ExpirationType, SettlementType};
 use crate::error::Result;
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for `/expirationchain`. Construct via
 /// [`MarketData::expiration_chain`](super::MarketData::expiration_chain).

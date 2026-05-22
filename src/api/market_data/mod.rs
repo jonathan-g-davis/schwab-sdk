@@ -2,8 +2,8 @@
 //!
 //! Reached through [`SchwabClient::market_data`](crate::SchwabClient::market_data).
 //! All endpoints in this family hit a different base URL than the Trader
-//! API ([`crate::rest::MARKET_DATA_BASE_URL`] vs
-//! [`crate::rest::TRADER_BASE_URL`]).
+//! API ([`crate::client::MARKET_DATA_BASE_URL`] vs
+//! [`crate::client::TRADER_BASE_URL`]).
 
 pub mod chains;
 pub mod expiration_chain;
@@ -39,7 +39,7 @@ pub use quotes::{
     QuoteResponse, QuoteType, Quotes, ReferenceEquity, RegularMarket,
 };
 
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for the Market Data API endpoint families. Construct via
 /// [`SchwabClient::market_data`](crate::SchwabClient::market_data).

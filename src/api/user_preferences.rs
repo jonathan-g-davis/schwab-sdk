@@ -9,7 +9,7 @@
 
 use crate::error::Result;
 use crate::model::{AccountNumber, CustomerId};
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for `/userPreference`. Construct via
 /// [`SchwabClient::user_preferences`].

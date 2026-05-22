@@ -62,7 +62,7 @@ use chrono::{DateTime, SecondsFormat, Utc};
 
 use crate::error::{Error, Result};
 use crate::model::AccountHash;
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 // --- Namespaces ---
 

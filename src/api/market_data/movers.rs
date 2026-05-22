@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::macros::string_enum;
 use crate::error::Result;
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for `/movers/{symbol_id}`. Construct via
 /// [`MarketData::movers`](super::MarketData::movers).
