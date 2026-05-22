@@ -10,8 +10,8 @@ use std::marker::PhantomData;
 use rust_decimal::Decimal;
 use serde::Serialize;
 
-use crate::api::accounts::AssetType;
-use crate::api::orders::enums::{
+use crate::accounts::AssetType;
+use crate::orders::enums::{
     ComplexOrderStrategyType, Duration, Instruction, OrderStrategyType, OrderType, PositionEffect,
     PriceLinkBasis, PriceLinkType, QuantityType, Session, SpecialInstruction, StopPriceLinkBasis,
     StopPriceLinkType, StopType, TaxLotMethod,
@@ -44,7 +44,7 @@ mod decimal_opt {
 ///
 /// Response-only fields (`status`, `filledQuantity`, `enteredTime`,
 /// `tag`, `requestedDestination`, etc.) are not present here; they live
-/// on [`Order`](crate::api::orders::Order) instead.
+/// on [`Order`](crate::orders::Order) instead.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct OrderRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -124,7 +124,7 @@ pub struct OrderLegRequest {
 
 /// Minimal request-side instrument: only `symbol` and `assetType` are
 /// settable. Uses the typed [`AssetType`] from
-/// [`crate::api::accounts`].
+/// [`crate::accounts`].
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct OrderInstrumentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -2,11 +2,11 @@
 //!
 //! Every variant has a `Unknown(String)` catch-all so wire values added by
 //! Schwab after this crate was published deserialize cleanly. The
-//! `string_enum!` macro lives in [`crate::api::macros`].
+//! `string_enum!` macro lives in [`crate::macros`].
 
 use serde::{Deserialize, Serialize};
 
-use crate::api::macros::string_enum;
+use crate::macros::string_enum;
 
 string_enum! {
     Session {

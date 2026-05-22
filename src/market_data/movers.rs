@@ -10,9 +10,9 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::{Deserialize, Serialize};
 
-use crate::api::macros::string_enum;
 use crate::client::SchwabClient;
 use crate::error::Result;
+use crate::macros::string_enum;
 
 /// Accessor for `/movers/{symbol_id}`. Construct via
 /// [`MarketData::movers`](super::MarketData::movers).

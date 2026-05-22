@@ -2,16 +2,15 @@
 //!
 //! Reached through [`SchwabClient::market_data`](crate::SchwabClient::market_data).
 //! All endpoints in this family hit a different base URL than the Trader
-//! API ([`crate::client::MARKET_DATA_BASE_URL`] vs
-//! [`crate::client::TRADER_BASE_URL`]).
+//! API ([`crate::MARKET_DATA_BASE_URL`] vs [`crate::TRADER_BASE_URL`]).
 
-pub mod chains;
-pub mod expiration_chain;
-pub mod instruments;
-pub mod market_hours;
-pub mod movers;
-pub mod price_history;
-pub mod quotes;
+mod chains;
+mod expiration_chain;
+mod instruments;
+mod market_hours;
+mod movers;
+mod price_history;
+mod quotes;
 
 pub use chains::{
     Chains, ContractType, Entitlement, ExpirationMonth, ExpirationType, GetChainBuilder,

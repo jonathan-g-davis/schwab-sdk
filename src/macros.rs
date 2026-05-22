@@ -1,4 +1,4 @@
-//! Crate-private declarative macros shared across [`crate::api`] modules.
+//! Crate-private declarative macros shared across the API endpoint modules.
 
 /// Declare a public string-valued enum with a `Unknown(String)` catch-all so
 /// wire values added after this crate was published deserialize cleanly,
