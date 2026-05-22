@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api::macros::string_enum;
 use crate::error::Result;
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for the `/quotes` endpoint family. Construct via
 /// [`MarketData::quotes`](super::MarketData::quotes).

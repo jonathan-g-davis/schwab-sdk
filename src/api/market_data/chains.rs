@@ -28,7 +28,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::api::macros::string_enum;
 use crate::error::Result;
-use crate::rest::SchwabClient;
+use crate::client::SchwabClient;
 
 /// Accessor for `/chains`. Construct via
 /// [`MarketData::chains`](super::MarketData::chains).
