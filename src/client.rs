@@ -26,7 +26,7 @@ use crate::api::orders::{AllOrders, Orders};
 use crate::api::transactions::Transactions;
 use crate::api::user_preferences::UserPreferences;
 use crate::error::{Error, Result, map_response_to_error};
-use crate::model::{AccountHash, AuthToken};
+use crate::secrets::{AccountHash, AuthToken};
 use crate::{SchwabStreamer, websocket};
 
 /// Production base URL for Schwab's Trader API.

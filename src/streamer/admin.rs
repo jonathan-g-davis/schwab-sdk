@@ -1,6 +1,6 @@
 use derive_builder::Builder;
 
-use crate::model::AuthToken;
+use crate::secrets::AuthToken;
 use crate::streamer::{Command, Service, StreamerRequest};
 
 #[derive(Debug, Clone, serde::Serialize, Builder)]

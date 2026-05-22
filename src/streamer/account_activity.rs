@@ -15,7 +15,7 @@ use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
-use crate::model::AccountNumber;
+use crate::secrets::AccountNumber;
 use crate::streamer::{
     Service, StreamerRequest,
     subscription::{Subscription, SubscriptionParameters},
