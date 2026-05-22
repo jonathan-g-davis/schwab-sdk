@@ -60,9 +60,9 @@ pub use response::{ExecutionLeg, Order, OrderActivity, OrderLegCollection};
 
 use chrono::{DateTime, SecondsFormat, Utc};
 
+use crate::client::SchwabClient;
 use crate::error::{Error, Result};
 use crate::model::AccountHash;
-use crate::client::SchwabClient;
 
 // --- Namespaces ---
 

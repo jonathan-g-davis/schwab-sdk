@@ -9,5 +9,8 @@ pub mod websocket;
 
 pub use client::SchwabClient;
 pub use error::{Error, Result};
-pub use model::{AccountHash, AccountNumber, AuthToken, CustomerId};
+pub use model::{
+    AccountHash, AccountNumber, AuthToken, CustomerId, DEFAULT_AUTH_TOKEN_EXPIRY,
+    DEFAULT_REFRESH_TOKEN_EXPIRY,
+};
 pub use streamer::SchwabStreamer;

@@ -7,9 +7,9 @@
 //! Reached through
 //! [`SchwabClient::user_preferences`](crate::SchwabClient::user_preferences).
 
+use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::model::{AccountNumber, CustomerId};
-use crate::client::SchwabClient;
 
 /// Accessor for `/userPreference`. Construct via
 /// [`SchwabClient::user_preferences`].
