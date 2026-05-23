@@ -43,7 +43,7 @@ pub use preview::{
     OrderValidationDetail, OrderValidationResult, PreviewOrder, SettlementInstruction,
 };
 pub use request::{
-    AcceptsLeg, NeedsLeg, NeedsType, OrderInstrumentRequest, OrderLegRequest, OrderRequest, Ready,
+    OrderInstrumentRequest, OrderLegRequest, OrderRequest,
     SingleOrderBuilder,
 };
 pub use response::{ExecutionLeg, Order, OrderActivity, OrderLegCollection};
