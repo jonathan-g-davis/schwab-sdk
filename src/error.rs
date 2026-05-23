@@ -56,8 +56,6 @@ pub enum Error {
     Decode { context: String, reason: String },
     #[error("build: {0}")]
     Build(String),
-    #[error("outbound frame channel closed")]
-    ChannelClosed,
     #[error("missing user preference field: {0}")]
     MissingPreference(&'static str),
     #[error("invalid uri: {0}")]
@@ -106,7 +104,7 @@ impl Error {
             | Error::InternalServerError(_)
             | Error::ServiceUnavailable(_) => true,
             Error::RequestFailed(e) => e.is_timeout() || e.is_connect() || e.is_request(),
-            Error::WebSocket(_) | Error::Streamer(_) | Error::ChannelClosed => true,
+            Error::WebSocket(_) | Error::Streamer(_) => true,
             Error::BadRequest(_)
             | Error::Unauthorized(_)
             | Error::Forbidden(_)

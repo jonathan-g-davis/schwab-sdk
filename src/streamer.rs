@@ -12,9 +12,8 @@ pub mod level_one;
 pub mod screener;
 pub mod subscription;
 
-pub use connection::{
-    FrameSender, SchwabStreamer, ReadHalf, WriteHalf,
-};
+pub(crate) use connection::split;
+pub use connection::{ReadHalf, WriteHalf};
 pub use events::{ConnectionEvent, DisconnectReason};
 pub use protocol::{ResponseCode, Service, StreamerCommand};
 pub use request::StreamerRequest;

@@ -1,10 +1,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use derive_builder::Builder;
 use fastwebsockets::{FragmentCollectorRead, WebSocketWrite};
-use tokio::sync::{mpsc, watch};
-use tokio_util::sync::CancellationToken;
+use tokio::sync::{Mutex, watch};
 
 use crate::error::{Error, Result};
 use crate::secrets::{AuthToken, CustomerId};
@@ -18,15 +16,65 @@ type Upgraded = hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>;
 type WsReadHalf = FragmentCollectorRead<tokio::io::ReadHalf<Upgraded>>;
 type WsWriteHalf = WebSocketWrite<tokio::io::WriteHalf<Upgraded>>;
 
+/// Split a connected [`WebSocket`] into the [`ReadHalf`] and [`WriteHalf`]
+/// the streamer surface exposes.
+///
+/// The websocket's write half is owned by an `Arc<Mutex<_>>` shared by both
+/// halves: the writer locks it for `login`/`logout`/`send`, the reader locks
+/// it inside `read_frame`'s control-frame callback to reply to pings and
+/// close frames. No background task is spawned; all I/O happens inline on
+/// the caller's own stack inside `recv()` / `send()`.
+pub(crate) fn split(
+    websocket: WebSocket,
+    customer_id: CustomerId,
+    correlation_id: String,
+    channel: String,
+    function_id: String,
+) -> (ReadHalf, WriteHalf) {
+    let (read_half, write_half) = websocket.split(tokio::io::split);
+    let write_half = Arc::new(Mutex::new(write_half));
+    let (events_tx, _) = watch::channel(ConnectionEvent::Connected);
+
+    let reader = ReadHalf {
+        read_half: FragmentCollectorRead::new(read_half),
+        write_half: write_half.clone(),
+        events_tx,
+    };
+
+    let writer = WriteHalf {
+        write_half,
+        customer_id,
+        correlation_id,
+        channel,
+        function_id,
+        request_id: Arc::new(AtomicU64::new(0)),
+    };
+
+    (reader, writer)
+}
+
+/// Lock the shared write half and write a single frame. Used both by the
+/// reader (to reply to ping/close control frames) and the writer (to send
+/// requests). Lifting this out of the closure that `read_frame` consumes
+/// makes the future's lifetime relation to `frame` explicit, which the
+/// closure form (with an `async move` block) cannot express on stable Rust.
+async fn write_one(
+    write_half: Arc<Mutex<WsWriteHalf>>,
+    frame: fastwebsockets::Frame<'_>,
+) -> std::result::Result<(), fastwebsockets::WebSocketError> {
+    write_half.lock().await.write_frame(frame).await
+}
+
 pub struct ReadHalf {
     read_half: WsReadHalf,
-    sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
+    write_half: Arc<Mutex<WsWriteHalf>>,
     events_tx: watch::Sender<ConnectionEvent>,
 }
 
 impl ReadHalf {
     pub async fn recv(&mut self) -> Result<StreamerResponse> {
-        let mut send_fn = Box::new(|frame| self.sender.send(frame));
+        let write_half = self.write_half.clone();
+        let mut send_fn = move |frame| write_one(write_half.clone(), frame);
         loop {
             let frame = match self.read_half.read_frame(&mut send_fn).await {
                 Ok(f) => f,
@@ -98,9 +146,9 @@ fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &Stre
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct WriteHalf {
-    sender: mpsc::Sender<fastwebsockets::Frame<'static>>,
+    write_half: Arc<Mutex<WsWriteHalf>>,
     customer_id: CustomerId,
     correlation_id: String,
     channel: String,
@@ -139,179 +187,12 @@ impl WriteHalf {
             context: "streamer request envelope".to_string(),
             reason: e.to_string(),
         })?;
-        self.sender
-            .send(fastwebsockets::Frame::text(fastwebsockets::Payload::Owned(
-                serialized.into(),
-            )))
-            .await
-            .map_err(|_| Error::ChannelClosed)?;
+        write_one(
+            self.write_half.clone(),
+            fastwebsockets::Frame::text(fastwebsockets::Payload::Borrowed(serialized.as_bytes())),
+        )
+        .await?;
         Ok(())
-    }
-}
-
-pub struct FrameSender {
-    receiver: mpsc::Receiver<fastwebsockets::Frame<'static>>,
-    write_half: WsWriteHalf,
-}
-
-impl FrameSender {
-    /// Spawn the outbound frame pump. The returned `JoinHandle` resolves to
-    /// `Ok(())` on graceful shutdown (channel closed or cancellation), or
-    /// `Err` if the underlying websocket write fails. Callers are expected
-    /// to supervise the handle and treat a write failure as a disconnect.
-    pub fn run(mut self) -> (tokio::task::JoinHandle<Result<()>>, CancellationToken) {
-        let token = CancellationToken::new();
-        let cloned_token = token.clone();
-        let handle = tokio::task::spawn(async move {
-            loop {
-                tokio::select! {
-                    biased;
-                    recv = self.receiver.recv() => {
-                        match recv {
-                            Some(frame) => self.write_half.write_frame(frame).await?,
-                            None => break,
-                        }
-                    }
-                    _ = cloned_token.cancelled() => {
-                        break;
-                    }
-                }
-            }
-            Ok(())
-        });
-
-        (handle, token)
-    }
-}
-
-#[derive(Builder)]
-#[builder(pattern = "owned")]
-pub struct SchwabStreamer {
-    websocket: WebSocket,
-    customer_id: CustomerId,
-    correlation_id: String,
-    channel: String,
-    function_id: String,
-    #[builder(default = "0")]
-    request_id: u64,
-    #[builder(default = "default_events_sender()")]
-    events_tx: watch::Sender<ConnectionEvent>,
-}
-
-/// Initial event-channel sender. The receiver returned by `watch::channel`
-/// is intentionally dropped: the sender retains the initial `Connected`
-/// value and `send_replace` continues to update it even with no live
-/// receivers, so consumers who later call `events()` see the most-recent
-/// state.
-fn default_events_sender() -> watch::Sender<ConnectionEvent> {
-    watch::channel(ConnectionEvent::Connected).0
-}
-
-impl SchwabStreamer {
-    pub(crate) fn builder() -> SchwabStreamerBuilder {
-        SchwabStreamerBuilder::default()
-    }
-
-    /// Subscribe to connection-state updates for this session.
-    pub fn events(&self) -> watch::Receiver<ConnectionEvent> {
-        self.events_tx.subscribe()
-    }
-
-    pub fn split(self) -> (ReadHalf, WriteHalf, FrameSender) {
-        let (tx, rx) = mpsc::channel::<fastwebsockets::Frame<'static>>(100);
-        let (read_half, write_half) = self.websocket.split(tokio::io::split);
-
-        let reader = ReadHalf {
-            read_half: FragmentCollectorRead::new(read_half),
-            sender: tx.clone(),
-            events_tx: self.events_tx,
-        };
-
-        let writer = WriteHalf {
-            sender: tx,
-            customer_id: self.customer_id,
-            correlation_id: self.correlation_id,
-            channel: self.channel,
-            function_id: self.function_id,
-            request_id: Arc::new(AtomicU64::new(self.request_id)),
-        };
-
-        let frame_sender = FrameSender {
-            receiver: rx,
-            write_half,
-        };
-
-        (reader, writer, frame_sender)
-    }
-
-    pub async fn login(&mut self, auth_token: AuthToken) -> Result<()> {
-        let request = StreamerRequest::login()
-            .authorization(auth_token)
-            .schwab_client_channel(self.channel.clone())
-            .schwab_client_function_id(self.function_id.clone())
-            .build()
-            .map_err(|e| Error::Build(e.to_string()))?;
-        self.send(request).await
-    }
-
-    pub async fn logout(&mut self) -> Result<()> {
-        self.send(StreamerRequest::logout()).await
-    }
-
-    pub async fn send<T: Into<StreamerRequest>>(&mut self, request: T) -> Result<()> {
-        let request: StreamerRequest = request.into();
-        let request = RequestPayload {
-            request_id: self.request_id,
-            service: request.service,
-            command: request.command,
-            parameters: request.parameters,
-            schwab_client_customer_id: self.customer_id.clone(),
-            schwab_client_correlation_id: self.correlation_id.clone(),
-        };
-        self.request_id += 1;
-
-        let serialized = serde_json::to_string(&request).map_err(|e| Error::Encode {
-            context: "streamer request envelope".to_string(),
-            reason: e.to_string(),
-        })?;
-        self.websocket
-            .write_frame(fastwebsockets::Frame::text(
-                fastwebsockets::Payload::Borrowed(serialized.as_bytes()),
-            ))
-            .await?;
-        Ok(())
-    }
-
-    pub async fn recv(&mut self) -> Result<StreamerResponse> {
-        loop {
-            let frame = match self.websocket.read_frame().await {
-                Ok(f) => f,
-                Err(e) => {
-                    self.events_tx.send_replace(ConnectionEvent::Disconnected(
-                        DisconnectReason::Transport(e.to_string()),
-                    ));
-                    return Err(e.into());
-                }
-            };
-            if frame.opcode == fastwebsockets::OpCode::Text {
-                let raw_response: RawStreamerResponse = match serde_json::from_slice(&frame.payload)
-                {
-                    Ok(r) => r,
-                    Err(e) => {
-                        self.events_tx.send_replace(ConnectionEvent::StreamError {
-                            message: e.to_string(),
-                        });
-                        return Err(Error::Decode {
-                            context: "streamer response frame".to_string(),
-                            reason: e.to_string(),
-                        });
-                    }
-                };
-                let response = StreamerResponse::try_from(raw_response)?;
-                classify_and_emit(&self.events_tx, &response);
-                return Ok(response);
-            }
-        }
     }
 }
 
