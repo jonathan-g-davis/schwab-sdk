@@ -16,8 +16,8 @@ pub(crate) use connection::split;
 pub use connection::{ReadHalf, WriteHalf};
 pub use events::{ConnectionEvent, DisconnectReason};
 pub use protocol::{ResponseCode, Service, StreamerCommand};
-pub use request::StreamerRequest;
+pub(crate) use request::StreamerRequest;
 pub use response::{
     DataContent, DataPayload, Heartbeat, ResponseContent, ResponsePayload, StreamerResponse,
 };
-pub use subscription::Command as SubscriptionCommand;
+pub use subscription::{Command as SubscriptionCommand, SubscribeRequest};

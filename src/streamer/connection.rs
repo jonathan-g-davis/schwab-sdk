@@ -10,6 +10,8 @@ use crate::streamer::events::{ConnectionEvent, DisconnectReason};
 use crate::streamer::protocol::{ResponseCode, Service, StreamerCommand};
 use crate::streamer::request::{RequestPayload, StreamerRequest};
 use crate::streamer::response::{RawStreamerResponse, StreamerResponse};
+use crate::streamer::subscription::SubscribeRequest;
+use crate::streamer::{account_activity, admin, book, chart, level_one, screener};
 use crate::websocket::WebSocket;
 
 type Upgraded = hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>;
@@ -157,8 +159,12 @@ pub struct WriteHalf {
 }
 
 impl WriteHalf {
+    /// Send the streamer LOGIN frame establishing the session. Must be
+    /// called before any subscribe / add / unsubscribe / view request.
+    /// Returns when the frame has been handed to the socket; the LOGIN
+    /// ack arrives later on the read half as a `response` frame.
     pub async fn login(&self, auth_token: AuthToken) -> Result<()> {
-        let request = StreamerRequest::login()
+        let request = admin::LoginBuilder::default()
             .authorization(auth_token)
             .schwab_client_channel(self.channel.clone())
             .schwab_client_function_id(self.function_id.clone())
@@ -167,11 +173,81 @@ impl WriteHalf {
         self.send(request).await
     }
 
+    /// Send the streamer LOGOUT frame.
     pub async fn logout(&self) -> Result<()> {
-        self.send(StreamerRequest::logout()).await
+        self.send(admin::Logout).await
     }
 
-    pub async fn send<T: Into<StreamerRequest>>(&self, request: T) -> Result<()> {
+    /// LEVELONE_EQUITIES subscription entry point.
+    pub fn equities(&self) -> SubscribeRequest<'_, level_one::equities::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// LEVELONE_OPTIONS subscription entry point.
+    pub fn options(&self) -> SubscribeRequest<'_, level_one::options::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// LEVELONE_FUTURES subscription entry point.
+    pub fn futures(&self) -> SubscribeRequest<'_, level_one::futures::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// LEVELONE_FUTURES_OPTIONS subscription entry point.
+    pub fn futures_options(&self) -> SubscribeRequest<'_, level_one::futures_options::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// LEVELONE_FOREX subscription entry point.
+    pub fn forex(&self) -> SubscribeRequest<'_, level_one::forex::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// NYSE_BOOK subscription entry point.
+    pub fn nyse_book(&self) -> SubscribeRequest<'_, book::nyse::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// NASDAQ_BOOK subscription entry point.
+    pub fn nasdaq_book(&self) -> SubscribeRequest<'_, book::nasdaq::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// OPTIONS_BOOK subscription entry point.
+    pub fn options_book(&self) -> SubscribeRequest<'_, book::options::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// CHART_EQUITY subscription entry point.
+    pub fn chart_equity(&self) -> SubscribeRequest<'_, chart::equity::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// CHART_FUTURES subscription entry point.
+    pub fn chart_futures(&self) -> SubscribeRequest<'_, chart::futures::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// SCREENER_EQUITY subscription entry point.
+    pub fn screener_equity(&self) -> SubscribeRequest<'_, screener::equity::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// SCREENER_OPTION subscription entry point.
+    pub fn screener_option(&self) -> SubscribeRequest<'_, screener::option::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// ACCT_ACTIVITY subscription entry point.
+    pub fn account_activity(&self) -> SubscribeRequest<'_, account_activity::Field> {
+        SubscribeRequest::new(self)
+    }
+
+    /// Serialize a built [`StreamerRequest`] and write it as one frame.
+    /// Crate-internal: external callers reach this only through the typed
+    /// service accessors above (and through [`Self::login`] /
+    /// [`Self::logout`]).
+    pub(crate) async fn send<T: Into<StreamerRequest>>(&self, request: T) -> Result<()> {
         let request: StreamerRequest = request.into();
         let request_id = self.request_id.fetch_add(1, Ordering::Relaxed);
         let request = RequestPayload {
