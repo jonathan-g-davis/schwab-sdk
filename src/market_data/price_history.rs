@@ -98,15 +98,13 @@ impl<'a> GetPriceHistoryBuilder<'a> {
         self
     }
 
-    /// Bound the lower end of the candle window. Converted to epoch
-    /// milliseconds internally - Schwab's wire form for this parameter.
+    /// Bound the lower end of the candle window.
     pub fn start_date(mut self, value: DateTime<Utc>) -> Self {
         self.start_date = Some(value.timestamp_millis());
         self
     }
 
-    /// Bound the upper end of the candle window. Converted to epoch
-    /// milliseconds internally.
+    /// Bound the upper end of the candle window.
     pub fn end_date(mut self, value: DateTime<Utc>) -> Self {
         self.end_date = Some(value.timestamp_millis());
         self

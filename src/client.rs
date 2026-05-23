@@ -5,8 +5,8 @@
 //!
 //! - public namespace accessors (e.g. [`SchwabClient::accounts`],
 //!   [`SchwabClient::market_data`]) into the typed endpoint builders, and
-//! - two crate-private transport accessors ([`SchwabClient::trader_http`]
-//!   and [`SchwabClient::market_data_http`]) that return a [`Transport`]
+//! - two transport accessors ([`SchwabClient::trader_http`] and
+//!   [`SchwabClient::market_data_http`]) that return a [`Transport`]
 //!   handle scoped to one API family. Endpoint builders dispatch
 //!   through `Transport`'s HTTP-verb methods.
 //!
@@ -129,9 +129,9 @@ impl SchwabClient {
         streamer::connect(streamer_info).await
     }
 
-    /// Crate-private: handle for the trader-API transport. Endpoint
-    /// builders that hit `/accounts/*`, `/orders*`, `/transactions/*`,
-    /// or `/userPreference` go through this.
+    /// Handle for the trader-API transport. Endpoint builders that hit
+    /// `/accounts/*`, `/orders*`, `/transactions/*`, or `/userPreference`
+    /// go through this.
     pub(crate) fn trader_http(&self) -> Transport<'_> {
         Transport {
             client: self,
@@ -139,9 +139,8 @@ impl SchwabClient {
         }
     }
 
-    /// Crate-private: handle for the market-data transport. Endpoint
-    /// builders that hit `/quotes`, `/pricehistory`, `/chains`, etc. go
-    /// through this.
+    /// Handle for the market-data transport. Endpoint builders that hit
+    /// `/quotes`, `/pricehistory`, `/chains`, etc. go through this.
     pub(crate) fn market_data_http(&self) -> Transport<'_> {
         Transport {
             client: self,
