@@ -119,8 +119,8 @@ pub struct OrderLeg {
     pub quantity: Option<Decimal>,
     #[serde(default, rename = "finalSymbol")]
     pub final_symbol: Option<String>,
-    #[serde(default, with = "decimal_opt", rename = "legId")]
-    pub leg_id: Option<Decimal>,
+    #[serde(default, rename = "legId")]
+    pub leg_id: Option<i64>,
     #[serde(default, rename = "assetType")]
     pub asset_type: Option<AssetType>,
     #[serde(default)]

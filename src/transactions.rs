@@ -228,7 +228,7 @@ pub struct TransactionInstrument {
     #[serde(default, rename = "type")]
     pub variant_type: Option<String>,
 
-    // Option fields. `None` for non-options.
+    // Option fields. `None` for non-futures/options.
     #[serde(default, rename = "expirationDate")]
     pub expiration_date: Option<DateTime<Utc>>,
     #[serde(default, rename = "optionDeliverables")]
@@ -243,6 +243,11 @@ pub struct TransactionInstrument {
     pub underlying_symbol: Option<String>,
     #[serde(default, rename = "underlyingCusip")]
     pub underlying_cusip: Option<String>,
+    /// `TransactionOption.deliverable`: the instrument delivered when an
+    /// option is exercised or assigned. Boxed because
+    /// `TransactionInstrument` references itself through this field.
+    #[serde(default)]
+    pub deliverable: Option<Box<TransactionInstrument>>,
 
     // Fixed-income fields.
     #[serde(default, rename = "maturityDate")]
@@ -269,12 +274,23 @@ pub struct TransactionInstrument {
     pub redemption_cutoff_time: Option<DateTime<Utc>>,
 
     // Future / index fields.
+    //
+    // `Future.expirationDate` shares the `expiration_date` field defined
+    // above (the spec uses the same wire name on both `Future` and
+    // `TransactionOption`).
     #[serde(default, rename = "activeContract")]
     pub active_contract: Option<bool>,
     #[serde(default, rename = "lastTradingDate")]
     pub last_trading_date: Option<DateTime<Utc>>,
     #[serde(default, rename = "firstNoticeDate")]
     pub first_notice_date: Option<DateTime<Utc>>,
+
+    // Forex fields. Each currency is itself a `TransactionInstrument`
+    // with `assetType` = `CURRENCY`; boxed to break the recursive type.
+    #[serde(default, rename = "baseCurrency")]
+    pub base_currency: Option<Box<TransactionInstrument>>,
+    #[serde(default, rename = "counterCurrency")]
+    pub counter_currency: Option<Box<TransactionInstrument>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -288,6 +304,12 @@ pub struct TransactionApiOptionDeliverable {
     pub deliverable_number: Option<i64>,
     #[serde(default, with = "decimal_opt", rename = "deliverableUnits")]
     pub deliverable_units: Option<Decimal>,
+    /// The instrument that will be delivered for this deliverable entry
+    /// (e.g. shares of the surviving issuer after a corporate action).
+    /// Boxed because `TransactionInstrument` references itself through
+    /// this field.
+    #[serde(default)]
+    pub deliverable: Option<Box<TransactionInstrument>>,
     #[serde(default, rename = "assetType")]
     pub asset_type: Option<AssetType>,
 }
@@ -357,6 +379,8 @@ string_enum! {
 }
 
 string_enum! {
+    /// Variant order matches the order of the `FeeType` enum in the
+    /// Schwab Trader API OpenAPI spec.
     FeeType {
         Commission = "COMMISSION",
         SecFee = "SEC_FEE",
@@ -366,13 +390,22 @@ string_enum! {
         OptRegFee = "OPT_REG_FEE",
         AdditionalFee = "ADDITIONAL_FEE",
         MiscellaneousFee = "MISCELLANEOUS_FEE",
+        Ftt = "FTT",
+        FuturesClearingFee = "FUTURES_CLEARING_FEE",
+        FuturesDeskOfficeFee = "FUTURES_DESK_OFFICE_FEE",
         FuturesExchangeFee = "FUTURES_EXCHANGE_FEE",
+        FuturesGlobexFee = "FUTURES_GLOBEX_FEE",
+        FuturesNfaFee = "FUTURES_NFA_FEE",
+        FuturesPitBrokerageFee = "FUTURES_PIT_BROKERAGE_FEE",
+        FuturesTransactionFee = "FUTURES_TRANSACTION_FEE",
         LowProceedsCommission = "LOW_PROCEEDS_COMMISSION",
         BaseCharge = "BASE_CHARGE",
         GeneralCharge = "GENERAL_CHARGE",
         GstFee = "GST_FEE",
         TafFee = "TAF_FEE",
         IndexOptionFee = "INDEX_OPTION_FEE",
+        TefraTax = "TEFRA_TAX",
+        StateTax = "STATE_TAX",
         UnknownSchwab = "UNKNOWN",
     }
 }
@@ -584,6 +617,160 @@ mod tests {
             "2024-03-15T15:30:00.000Z"
         );
         assert!(tx.settlement_date.is_some());
+    }
+
+    #[test]
+    fn fee_type_round_trips_each_known_variant() {
+        // Verifies every variant in the spec's `FeeType` enum, including
+        // the futures-family fees and tax categories added per the spec
+        // audit.
+        for raw in [
+            "COMMISSION",
+            "SEC_FEE",
+            "STR_FEE",
+            "R_FEE",
+            "CDSC_FEE",
+            "OPT_REG_FEE",
+            "ADDITIONAL_FEE",
+            "MISCELLANEOUS_FEE",
+            "FTT",
+            "FUTURES_CLEARING_FEE",
+            "FUTURES_DESK_OFFICE_FEE",
+            "FUTURES_EXCHANGE_FEE",
+            "FUTURES_GLOBEX_FEE",
+            "FUTURES_NFA_FEE",
+            "FUTURES_PIT_BROKERAGE_FEE",
+            "FUTURES_TRANSACTION_FEE",
+            "LOW_PROCEEDS_COMMISSION",
+            "BASE_CHARGE",
+            "GENERAL_CHARGE",
+            "GST_FEE",
+            "TAF_FEE",
+            "INDEX_OPTION_FEE",
+            "TEFRA_TAX",
+            "STATE_TAX",
+            "UNKNOWN",
+        ] {
+            let json = format!(r#""{raw}""#);
+            let parsed: FeeType = serde_json::from_str(&json).unwrap();
+            assert!(
+                !matches!(parsed, FeeType::Unknown(_)),
+                "{raw} fell into the catch-all Unknown variant",
+            );
+            assert_eq!(serde_json::to_string(&parsed).unwrap(), json);
+        }
+    }
+
+    #[test]
+    fn option_with_deliverable_parses() {
+        // `TransactionOption.deliverable` is set when an option exercises
+        // into something other than the plain underlying (e.g. a
+        // corporate-action-adjusted equity).
+        let json = r#"{
+            "assetType": "OPTION",
+            "symbol": "AAPL  240315C00200000",
+            "underlyingSymbol": "AAPL",
+            "putCall": "CALL",
+            "type": "VANILLA",
+            "strikePrice": 200.00,
+            "expirationDate": "2024-03-15T20:00:00.000Z",
+            "deliverable": {
+                "assetType": "EQUITY",
+                "symbol": "AAPL",
+                "type": "COMMON_STOCK"
+            }
+        }"#;
+        let inst: TransactionInstrument = serde_json::from_str(json).unwrap();
+        assert_eq!(inst.asset_type, AssetType::Option);
+        let deliverable = inst.deliverable.as_deref().unwrap();
+        assert_eq!(deliverable.asset_type, AssetType::Equity);
+        assert_eq!(deliverable.symbol.as_deref(), Some("AAPL"));
+        assert_eq!(deliverable.variant_type.as_deref(), Some("COMMON_STOCK"));
+    }
+
+    #[test]
+    fn option_deliverable_entry_with_nested_instrument_parses() {
+        // `TransactionAPIOptionDeliverable.deliverable` is the per-entry
+        // nested instrument inside `optionDeliverables[]`.
+        let json = r#"{
+            "assetType": "OPTION",
+            "symbol": "XYZ   240620C00050000",
+            "underlyingSymbol": "XYZ",
+            "putCall": "CALL",
+            "type": "VANILLA",
+            "optionDeliverables": [
+                {
+                    "rootSymbol": "XYZ",
+                    "strikePercent": 100,
+                    "deliverableNumber": 1,
+                    "deliverableUnits": 100,
+                    "assetType": "EQUITY",
+                    "deliverable": {
+                        "assetType": "EQUITY",
+                        "symbol": "NEWCO",
+                        "description": "NewCo Inc post-merger",
+                        "type": "COMMON_STOCK"
+                    }
+                }
+            ]
+        }"#;
+        let inst: TransactionInstrument = serde_json::from_str(json).unwrap();
+        assert_eq!(inst.option_deliverables.len(), 1);
+        let entry = &inst.option_deliverables[0];
+        assert_eq!(entry.root_symbol.as_deref(), Some("XYZ"));
+        let nested = entry.deliverable.as_deref().unwrap();
+        assert_eq!(nested.asset_type, AssetType::Equity);
+        assert_eq!(nested.symbol.as_deref(), Some("NEWCO"));
+    }
+
+    #[test]
+    fn future_with_expiration_date_parses() {
+        // Spec defines `expirationDate` on both `TransactionOption` and
+        // `Future`.
+        let json = r#"{
+            "assetType": "FUTURE",
+            "symbol": "/ESH24",
+            "type": "STANDARD",
+            "activeContract": true,
+            "expirationDate": "2024-03-15T20:00:00.000Z",
+            "lastTradingDate": "2024-03-15T13:30:00.000Z",
+            "firstNoticeDate": "2024-03-01T00:00:00.000Z",
+            "multiplier": 50
+        }"#;
+        let inst: TransactionInstrument = serde_json::from_str(json).unwrap();
+        assert_eq!(inst.asset_type, AssetType::Future);
+        assert_eq!(inst.active_contract, Some(true));
+        assert!(inst.expiration_date.is_some());
+        assert!(inst.last_trading_date.is_some());
+        assert!(inst.first_notice_date.is_some());
+        assert_eq!(inst.multiplier, Some(dec!(50)));
+    }
+
+    #[test]
+    fn forex_with_base_and_counter_currency_parses() {
+        let json = r#"{
+            "assetType": "FOREX",
+            "symbol": "EUR/USD",
+            "type": "STANDARD",
+            "baseCurrency": {
+                "assetType": "CURRENCY",
+                "symbol": "EUR",
+                "description": "Euro"
+            },
+            "counterCurrency": {
+                "assetType": "CURRENCY",
+                "symbol": "USD",
+                "description": "US Dollar"
+            }
+        }"#;
+        let inst: TransactionInstrument = serde_json::from_str(json).unwrap();
+        assert_eq!(inst.asset_type, AssetType::Forex);
+        let base = inst.base_currency.as_deref().unwrap();
+        assert_eq!(base.asset_type, AssetType::Currency);
+        assert_eq!(base.symbol.as_deref(), Some("EUR"));
+        let counter = inst.counter_currency.as_deref().unwrap();
+        assert_eq!(counter.asset_type, AssetType::Currency);
+        assert_eq!(counter.symbol.as_deref(), Some("USD"));
     }
 
     #[test]
