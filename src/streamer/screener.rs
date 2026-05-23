@@ -21,6 +21,7 @@ pub mod option;
 
 /// One screener result row.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct Content {
     pub key: String,
     pub delayed: bool,
@@ -46,6 +47,7 @@ pub struct Content {
 /// A single ranked instrument inside `Content::items`.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Item {
     pub description: Option<String>,
     #[serde(with = "decimal_opt")]

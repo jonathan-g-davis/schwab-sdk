@@ -5,6 +5,12 @@
 /// plus the matching `Serialize` / `Deserialize` / `From<X> for String`
 /// / `From<String> for X` impls.
 ///
+/// The generated enum is `#[non_exhaustive]`, so adding a known variant in a
+/// later crate version is not a breaking change for downstream `match` arms.
+/// Together with `Unknown(String)`, this covers both forward-compat hazards:
+/// `Unknown` keeps unknown wire values parseable, `non_exhaustive` keeps new
+/// known variants from breaking caller `match`es.
+///
 /// The expansion requires `serde::{Serialize, Deserialize}` and the `strum`
 /// derive macros to be reachable at the call site (Rust resolves derive
 /// macros at the use site, not the definition site, so the macro deliberately
@@ -24,6 +30,7 @@ macro_rules! string_enum {
             Serialize, Deserialize,
         )]
         #[serde(into = "String", from = "String")]
+        #[non_exhaustive]
         pub enum $name {
             $(
                 $(#[$variant_meta])*

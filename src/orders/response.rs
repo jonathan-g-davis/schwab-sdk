@@ -18,6 +18,7 @@ use crate::orders::enums::*;
 /// here (in contrast to the string-typed account number on
 /// `securitiesAccount`). The fields are kept as numeric here to match.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct Order {
     #[serde(default)]
     pub session: Option<Session>,
@@ -98,6 +99,7 @@ pub struct Order {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderLegCollection {
     #[serde(default, rename = "orderLegType")]
     pub order_leg_type: Option<OrderLegType>,
@@ -120,6 +122,7 @@ pub struct OrderLegCollection {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderActivity {
     #[serde(default, rename = "activityType")]
     pub activity_type: Option<OrderActivityType>,
@@ -134,6 +137,7 @@ pub struct OrderActivity {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct ExecutionLeg {
     #[serde(default, rename = "legId")]
     pub leg_id: Option<i64>,

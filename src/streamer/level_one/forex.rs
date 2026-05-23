@@ -44,6 +44,7 @@ impl From<Subscription<Field>> for StreamerRequest {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum Field {
     Symbol,
     BidPrice,
@@ -93,6 +94,7 @@ impl TryFrom<u8> for Field {
 /// Typed payload for a single LEVELONE_FOREX update.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct Content {
     pub key: String,
     pub delayed: bool,

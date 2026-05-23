@@ -344,6 +344,7 @@ impl<'de> Visitor<'de> for ContractsVisitor {
 
 /// `/chains` response body.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OptionChain {
     #[serde(default)]
     pub symbol: Option<String>,
@@ -387,6 +388,7 @@ pub struct OptionChain {
 
 /// Underlying-security snapshot attached to an [`OptionChain`].
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Underlying {
     #[serde(default, with = "decimal_opt")]
     pub ask: Option<Decimal>,
@@ -440,6 +442,7 @@ pub struct Underlying {
 
 /// A single option contract within a [`OptionChain`].
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OptionContract {
     #[serde(rename = "putCall", default)]
     pub put_call: Option<PutCall>,
@@ -550,6 +553,7 @@ pub struct OptionContract {
 
 /// One deliverable backing an option contract.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OptionDeliverables {
     #[serde(default)]
     pub symbol: Option<String>,

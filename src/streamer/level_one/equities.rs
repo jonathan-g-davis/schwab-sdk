@@ -42,6 +42,7 @@ impl From<Subscription<Field>> for StreamerRequest {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum Field {
     Symbol,
     BidPrice,
@@ -126,6 +127,7 @@ impl TryFrom<u8> for Field {
 /// **Timestamps** are milliseconds since the Unix epoch (`u64`)
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct Content {
     pub key: String,
     pub delayed: bool,

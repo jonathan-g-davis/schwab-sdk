@@ -121,6 +121,7 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
 /// One transaction record. The `activity_type` field discriminates
 /// what kind of activity this row represents.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct Transaction {
     #[serde(default, rename = "activityId")]
     pub activity_id: Option<i64>,
@@ -157,6 +158,7 @@ pub struct Transaction {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct UserDetails {
     #[serde(default, rename = "cdDomainId")]
     pub cd_domain_id: Option<String>,
@@ -180,6 +182,7 @@ pub struct UserDetails {
 /// (the instrument moved) and one or more fee TransferItems (commission,
 /// SEC fee, etc.) distinguished by `fee_type`.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct TransferItem {
     #[serde(default)]
     pub instrument: Option<TransactionInstrument>,
@@ -205,6 +208,7 @@ pub struct TransferItem {
 /// equity, `VANILLA` for an option, `US_TREASURY_BOND` for fixed income) is
 /// preserved as a raw string in [`Self::variant_type`].
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct TransactionInstrument {
     #[serde(rename = "assetType")]
     pub asset_type: AssetType,
@@ -274,6 +278,7 @@ pub struct TransactionInstrument {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct TransactionApiOptionDeliverable {
     #[serde(default, rename = "rootSymbol")]
     pub root_symbol: Option<String>,

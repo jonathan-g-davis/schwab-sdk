@@ -124,6 +124,7 @@ impl<'a, 'b> GetAccountBuilder<'a, 'b> {
 /// identifier required in the `{accountNumber}` path segment of every other
 /// Trader API endpoint.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct AccountNumberHash {
     #[serde(rename = "accountNumber")]
     pub account_number: AccountNumber,
@@ -133,6 +134,7 @@ pub struct AccountNumberHash {
 
 /// `GET /accounts` / `GET /accounts/{accountNumber}` response envelope.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct Account {
     #[serde(rename = "securitiesAccount")]
     pub securities_account: SecuritiesAccount,
@@ -146,6 +148,7 @@ pub struct Account {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type")]
+#[non_exhaustive]
 pub enum SecuritiesAccount {
     #[serde(rename = "MARGIN")]
     Margin(MarginAccount),
@@ -177,6 +180,7 @@ impl SecuritiesAccount {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct MarginAccount {
     /// Plain account number. The `{accountNumber}` URL path segment uses the
     /// encrypted [`AccountHash`] instead.
@@ -202,6 +206,7 @@ pub struct MarginAccount {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct CashAccount {
     /// Plain account number. The `{accountNumber}` URL path segment uses the
     /// encrypted [`AccountHash`] instead.
@@ -227,6 +232,7 @@ pub struct CashAccount {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct MarginInitialBalance {
     #[serde(default, with = "decimal_opt", rename = "accruedInterest")]
     pub accrued_interest: Option<Decimal>,
@@ -301,6 +307,7 @@ pub struct MarginInitialBalance {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct MarginBalance {
     #[serde(default, with = "decimal_opt", rename = "availableFunds")]
     pub available_funds: Option<Decimal>,
@@ -351,6 +358,7 @@ pub struct MarginBalance {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct CashInitialBalance {
     #[serde(default, with = "decimal_opt", rename = "accruedInterest")]
     pub accrued_interest: Option<Decimal>,
@@ -391,6 +399,7 @@ pub struct CashInitialBalance {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct CashBalance {
     #[serde(default, with = "decimal_opt", rename = "cashAvailableForTrading")]
     pub cash_available_for_trading: Option<Decimal>,
@@ -409,6 +418,7 @@ pub struct CashBalance {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Position {
     #[serde(default, with = "decimal_opt", rename = "shortQuantity")]
     pub short_quantity: Option<Decimal>,
@@ -461,6 +471,7 @@ pub struct Position {
 /// asset types deserialize cleanly even if this crate has not been updated.
 /// Consumers match on [`AccountsInstrument::asset_type`] to route.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct AccountsInstrument {
     #[serde(rename = "assetType")]
     pub asset_type: AssetType,
@@ -497,6 +508,7 @@ pub struct AccountsInstrument {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct AccountApiOptionDeliverable {
     #[serde(default)]
     pub symbol: Option<String>,

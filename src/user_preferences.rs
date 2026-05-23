@@ -32,6 +32,7 @@ impl<'a> UserPreferences<'a> {
 /// `GET /userPreference` response body. Schwab's OpenAPI schema names this
 /// `UserPreference` (singular), even though most of its fields are arrays.
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct UserPreference {
     #[serde(rename = "accounts")]
     pub accounts: Vec<UserPreferenceAccount>,
@@ -42,6 +43,7 @@ pub struct UserPreference {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct UserPreferenceAccount {
     #[serde(rename = "accountNumber")]
     pub account_number: AccountNumber,
@@ -60,6 +62,7 @@ pub struct UserPreferenceAccount {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct StreamerInfo {
     #[serde(rename = "streamerSocketUrl")]
     pub streamer_socket_url: String,
@@ -74,6 +77,7 @@ pub struct StreamerInfo {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct Offer {
     #[serde(rename = "level2Permissions")]
     pub level2_permissions: bool,

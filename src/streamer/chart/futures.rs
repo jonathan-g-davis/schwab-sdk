@@ -45,6 +45,7 @@ impl From<Subscription<Field>> for StreamerRequest {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum Field {
     /// Field 0. Renamed from Schwab's `"key"` label so the snake_case key
     /// (`symbol`) does not collide with the top-level `"key"` field.
@@ -73,6 +74,7 @@ impl TryFrom<u8> for Field {
 /// One minute OHLCV candle for a futures contract.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct Content {
     pub key: String,
     pub delayed: bool,

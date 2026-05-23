@@ -161,6 +161,7 @@ pub type QuoteResponse = HashMap<String, QuoteEntry>;
 ///   symbol was invalid) -> [`QuoteEntry::Error`] carrying the lists of
 ///   invalid symbols / cusips / SSIDs.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum QuoteEntry {
     Equity(Box<EquityQuote>),
     Error(QuoteError),
@@ -200,6 +201,7 @@ impl<'de> serde::Deserialize<'de> for QuoteEntry {
 /// Equity-asset response: composes the `quote` / `reference` / `regular`
 /// / `extended` / `fundamental` sub-objects with the asset metadata.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct EquityQuote {
     #[serde(rename = "assetMainType")]
     pub asset_main_type: AssetMainType,
@@ -227,6 +229,7 @@ pub struct EquityQuote {
 
 /// Equity quote sub-object: bid/ask/last, day OHLC, mark, volume, etc.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct QuoteEquity {
     #[serde(rename = "52WeekHigh", default, with = "decimal_opt")]
     pub week_52_high: Option<Decimal>,
@@ -289,6 +292,7 @@ pub struct QuoteEquity {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct ReferenceEquity {
     #[serde(default)]
     pub cusip: Option<String>,
@@ -313,6 +317,7 @@ pub struct ReferenceEquity {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct RegularMarket {
     #[serde(rename = "regularMarketLastPrice", default, with = "decimal_opt")]
     pub regular_market_last_price: Option<Decimal>,
@@ -328,6 +333,7 @@ pub struct RegularMarket {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct ExtendedMarket {
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
@@ -354,6 +360,7 @@ pub struct ExtendedMarket {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Fundamental {
     #[serde(rename = "avg10DaysVolume", default, with = "decimal_opt")]
     pub avg_10_days_volume: Option<Decimal>,
@@ -392,6 +399,7 @@ pub struct Fundamental {
 /// Error block Schwab returns when one or more requested identifiers
 /// could not be quoted.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct QuoteError {
     #[serde(rename = "invalidCusips", default)]
     pub invalid_cusips: Vec<String>,

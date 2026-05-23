@@ -46,6 +46,7 @@ mod decimal_opt {
 /// `tag`, `requestedDestination`, etc.) are not present here; they live
 /// on [`Order`](crate::orders::Order) instead.
 #[derive(Debug, Clone, Default, Serialize)]
+#[non_exhaustive]
 pub struct OrderRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session: Option<Session>,
@@ -109,6 +110,7 @@ pub struct OrderRequest {
 
 /// One leg of an [`OrderRequest`].
 #[derive(Debug, Clone, Default, Serialize)]
+#[non_exhaustive]
 pub struct OrderLegRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instruction: Option<Instruction>,
@@ -126,6 +128,7 @@ pub struct OrderLegRequest {
 /// settable. Uses the typed [`AssetType`] from
 /// [`crate::accounts`].
 #[derive(Debug, Clone, Default, Serialize)]
+#[non_exhaustive]
 pub struct OrderInstrumentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub symbol: Option<String>,

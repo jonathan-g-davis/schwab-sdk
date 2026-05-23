@@ -23,6 +23,7 @@ pub mod options;
 
 /// Top-level book payload. One per subscribed symbol per tick.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct Content {
     pub key: String,
     pub delayed: bool,
@@ -40,6 +41,7 @@ pub struct Content {
 
 /// A single price level on one side of the book.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct PriceLevel {
     /// Sub-field 0.
     #[serde(rename = "0", with = "decimal_float")]
@@ -57,6 +59,7 @@ pub struct PriceLevel {
 
 /// A single market maker's contribution to a price level.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct MarketMaker {
     /// Sub-field 0.
     #[serde(rename = "0")]
