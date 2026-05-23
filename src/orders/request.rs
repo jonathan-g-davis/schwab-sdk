@@ -4,8 +4,8 @@
 //! `PUT /accounts/{n}/orders/{id}` (replace). Construct via
 //! [`OrderRequest::single`] for the typed-state builder, or via the
 //! composite-strategy factories [`OrderRequest::oco`] and
-//! [`OrderRequest::trigger`]. Fields are crate-private; the builder is the
-//! only path to a valid request body.
+//! [`OrderRequest::trigger`]. The builder is the only path to a valid
+//! request body.
 
 use std::marker::PhantomData;
 
@@ -138,8 +138,8 @@ impl OrderRequest {
     }
 }
 
-/// One leg of an [`OrderRequest`]. Fields are crate-private; legs are
-/// constructed by the builder's `equity_*` / `option_*` methods.
+/// One leg of an [`OrderRequest`]. Legs are constructed by the builder's
+/// `equity_*` / `option_*` methods.
 #[derive(Debug, Clone, Default, Serialize)]
 #[non_exhaustive]
 pub struct OrderLegRequest {
@@ -156,8 +156,8 @@ pub struct OrderLegRequest {
 }
 
 /// Minimal request-side instrument: only `symbol` and `assetType` are
-/// settable. Uses the typed [`AssetType`] from [`crate::accounts`]. Fields
-/// are crate-private; instances are produced by the builder.
+/// settable. Uses the typed [`AssetType`] from [`crate::accounts`]. Instruments
+/// are produced by the builder.
 #[derive(Debug, Clone, Default, Serialize)]
 #[non_exhaustive]
 pub struct OrderInstrumentRequest {
