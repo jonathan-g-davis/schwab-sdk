@@ -1,5 +1,4 @@
 use derive_builder::Builder;
-use serde_with::{SerializeAs, StringWithSeparator, formats::CommaSeparator, serde_as};
 
 use crate::error::Result;
 use crate::streamer::WriteHalf;
@@ -54,27 +53,25 @@ pub struct Subscription<T> {
     pub(super) fields: Vec<T>,
 }
 
-#[serde_as]
-#[derive(Debug, Clone, serde::Serialize)]
-pub(super) struct SubscriptionParameters<T: Into<u8> + Copy> {
-    #[serde(rename = "keys")]
-    #[serde_as(as = "StringWithSeparator<CommaSeparator, String>")]
-    pub(super) keys: Vec<String>,
-    #[serde(rename = "fields")]
-    #[serde(serialize_with = "fields_serializer")]
-    pub(super) fields: Vec<T>,
-}
-
-fn fields_serializer<S, T>(fields: &[T], serializer: S) -> std::result::Result<S::Ok, S::Error>
+/// Build the `parameters` payload for a SUBS / ADD / UNSUBS / VIEW frame.
+///
+/// Returns the JSON object Schwab expects on the wire (`{"keys": "<csv>",
+/// "fields": "<csv>"}`).
+pub(super) fn subscribe_parameters<F, I>(
+    keys: Vec<String>,
+    fields: I,
+) -> serde_json::Value
 where
-    S: serde::Serializer,
-    T: Into<u8> + Copy,
+    F: Into<u8> + Copy,
+    I: IntoIterator<Item = F>,
 {
-    let fields_iter = fields
-        .iter()
-        .map(|f| (*f).into().to_string())
-        .collect::<Vec<String>>();
-    StringWithSeparator::<CommaSeparator, String>::serialize_as(&fields_iter, serializer)
+    let keys = keys.join(",");
+    let fields = fields
+        .into_iter()
+        .map(|f| f.into().to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    serde_json::json!({ "keys": keys, "fields": fields })
 }
 
 // --- Typestate builder for subscribe/add/unsubscribe/view requests ---

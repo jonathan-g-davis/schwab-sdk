@@ -13,20 +13,15 @@ use strum::{Display, EnumString, FromRepr};
 use crate::error::{Error, Result};
 use crate::streamer::{
     Service, StreamerRequest,
-    subscription::{Subscription, SubscriptionParameters},
+    subscription::{Subscription, subscribe_parameters},
 };
 
 impl From<Subscription<Field>> for StreamerRequest {
     fn from(subscription: Subscription<Field>) -> Self {
-        let parameters = serde_json::to_value(SubscriptionParameters {
-            keys: subscription.keys,
-            fields: subscription.fields,
-        })
-        .expect("SubscriptionParameters serialization is infallible");
         StreamerRequest {
             service: Service::LevelOneFutures,
             command: subscription.command.into(),
-            parameters,
+            parameters: subscribe_parameters(subscription.keys, subscription.fields),
         }
     }
 }
@@ -235,16 +230,16 @@ impl Content {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::streamer::subscription::{Command, Subscription};
+    use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
 
     #[test]
     fn fields_serialize_as_numeric_index() {
-        let params = SubscriptionParameters {
-            keys: vec!["/ESZ24".to_string()],
-            fields: vec![Field::Symbol, Field::BidPrice, Field::Mark, Field::Tick],
-        };
-        let serialized = serde_json::to_string(&params).unwrap();
-        assert_eq!(serialized, r#"{"keys":"/ESZ24","fields":"0,1,24,25"}"#);
+        let value = subscribe_parameters(
+            vec!["/ESZ24".to_string()],
+            vec![Field::Symbol, Field::BidPrice, Field::Mark, Field::Tick],
+        );
+        assert_eq!(value["keys"], "/ESZ24");
+        assert_eq!(value["fields"], "0,1,24,25");
     }
 
     #[test]

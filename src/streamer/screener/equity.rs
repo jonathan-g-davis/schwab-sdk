@@ -9,20 +9,15 @@ use crate::error::Result;
 use crate::streamer::screener;
 use crate::streamer::{
     Service, StreamerRequest,
-    subscription::{Subscription, SubscriptionParameters},
+    subscription::{Subscription, subscribe_parameters},
 };
 
 impl From<Subscription<Field>> for StreamerRequest {
     fn from(subscription: Subscription<Field>) -> Self {
-        let parameters = serde_json::to_value(SubscriptionParameters {
-            keys: subscription.keys,
-            fields: subscription.fields,
-        })
-        .expect("SubscriptionParameters serialization is infallible");
         StreamerRequest {
             service: Service::ScreenerEquity,
             command: subscription.command.into(),
-            parameters,
+            parameters: subscribe_parameters(subscription.keys, subscription.fields),
         }
     }
 }
@@ -74,25 +69,22 @@ pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<screener::
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::streamer::subscription::{Command, Subscription};
+    use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
 
     #[test]
     fn fields_serialize_as_numeric_index() {
-        let params = SubscriptionParameters {
-            keys: vec!["NYSE_VOLUME_5".to_string()],
-            fields: vec![
+        let value = subscribe_parameters(
+            vec!["NYSE_VOLUME_5".to_string()],
+            vec![
                 Field::Symbol,
                 Field::Timestamp,
                 Field::SortField,
                 Field::Frequency,
                 Field::Items,
             ],
-        };
-        let serialized = serde_json::to_string(&params).unwrap();
-        assert_eq!(
-            serialized,
-            r#"{"keys":"NYSE_VOLUME_5","fields":"0,1,2,3,4"}"#
         );
+        assert_eq!(value["keys"], "NYSE_VOLUME_5");
+        assert_eq!(value["fields"], "0,1,2,3,4");
     }
 
     #[test]
