@@ -39,7 +39,7 @@ impl TryFrom<StreamerCommand> for Command {
             StreamerCommand::Add => Ok(Command::Add),
             StreamerCommand::Unsubs => Ok(Command::Unsubscribe),
             StreamerCommand::View => Ok(Command::View),
-            StreamerCommand::Login | StreamerCommand::Logout => {
+            StreamerCommand::Login | StreamerCommand::Logout | StreamerCommand::Unknown(_) => {
                 Err(format!("Invalid subscription command: {command:?}"))
             }
         }
