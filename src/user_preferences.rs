@@ -1,8 +1,9 @@
 //! `GET /userPreference` - Schwab Trader API.
 //!
 //! Returns the caller's accounts, streamer connection info, and market-data
-//! permissions. The `streamerInfo` block is what is passed to
-//! [`crate::SchwabStreamer`] at connection time.
+//! permissions. The `streamerInfo` block is what is used to construct the
+//! streamer halves at connection time
+//! (see [`SchwabClient::streamer`](crate::SchwabClient::streamer)).
 //!
 //! Reached through
 //! [`SchwabClient::user_preferences`](crate::SchwabClient::user_preferences).

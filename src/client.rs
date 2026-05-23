@@ -25,9 +25,10 @@ use crate::error::{Error, Result, map_response_to_error};
 use crate::market_data::MarketData;
 use crate::orders::{AllOrders, Orders};
 use crate::secrets::{AccountHash, AuthToken};
+use crate::streamer::{self, ReadHalf, WriteHalf};
 use crate::transactions::Transactions;
 use crate::user_preferences::UserPreferences;
-use crate::{SchwabStreamer, websocket};
+use crate::websocket;
 
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
@@ -99,8 +100,10 @@ impl SchwabClient {
     }
 
     /// Connect to the Schwab streamer using the connection details from
-    /// `/userPreference`. Returns a ready-to-login [`SchwabStreamer`].
-    pub async fn streamer(&self) -> Result<SchwabStreamer> {
+    /// `/userPreference`. Returns the read and write halves of the
+    /// established session; call [`WriteHalf::login`] before any other
+    /// command.
+    pub async fn streamer(&self) -> Result<(ReadHalf, WriteHalf)> {
         let user_preferences = self.user_preferences().get().await?;
         let streamer_info = user_preferences
             .streamer_info
@@ -112,14 +115,13 @@ impl SchwabClient {
             .parse::<Uri>()
             .map_err(|e| Error::InvalidUri(format!("streamerSocketUrl: {e}")))?;
         let websocket = websocket::connect(uri).await?;
-        SchwabStreamer::builder()
-            .websocket(websocket)
-            .customer_id(streamer_info.schwab_client_customer_id)
-            .correlation_id(streamer_info.schwab_client_correlation_id)
-            .channel(streamer_info.schwab_client_channel)
-            .function_id(streamer_info.schwab_client_function_id)
-            .build()
-            .map_err(|e| Error::Build(e.to_string()))
+        Ok(streamer::split(
+            websocket,
+            streamer_info.schwab_client_customer_id,
+            streamer_info.schwab_client_correlation_id,
+            streamer_info.schwab_client_channel,
+            streamer_info.schwab_client_function_id,
+        ))
     }
 
     /// Crate-private: handle for the trader-API transport. Endpoint
