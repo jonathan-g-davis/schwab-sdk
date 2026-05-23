@@ -38,6 +38,7 @@ impl<'a> ExpirationChain<'a> {
 
 /// `/expirationchain` response body.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct ExpirationChainResponse {
     #[serde(default)]
     pub status: Option<String>,
@@ -47,6 +48,7 @@ pub struct ExpirationChainResponse {
 
 /// One expiration in the series.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Expiration {
     #[serde(rename = "daysToExpiration", default)]
     pub days_to_expiration: Option<i32>,

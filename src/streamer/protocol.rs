@@ -16,6 +16,7 @@
     serde::Deserialize,
 )]
 #[serde(into = "String", from = "String")]
+#[non_exhaustive]
 pub enum Service {
     #[strum(serialize = "ADMIN")]
     Admin,
@@ -67,6 +68,7 @@ impl From<String> for Service {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum StreamerCommand {
     #[serde(rename = "LOGIN")]
     Login,
@@ -90,6 +92,7 @@ pub enum StreamerCommand {
 /// preserved, so an unrecognized code never fails the whole frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize)]
 #[serde(from = "u8")]
+#[non_exhaustive]
 pub enum ResponseCode {
     Ok,
     LoginDenied,

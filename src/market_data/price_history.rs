@@ -184,6 +184,7 @@ impl<'a> GetPriceHistoryBuilder<'a> {
 
 /// `/pricehistory` response body.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct CandleList {
     #[serde(default)]
     pub candles: Vec<Candle>,
@@ -205,6 +206,7 @@ pub struct CandleList {
 
 /// One OHLCV candle.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Candle {
     #[serde(default, with = "decimal_opt")]
     pub open: Option<Decimal>,

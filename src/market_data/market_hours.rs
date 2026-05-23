@@ -123,6 +123,7 @@ impl<'a> GetMarketHoursBuilder<'a> {
 pub type MarketHoursResponse = HashMap<String, HashMap<String, Hours>>;
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Hours {
     /// `yyyy-MM-dd` date the hours apply to.
     #[serde(default)]
@@ -152,6 +153,7 @@ pub struct Hours {
 /// timezone is informational and chrono parsing is a one-liner at the
 /// consumer.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Interval {
     #[serde(default)]
     pub start: Option<String>,

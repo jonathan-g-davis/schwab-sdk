@@ -173,6 +173,7 @@ impl std::fmt::Display for ErrorBody {
 
 /// The error body Schwab's Trader API returns on 4xx/5xx responses.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub struct ServiceError {
     pub message: String,
     #[serde(default)]
@@ -188,6 +189,7 @@ impl std::fmt::Display for ServiceError {
 /// The error body Schwab's Market Data API returns on 4xx/5xx responses:
 /// a list of structured per-error entries.
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct ErrorResponse {
     #[serde(default)]
     pub errors: Vec<ApiError>,
@@ -211,6 +213,7 @@ impl std::fmt::Display for ErrorResponse {
 /// One structured error within an [`ErrorResponse`].
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct ApiError {
     /// Unique error id Schwab assigns; useful when contacting support.
     #[serde(default)]
@@ -248,6 +251,7 @@ impl std::fmt::Display for ApiError {
 
 /// Locates the request element that triggered an [`ApiError`].
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct ErrorSource {
     /// JSON pointer(s) into the request body.
     #[serde(default)]

@@ -45,6 +45,7 @@ impl From<Subscription<Field>> for StreamerRequest {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum Field {
     Symbol,
     Timestamp,

@@ -7,6 +7,7 @@ use crate::streamer::protocol::StreamerCommand;
 use crate::streamer::request::StreamerRequest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum Command {
     #[serde(rename = "SUBS")]
     Subscribe,

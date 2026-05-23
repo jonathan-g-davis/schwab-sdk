@@ -81,6 +81,7 @@ impl<'a> GetMoversBuilder<'a> {
 
 /// `/movers/{symbol_id}` response body.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct MoversResponse {
     #[serde(default)]
     pub screeners: Vec<Screener>,
@@ -88,6 +89,7 @@ pub struct MoversResponse {
 
 /// One moved security within an index.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Screener {
     /// Percent (default) or value changed. Sign is informational; pair
     /// with [`Self::direction`] for the explicit up/down.

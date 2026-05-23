@@ -6,6 +6,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct ResponsePayload {
     #[serde(rename = "requestid")]
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
@@ -20,6 +21,7 @@ pub struct ResponsePayload {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct ResponseContent {
     pub code: ResponseCode,
     #[serde(rename = "msg")]
@@ -28,6 +30,7 @@ pub struct ResponseContent {
 
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
+#[non_exhaustive]
 pub struct Heartbeat {
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     pub heartbeat: u64,
@@ -46,6 +49,7 @@ pub(super) struct RawDataPayload {
 /// One element of a `data` array on a streamer frame, already decoded into a
 /// service-specific typed shape.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct DataPayload {
     pub service: Service,
     pub timestamp: u64,
@@ -60,6 +64,7 @@ pub struct DataPayload {
 /// with Schwab's numeric-keyed JSON object preserved, so callers can still
 /// destructure them by hand until a typed variant is added.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DataContent {
     LevelOneEquities(Vec<level_one::equities::Content>),
     LevelOneOptions(Vec<level_one::options::Content>),
@@ -230,6 +235,7 @@ pub(super) enum RawStreamerResponse {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum StreamerResponse {
     Response(Vec<ResponsePayload>),
     Notify(Vec<Heartbeat>),

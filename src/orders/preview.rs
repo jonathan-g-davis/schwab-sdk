@@ -19,6 +19,7 @@ use crate::orders::enums::{
 
 /// Top-level response body of `previewOrder`.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct PreviewOrder {
     #[serde(default, rename = "orderId")]
     pub order_id: Option<i64>,
@@ -35,6 +36,7 @@ pub struct PreviewOrder {
 /// preview-specific fields (`orderBalance`, `advancedOrderType`,
 /// `orderVersion`, etc.).
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderStrategy {
     #[serde(default, rename = "accountNumber")]
     pub account_number: Option<String>,
@@ -85,6 +87,7 @@ pub struct OrderStrategy {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderBalance {
     #[serde(default, with = "decimal_opt", rename = "orderValue")]
     pub order_value: Option<Decimal>,
@@ -100,6 +103,7 @@ pub struct OrderBalance {
 /// [`OrderLegCollection`](crate::orders::OrderLegCollection): preview
 /// adds market quotes (bid/ask/last/mark) and a projected commission.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderLeg {
     #[serde(default, with = "decimal_opt", rename = "askPrice")]
     pub ask_price: Option<Decimal>,
@@ -124,6 +128,7 @@ pub struct OrderLeg {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderValidationResult {
     #[serde(default)]
     pub alerts: Vec<OrderValidationDetail>,
@@ -138,6 +143,7 @@ pub struct OrderValidationResult {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct OrderValidationDetail {
     #[serde(default, rename = "validationRuleName")]
     pub validation_rule_name: Option<String>,
@@ -154,6 +160,7 @@ pub struct OrderValidationDetail {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct CommissionAndFee {
     #[serde(default)]
     pub commission: Option<Commission>,
@@ -166,18 +173,21 @@ pub struct CommissionAndFee {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Commission {
     #[serde(default, rename = "commissionLegs")]
     pub commission_legs: Vec<CommissionLeg>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct CommissionLeg {
     #[serde(default, rename = "commissionValues")]
     pub commission_values: Vec<CommissionValue>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct CommissionValue {
     #[serde(default, with = "decimal_opt")]
     pub value: Option<Decimal>,
@@ -186,18 +196,21 @@ pub struct CommissionValue {
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Fees {
     #[serde(default, rename = "feeLegs")]
     pub fee_legs: Vec<FeeLeg>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct FeeLeg {
     #[serde(default, rename = "feeValues")]
     pub fee_values: Vec<FeeValue>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct FeeValue {
     #[serde(default, with = "decimal_opt")]
     pub value: Option<Decimal>,

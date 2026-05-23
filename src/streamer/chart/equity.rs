@@ -45,6 +45,7 @@ impl From<Subscription<Field>> for StreamerRequest {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+#[non_exhaustive]
 pub enum Field {
     /// Field 0. Schwab labels this `"key"` in their docs; we expose it as
     /// `Symbol` so the snake_case key (`symbol`) does not collide with the
@@ -80,6 +81,7 @@ impl TryFrom<u8> for Field {
 /// since the Unix epoch.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct Content {
     pub key: String,
     pub delayed: bool,

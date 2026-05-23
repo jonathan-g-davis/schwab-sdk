@@ -58,6 +58,7 @@ impl<'a> Instruments<'a> {
 
 /// `GET /instruments` (search) response body.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct InstrumentsResponse {
     #[serde(default)]
     pub instruments: Vec<InstrumentResponse>,
@@ -67,6 +68,7 @@ pub struct InstrumentsResponse {
 /// [`Projection::Fundamental`] populate only the identity fields;
 /// `fundamental` is present only for fundamental-projection searches.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct InstrumentResponse {
     #[serde(default)]
     pub cusip: Option<String>,
@@ -97,6 +99,7 @@ pub struct InstrumentResponse {
 
 /// Basic instrument identity block.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Instrument {
     #[serde(default)]
     pub cusip: Option<String>,
@@ -112,6 +115,7 @@ pub struct Instrument {
 
 /// Bond-specific instrument block.
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct Bond {
     #[serde(default)]
     pub cusip: Option<String>,
@@ -136,6 +140,7 @@ pub struct Bond {
 /// has for the instrument. Date-like fields are kept as `String` (Schwab
 /// ships them in a variety of formats here).
 #[derive(Debug, Clone, Default, Deserialize)]
+#[non_exhaustive]
 pub struct FundamentalInst {
     #[serde(default)]
     pub symbol: Option<String>,
