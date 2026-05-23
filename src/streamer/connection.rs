@@ -89,12 +89,12 @@ async fn connect_tls(uri: &Uri) -> std::result::Result<TlsStream<TcpStream>, Web
         .map_err(WebSocketError::TlsStream)
 }
 
-async fn connect_websocket(uri: Uri) -> std::result::Result<WebSocket, WebSocketError> {
-    let tls_stream = connect_tls(&uri).await?;
+async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocketError> {
+    let tls_stream = connect_tls(uri).await?;
 
     let req = Request::builder()
         .method(Method::GET)
-        .uri(&uri)
+        .uri(uri)
         .header(HOST, uri.host().ok_or(WebSocketError::MissingHost)?)
         .header(UPGRADE, "websocket")
         .header(CONNECTION, "upgrade")
@@ -113,16 +113,55 @@ async fn connect_websocket(uri: Uri) -> std::result::Result<WebSocket, WebSocket
 /// Open the streamer websocket using the connection details from
 /// `/userPreference` and return the read and write halves of the session.
 /// Call [`WriteHalf::login`] before any other command.
+///
+/// Every field on `streamer_info` is `Option` per the spec; this function
+/// validates that the fields needed to log in and route subscribe frames
+/// (socket URL, customer id, correlation id, channel, function id) are
+/// all present, returning [`Error::InvalidPreference`] for the first
+/// missing one.
 pub async fn connect(streamer_info: StreamerInfo) -> Result<(ReadHalf, WriteHalf)> {
-    let uri = streamer_info
-        .streamer_socket_url
-        .parse::<Uri>()
-        .map_err(|e| Error::InvalidPreference {
-            field: "streamerSocketUrl",
-            reason: e.to_string(),
-        })?;
-    let websocket = connect_websocket(uri).await?;
-    Ok(split(websocket, streamer_info))
+    let validated = ValidatedStreamerInfo::try_from(streamer_info)?;
+    let websocket = connect_websocket(&validated.socket_url).await?;
+    Ok(split(websocket, validated))
+}
+
+/// `StreamerInfo` after the per-field optionality has been resolved.
+/// Constructing one of these is the only way to reach [`split`].
+#[derive(Debug)]
+struct ValidatedStreamerInfo {
+    socket_url: Uri,
+    customer_id: CustomerId,
+    correlation_id: String,
+    channel: String,
+    function_id: String,
+}
+
+impl TryFrom<StreamerInfo> for ValidatedStreamerInfo {
+    type Error = Error;
+
+    fn try_from(info: StreamerInfo) -> Result<Self> {
+        fn required<T>(field: &'static str, value: Option<T>) -> Result<T> {
+            value.ok_or(Error::InvalidPreference {
+                field,
+                reason: "missing".to_string(),
+            })
+        }
+
+        let socket_url = required("streamerSocketUrl", info.streamer_socket_url)?
+            .parse::<Uri>()
+            .map_err(|e| Error::InvalidPreference {
+                field: "streamerSocketUrl",
+                reason: e.to_string(),
+            })?;
+
+        Ok(Self {
+            socket_url,
+            customer_id: required("schwabClientCustomerId", info.schwab_client_customer_id)?,
+            correlation_id: required("schwabClientCorrelId", info.schwab_client_correlation_id)?,
+            channel: required("schwabClientChannel", info.schwab_client_channel)?,
+            function_id: required("schwabClientFunctionId", info.schwab_client_function_id)?,
+        })
+    }
 }
 
 /// Split a connected [`WebSocket`] into the [`ReadHalf`] and [`WriteHalf`]
@@ -133,7 +172,7 @@ pub async fn connect(streamer_info: StreamerInfo) -> Result<(ReadHalf, WriteHalf
 /// it inside `read_frame`'s control-frame callback to reply to pings and
 /// close frames. No background task is spawned; all I/O happens inline on
 /// the caller's own stack inside `recv()` / `send()`.
-fn split(websocket: WebSocket, streamer_info: StreamerInfo) -> (ReadHalf, WriteHalf) {
+fn split(websocket: WebSocket, streamer_info: ValidatedStreamerInfo) -> (ReadHalf, WriteHalf) {
     let (read_half, write_half) = websocket.split(tokio::io::split);
     let write_half = Arc::new(Mutex::new(write_half));
     let (events_tx, _) = watch::channel(ConnectionEvent::Connected);
@@ -146,10 +185,10 @@ fn split(websocket: WebSocket, streamer_info: StreamerInfo) -> (ReadHalf, WriteH
 
     let writer = WriteHalf {
         write_half,
-        customer_id: streamer_info.schwab_client_customer_id,
-        correlation_id: streamer_info.schwab_client_correlation_id,
-        channel: streamer_info.schwab_client_channel,
-        function_id: streamer_info.schwab_client_function_id,
+        customer_id: streamer_info.customer_id,
+        correlation_id: streamer_info.correlation_id,
+        channel: streamer_info.channel,
+        function_id: streamer_info.function_id,
         request_id: Arc::new(AtomicU64::new(0)),
     };
 
@@ -391,6 +430,86 @@ mod tests {
                 message: msg.into(),
             },
         }])
+    }
+
+    fn full_streamer_info() -> StreamerInfo {
+        StreamerInfo {
+            streamer_socket_url: Some("wss://streamer-api.schwab.com/ws".into()),
+            schwab_client_customer_id: Some(CustomerId::from("CUSTID")),
+            schwab_client_correlation_id: Some("abc-123".into()),
+            schwab_client_channel: Some("N9".into()),
+            schwab_client_function_id: Some("APIAPP".into()),
+        }
+    }
+
+    #[test]
+    fn validates_complete_streamer_info() {
+        let validated =
+            ValidatedStreamerInfo::try_from(full_streamer_info()).expect("complete info validates");
+        assert_eq!(validated.socket_url, "wss://streamer-api.schwab.com/ws");
+        assert_eq!(validated.correlation_id, "abc-123");
+        assert_eq!(validated.channel, "N9");
+        assert_eq!(validated.function_id, "APIAPP");
+    }
+
+    #[test]
+    fn missing_socket_url_reports_field() {
+        let mut info = full_streamer_info();
+        info.streamer_socket_url = None;
+        match ValidatedStreamerInfo::try_from(info) {
+            Err(Error::InvalidPreference { field, .. }) => {
+                assert_eq!(field, "streamerSocketUrl");
+            }
+            other => panic!("expected InvalidPreference, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_customer_id_reports_field() {
+        let mut info = full_streamer_info();
+        info.schwab_client_customer_id = None;
+        match ValidatedStreamerInfo::try_from(info) {
+            Err(Error::InvalidPreference { field, .. }) => {
+                assert_eq!(field, "schwabClientCustomerId");
+            }
+            other => panic!("expected InvalidPreference, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_correlation_id_reports_field() {
+        let mut info = full_streamer_info();
+        info.schwab_client_correlation_id = None;
+        match ValidatedStreamerInfo::try_from(info) {
+            Err(Error::InvalidPreference { field, .. }) => {
+                assert_eq!(field, "schwabClientCorrelId");
+            }
+            other => panic!("expected InvalidPreference, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_channel_reports_field() {
+        let mut info = full_streamer_info();
+        info.schwab_client_channel = None;
+        match ValidatedStreamerInfo::try_from(info) {
+            Err(Error::InvalidPreference { field, .. }) => {
+                assert_eq!(field, "schwabClientChannel");
+            }
+            other => panic!("expected InvalidPreference, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn missing_function_id_reports_field() {
+        let mut info = full_streamer_info();
+        info.schwab_client_function_id = None;
+        match ValidatedStreamerInfo::try_from(info) {
+            Err(Error::InvalidPreference { field, .. }) => {
+                assert_eq!(field, "schwabClientFunctionId");
+            }
+            other => panic!("expected InvalidPreference, got {other:?}"),
+        }
     }
 
     #[test]
