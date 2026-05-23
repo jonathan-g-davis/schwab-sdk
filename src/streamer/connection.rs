@@ -2,7 +2,17 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use fastwebsockets::{FragmentCollectorRead, WebSocketWrite};
+use http::{
+    Method,
+    header::{CONNECTION, HOST, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_VERSION, UPGRADE},
+};
+use http_body_util::Empty;
+use hyper::{Request, Uri, body::Bytes};
+use hyper_util::rt::TokioIo;
+use rustls_platform_verifier::ConfigVerifierExt;
+use tokio::net::TcpStream;
 use tokio::sync::{Mutex, watch};
+use tokio_rustls::{TlsConnector, client::TlsStream, rustls};
 
 use crate::error::{Error, Result};
 use crate::secrets::{AuthToken, CustomerId};
@@ -12,11 +22,108 @@ use crate::streamer::request::{RequestPayload, StreamerRequest};
 use crate::streamer::response::{RawStreamerResponse, StreamerResponse};
 use crate::streamer::subscription::SubscribeRequest;
 use crate::streamer::{account_activity, admin, book, chart, level_one, screener};
-use crate::websocket::WebSocket;
+use crate::user_preferences::StreamerInfo;
 
-type Upgraded = hyper_util::rt::TokioIo<hyper::upgrade::Upgraded>;
+type Upgraded = TokioIo<hyper::upgrade::Upgraded>;
 type WsReadHalf = FragmentCollectorRead<tokio::io::ReadHalf<Upgraded>>;
 type WsWriteHalf = WebSocketWrite<tokio::io::WriteHalf<Upgraded>>;
+type WebSocket = fastwebsockets::WebSocket<Upgraded>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum WebSocketError {
+    #[error("failed to connect to server")]
+    Connect(std::io::Error),
+    #[error("failed to perform websocket handshake")]
+    Handshake(fastwebsockets::WebSocketError),
+    #[error("invalid domain")]
+    InvalidDomain(rustls_pki_types::InvalidDnsNameError),
+    #[error("host is required")]
+    MissingHost,
+    #[error("failed to create TLS stream")]
+    TlsStream(std::io::Error),
+    #[error("failed to configure TLS: {0}")]
+    TlsConfig(rustls::Error),
+    #[error("failed to build upgrade request: {0}")]
+    BuildRequest(http::Error),
+    /// Runtime frame error after the websocket is up: read/write/control
+    /// frame failures from `fastwebsockets`.
+    #[error("websocket runtime error: {0}")]
+    Runtime(#[from] fastwebsockets::WebSocketError),
+}
+
+impl From<fastwebsockets::WebSocketError> for Error {
+    fn from(value: fastwebsockets::WebSocketError) -> Self {
+        Error::WebSocket(WebSocketError::Runtime(value))
+    }
+}
+
+struct SpawnExecutor;
+
+impl<Fut> hyper::rt::Executor<Fut> for SpawnExecutor
+where
+    Fut: Future + Send + 'static,
+    Fut::Output: Send + 'static,
+{
+    fn execute(&self, fut: Fut) {
+        tokio::task::spawn(fut);
+    }
+}
+
+async fn connect_tls(uri: &Uri) -> std::result::Result<TlsStream<TcpStream>, WebSocketError> {
+    let host = uri.host().ok_or(WebSocketError::MissingHost)?;
+    let port = uri.port_u16().unwrap_or(443);
+    let addr = format!("{}:{}", host, port);
+
+    let socket = TcpStream::connect(addr)
+        .await
+        .map_err(WebSocketError::Connect)?;
+
+    let domain = rustls_pki_types::ServerName::try_from(host.to_string())
+        .map_err(WebSocketError::InvalidDomain)?;
+    let config =
+        rustls::ClientConfig::with_platform_verifier().map_err(WebSocketError::TlsConfig)?;
+    let connector = TlsConnector::from(Arc::new(config));
+    connector
+        .connect(domain, socket)
+        .await
+        .map_err(WebSocketError::TlsStream)
+}
+
+async fn connect_websocket(uri: Uri) -> std::result::Result<WebSocket, WebSocketError> {
+    let tls_stream = connect_tls(&uri).await?;
+
+    let req = Request::builder()
+        .method(Method::GET)
+        .uri(&uri)
+        .header(HOST, uri.host().ok_or(WebSocketError::MissingHost)?)
+        .header(UPGRADE, "websocket")
+        .header(CONNECTION, "upgrade")
+        .header(SEC_WEBSOCKET_KEY, fastwebsockets::handshake::generate_key())
+        .header(SEC_WEBSOCKET_VERSION, "13")
+        .body(Empty::<Bytes>::new())
+        .map_err(WebSocketError::BuildRequest)?;
+
+    let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, tls_stream)
+        .await
+        .map_err(WebSocketError::Handshake)?;
+
+    Ok(ws)
+}
+
+/// Open the streamer websocket using the connection details from
+/// `/userPreference` and return the read and write halves of the session.
+/// Call [`WriteHalf::login`] before any other command.
+pub async fn connect(streamer_info: StreamerInfo) -> Result<(ReadHalf, WriteHalf)> {
+    let uri = streamer_info
+        .streamer_socket_url
+        .parse::<Uri>()
+        .map_err(|e| Error::InvalidPreference {
+            field: "streamerSocketUrl",
+            reason: e.to_string(),
+        })?;
+    let websocket = connect_websocket(uri).await?;
+    Ok(split(websocket, streamer_info))
+}
 
 /// Split a connected [`WebSocket`] into the [`ReadHalf`] and [`WriteHalf`]
 /// the streamer surface exposes.
@@ -26,13 +133,7 @@ type WsWriteHalf = WebSocketWrite<tokio::io::WriteHalf<Upgraded>>;
 /// it inside `read_frame`'s control-frame callback to reply to pings and
 /// close frames. No background task is spawned; all I/O happens inline on
 /// the caller's own stack inside `recv()` / `send()`.
-pub(crate) fn split(
-    websocket: WebSocket,
-    customer_id: CustomerId,
-    correlation_id: String,
-    channel: String,
-    function_id: String,
-) -> (ReadHalf, WriteHalf) {
+fn split(websocket: WebSocket, streamer_info: StreamerInfo) -> (ReadHalf, WriteHalf) {
     let (read_half, write_half) = websocket.split(tokio::io::split);
     let write_half = Arc::new(Mutex::new(write_half));
     let (events_tx, _) = watch::channel(ConnectionEvent::Connected);
@@ -45,10 +146,10 @@ pub(crate) fn split(
 
     let writer = WriteHalf {
         write_half,
-        customer_id,
-        correlation_id,
-        channel,
-        function_id,
+        customer_id: streamer_info.schwab_client_customer_id,
+        correlation_id: streamer_info.schwab_client_correlation_id,
+        channel: streamer_info.schwab_client_channel,
+        function_id: streamer_info.schwab_client_function_id,
         request_id: Arc::new(AtomicU64::new(0)),
     };
 
