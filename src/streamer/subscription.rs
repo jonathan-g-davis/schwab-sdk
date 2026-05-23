@@ -1,7 +1,10 @@
 use derive_builder::Builder;
 use serde_with::{SerializeAs, StringWithSeparator, formats::CommaSeparator, serde_as};
 
+use crate::error::{Error, Result};
+use crate::streamer::WriteHalf;
 use crate::streamer::protocol::StreamerCommand;
+use crate::streamer::request::StreamerRequest;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Command {
@@ -29,7 +32,7 @@ impl From<Command> for StreamerCommand {
 impl TryFrom<StreamerCommand> for Command {
     type Error = String;
 
-    fn try_from(command: StreamerCommand) -> Result<Self, Self::Error> {
+    fn try_from(command: StreamerCommand) -> std::result::Result<Self, Self::Error> {
         match command {
             StreamerCommand::Subs => Ok(Command::Subscribe),
             StreamerCommand::Add => Ok(Command::Add),
@@ -71,4 +74,117 @@ where
         .map(|f| (*f).into().to_string())
         .collect::<Vec<String>>();
     StringWithSeparator::<CommaSeparator, String>::serialize_as(&fields_iter, serializer)
+}
+
+/// Fluent subscribe/add/unsubscribe/view request bound to a [`WriteHalf`].
+///
+/// Constructed via the per-service accessors on [`WriteHalf`] (e.g.
+/// [`WriteHalf::equities`]). The verb method (`subscribe` / `add` /
+/// `unsubscribe` / `view`) sets the streamer command and the key list,
+/// `fields` chooses which fields to receive, and [`Self::send`] serializes
+/// the request and writes the frame.
+///
+/// A verb method must be called before [`Self::send`]; calling `send`
+/// without one returns [`Error::Build`].
+pub struct SubscribeRequest<'a, F> {
+    write_half: &'a WriteHalf,
+    command: Option<Command>,
+    keys: Vec<String>,
+    fields: Vec<F>,
+}
+
+impl<'a, F> SubscribeRequest<'a, F> {
+    pub(crate) fn new(write_half: &'a WriteHalf) -> Self {
+        Self {
+            write_half,
+            command: None,
+            keys: Vec::new(),
+            fields: Vec::new(),
+        }
+    }
+
+    fn with_command<I, S>(mut self, command: Command, keys: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.command = Some(command);
+        self.keys = keys.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// SUBS: subscribe to `keys`, replacing any prior subscription on this
+    /// service for the session.
+    pub fn subscribe<I, S>(self, keys: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.with_command(Command::Subscribe, keys)
+    }
+
+    /// ADD: add `keys` to the existing subscription on this service.
+    #[allow(clippy::should_implement_trait)]
+    pub fn add<I, S>(self, keys: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.with_command(Command::Add, keys)
+    }
+
+    /// UNSUBS: remove `keys` from the existing subscription on this
+    /// service. Fields are not used by Schwab for this command.
+    pub fn unsubscribe<I, S>(self, keys: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.with_command(Command::Unsubscribe, keys)
+    }
+
+    /// VIEW: change the field selection for `keys` without re-subscribing.
+    pub fn view<I, S>(self, keys: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.with_command(Command::View, keys)
+    }
+
+    /// Set the field selection for the request. Required by Schwab for
+    /// SUBS, ADD, and VIEW; ignored for UNSUBS.
+    pub fn fields<I>(mut self, fields: I) -> Self
+    where
+        I: IntoIterator<Item = F>,
+    {
+        self.fields = fields.into_iter().collect();
+        self
+    }
+}
+
+// The bound mentions the crate-internal IR `StreamerRequest`; it is
+// satisfied by the per-service `From<Subscription<F>>` impls inside this
+// crate, never by external code, so the lint warning is expected.
+#[allow(private_bounds)]
+impl<F> SubscribeRequest<'_, F>
+where
+    Subscription<F>: Into<StreamerRequest>,
+{
+    /// Serialize the request and write it as a single streamer frame.
+    /// Returns when the frame has been handed to the socket; the matching
+    /// `response` frame arrives later on the read half.
+    pub async fn send(self) -> Result<()> {
+        let command = self.command.ok_or_else(|| {
+            Error::Build(
+                "no command verb selected (call subscribe/add/unsubscribe/view)".to_string(),
+            )
+        })?;
+        let subscription = Subscription {
+            command,
+            keys: self.keys,
+            fields: self.fields,
+        };
+        self.write_half.send(subscription.into()).await
+    }
 }
