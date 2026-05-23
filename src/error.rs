@@ -54,8 +54,6 @@ pub enum Error {
     Encode { context: String, reason: String },
     #[error("decode {context}: {reason}")]
     Decode { context: String, reason: String },
-    #[error("build: {0}")]
-    Build(String),
     #[error("missing user preference field: {0}")]
     MissingPreference(&'static str),
     #[error("invalid uri: {0}")]
@@ -111,7 +109,6 @@ impl Error {
             | Error::NotFound(_)
             | Error::Encode { .. }
             | Error::Decode { .. }
-            | Error::Build(_)
             | Error::MissingPreference(_)
             | Error::InvalidUri(_)
             | Error::MissingLocationHeader

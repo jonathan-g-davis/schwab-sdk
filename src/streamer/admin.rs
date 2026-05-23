@@ -1,17 +1,14 @@
-use derive_builder::Builder;
-
 use crate::secrets::AuthToken;
 use crate::streamer::{Service, StreamerCommand, StreamerRequest};
 
-#[derive(Debug, Clone, serde::Serialize, Builder)]
-#[builder(pattern = "owned")]
-pub struct Login {
+#[derive(Debug, Clone, serde::Serialize)]
+pub(crate) struct Login {
     #[serde(rename = "Authorization")]
-    authorization: AuthToken,
+    pub authorization: AuthToken,
     #[serde(rename = "SchwabClientChannel")]
-    schwab_client_channel: String,
+    pub schwab_client_channel: String,
     #[serde(rename = "SchwabClientFunctionId")]
-    schwab_client_function_id: String,
+    pub schwab_client_function_id: String,
 }
 
 impl From<Login> for StreamerRequest {
@@ -25,7 +22,7 @@ impl From<Login> for StreamerRequest {
     }
 }
 
-pub struct Logout;
+pub(crate) struct Logout;
 
 impl From<Logout> for StreamerRequest {
     fn from(_: Logout) -> Self {
@@ -43,12 +40,11 @@ mod tests {
 
     #[test]
     fn test_serialize_login() {
-        let login = LoginBuilder::default()
-            .authorization(AuthToken::new("1234567890"))
-            .schwab_client_channel("test".to_string())
-            .schwab_client_function_id("test".to_string())
-            .build()
-            .unwrap();
+        let login = Login {
+            authorization: AuthToken::new("1234567890"),
+            schwab_client_channel: "test".to_string(),
+            schwab_client_function_id: "test".to_string(),
+        };
 
         let serialized = serde_json::to_string(&login).unwrap();
         assert_eq!(
@@ -59,12 +55,11 @@ mod tests {
 
     #[test]
     fn login_debug_does_not_leak_auth_token() {
-        let login = LoginBuilder::default()
-            .authorization(AuthToken::new("super-secret-bearer"))
-            .schwab_client_channel("ch".to_string())
-            .schwab_client_function_id("fn".to_string())
-            .build()
-            .unwrap();
+        let login = Login {
+            authorization: AuthToken::new("super-secret-bearer"),
+            schwab_client_channel: "ch".to_string(),
+            schwab_client_function_id: "fn".to_string(),
+        };
         let debug = format!("{login:?}");
         assert!(
             !debug.contains("super-secret-bearer"),
@@ -74,20 +69,18 @@ mod tests {
 
     #[test]
     fn from_login_never_panics() {
-        let login = LoginBuilder::default()
-            .authorization(AuthToken::new(""))
-            .schwab_client_channel(String::new())
-            .schwab_client_function_id(String::new())
-            .build()
-            .unwrap();
+        let login = Login {
+            authorization: AuthToken::new(""),
+            schwab_client_channel: String::new(),
+            schwab_client_function_id: String::new(),
+        };
         let _request: StreamerRequest = login.into();
 
-        let login = LoginBuilder::default()
-            .authorization(AuthToken::new("\u{0}\"\\\n"))
-            .schwab_client_channel("ch".to_string())
-            .schwab_client_function_id("fn".to_string())
-            .build()
-            .unwrap();
+        let login = Login {
+            authorization: AuthToken::new("\u{0}\"\\\n"),
+            schwab_client_channel: "ch".to_string(),
+            schwab_client_function_id: "fn".to_string(),
+        };
         let _request: StreamerRequest = login.into();
     }
 }
