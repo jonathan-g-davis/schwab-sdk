@@ -1,9 +1,9 @@
 //! Crate-wide error type.
 //!
-//! Every fallible operation in `schwab-rs` returns [`Result<T>`] aliasing
+//! Every fallible operation in `schwab-sdk` returns [`Result<T>`] aliasing
 //! `std::result::Result<T, Error>`. Variants are kept structured wherever
-//! Schwab gives us enough information; `Encode`/`Decode`/`Build` carry a
-//! `context` string for when something goes wrong.
+//! Schwab gives us enough information; `Codec` carries a `context` string
+//! describing the operation that failed.
 //!
 //! Non-2xx HTTP responses decode into an [`ErrorBody`]. Schwab's two API
 //! families return different error envelopes - the Trader API a flat
@@ -27,45 +27,43 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("bad request: {0}")]
-    BadRequest(ErrorBody),
+    /// HTTP 401. Distinct from [`Error::Http`] so a future token-refresh
+    /// seam in `SchwabClient` has a single arm to hook.
     #[error("unauthorized: {0}")]
     Unauthorized(ErrorBody),
-    #[error("forbidden: {0}")]
-    Forbidden(ErrorBody),
+    /// HTTP 404. Distinct from [`Error::Http`] because callers idiomatically
+    /// map "broker says no such resource" to `Ok(None)`.
     #[error("not found: {0}")]
     NotFound(ErrorBody),
+    /// 429 with optional Retry-After.
     #[error("rate limited: {body}")]
     RateLimited {
         retry_after: Option<Duration>,
         body: ErrorBody,
     },
-    #[error("internal server error: {0}")]
-    InternalServerError(ErrorBody),
-    #[error("service unavailable: {0}")]
-    ServiceUnavailable(ErrorBody),
-    #[error("request failed: {0}")]
-    RequestFailed(#[from] reqwest::Error),
-    #[error("websocket error: {0}")]
+    /// Any other non-2xx response. The status is authoritative; the body
+    /// is supplementary.
+    #[error("http {status}: {body}")]
+    Http { status: StatusCode, body: ErrorBody },
+    /// `reqwest` transport failure (DNS, connect, TLS, body read).
+    #[error("transport: {0}")]
+    Transport(#[from] reqwest::Error),
+    /// Streamer websocket: connect, handshake, or runtime frame error.
+    #[error("websocket: {0}")]
     WebSocket(#[from] websocket::WebSocketError),
-    #[error("streamer transport: {0}")]
-    Streamer(#[from] fastwebsockets::WebSocketError),
-    #[error("encode {context}: {reason}")]
-    Encode { context: String, reason: String },
-    #[error("decode {context}: {reason}")]
-    Decode { context: String, reason: String },
-    #[error("missing user preference field: {0}")]
-    MissingPreference(&'static str),
-    #[error("invalid uri: {0}")]
-    InvalidUri(String),
-    /// Schwab returned 201 from a place / replace order endpoint without
-    /// a `Location` header, so the new order's id is unrecoverable.
-    #[error("response missing Location header")]
-    MissingLocationHeader,
-    /// The `Location` header was present but did not parse into the
-    /// expected `.../orders/{orderId}` shape.
-    #[error("invalid Location header: {0}")]
-    InvalidLocationHeader(String),
+    /// JSON serde failure on a wire body or streamer frame. `context`
+    /// names the operation (e.g. `"decode CHART_EQUITY frame"`,
+    /// `"encode subscribe request"`).
+    #[error("codec {context}: {reason}")]
+    Codec { context: String, reason: String },
+    /// `/userPreference` response missing a required field or carrying
+    /// an unparseable value.
+    #[error("invalid preference {field}: {reason}")]
+    InvalidPreference { field: &'static str, reason: String },
+    /// Schwab acked a place / replace order but the `Location` header
+    /// was absent or malformed, so the new order's id is unrecoverable.
+    #[error("order id unrecoverable: {0}")]
+    OrderIdUnrecoverable(String),
 }
 
 impl Error {
@@ -80,39 +78,30 @@ impl Error {
     ) -> Error {
         match status {
             StatusCode::UNAUTHORIZED => Error::Unauthorized(body),
-            StatusCode::FORBIDDEN => Error::Forbidden(body),
             StatusCode::NOT_FOUND => Error::NotFound(body),
             StatusCode::TOO_MANY_REQUESTS => Error::RateLimited { retry_after, body },
-            StatusCode::SERVICE_UNAVAILABLE => Error::ServiceUnavailable(body),
-            s if s.is_server_error() => Error::InternalServerError(body),
-            _ => Error::BadRequest(body),
+            _ => Error::Http { status, body },
         }
     }
 
     /// Schwab-specific retry classification. Returns `true` for transient
     /// failures (network, 5xx, 429) where the same request can be safely
     /// retried by the caller. Returns `false` for terminal failures
-    /// (4xx other than 429, decode errors, build errors).
+    /// (4xx other than 429, codec errors, preference / location errors).
     ///
-    /// `schwab-rs` does not implement retry itself; this method exists so
-    /// downstream consumers can utilize in their own retry logic.
+    /// `schwab-sdk` does not implement retry itself; this method exists
+    /// so downstream consumers can utilize it in their own retry logic.
     pub fn is_retryable(&self) -> bool {
         match self {
-            Error::RateLimited { .. }
-            | Error::InternalServerError(_)
-            | Error::ServiceUnavailable(_) => true,
-            Error::RequestFailed(e) => e.is_timeout() || e.is_connect() || e.is_request(),
-            Error::WebSocket(_) | Error::Streamer(_) => true,
-            Error::BadRequest(_)
-            | Error::Unauthorized(_)
-            | Error::Forbidden(_)
+            Error::RateLimited { .. } => true,
+            Error::Http { status, .. } => status.is_server_error(),
+            Error::Transport(e) => e.is_timeout() || e.is_connect() || e.is_request(),
+            Error::WebSocket(_) => true,
+            Error::Unauthorized(_)
             | Error::NotFound(_)
-            | Error::Encode { .. }
-            | Error::Decode { .. }
-            | Error::MissingPreference(_)
-            | Error::InvalidUri(_)
-            | Error::MissingLocationHeader
-            | Error::InvalidLocationHeader(_) => false,
+            | Error::Codec { .. }
+            | Error::InvalidPreference { .. }
+            | Error::OrderIdUnrecoverable(_) => false,
         }
     }
 
@@ -304,7 +293,7 @@ mod tests {
     #[test]
     fn trader_error_body_without_errors_array_parses() {
         // The Trader schema marks `errors` optional; a body with only
-        // `message` must still decode rather than degrading to Decode.
+        // `message` must still decode rather than degrading to Codec.
         let ErrorBody::Trader(body) = ErrorBody::parse(r#"{"message": "Forbidden"}"#) else {
             panic!("expected Trader body");
         };
@@ -403,16 +392,8 @@ mod tests {
     fn from_status_maps_each_documented_status() {
         let body = || ErrorBody::Unrecognized(String::new());
         assert!(matches!(
-            Error::from_status(StatusCode::BAD_REQUEST, None, body()),
-            Error::BadRequest(_)
-        ));
-        assert!(matches!(
             Error::from_status(StatusCode::UNAUTHORIZED, None, body()),
             Error::Unauthorized(_)
-        ));
-        assert!(matches!(
-            Error::from_status(StatusCode::FORBIDDEN, None, body()),
-            Error::Forbidden(_)
         ));
         assert!(matches!(
             Error::from_status(StatusCode::NOT_FOUND, None, body()),
@@ -423,17 +404,24 @@ mod tests {
             Error::RateLimited { .. }
         ));
         assert!(matches!(
+            Error::from_status(StatusCode::BAD_REQUEST, None, body()),
+            Error::Http { status, .. } if status == StatusCode::BAD_REQUEST
+        ));
+        assert!(matches!(
+            Error::from_status(StatusCode::FORBIDDEN, None, body()),
+            Error::Http { status, .. } if status == StatusCode::FORBIDDEN
+        ));
+        assert!(matches!(
             Error::from_status(StatusCode::SERVICE_UNAVAILABLE, None, body()),
-            Error::ServiceUnavailable(_)
+            Error::Http { status, .. } if status == StatusCode::SERVICE_UNAVAILABLE
         ));
         assert!(matches!(
             Error::from_status(StatusCode::INTERNAL_SERVER_ERROR, None, body()),
-            Error::InternalServerError(_)
+            Error::Http { status, .. } if status == StatusCode::INTERNAL_SERVER_ERROR
         ));
-        // An unlisted 5xx still classifies as a server error.
         assert!(matches!(
             Error::from_status(StatusCode::BAD_GATEWAY, None, body()),
-            Error::InternalServerError(_)
+            Error::Http { status, .. } if status == StatusCode::BAD_GATEWAY
         ));
     }
 
@@ -453,6 +441,8 @@ mod tests {
         let body = || ErrorBody::Unrecognized(String::new());
         assert!(!Error::from_status(StatusCode::BAD_REQUEST, None, body()).is_retryable());
         assert!(!Error::from_status(StatusCode::NOT_FOUND, None, body()).is_retryable());
+        assert!(!Error::from_status(StatusCode::UNAUTHORIZED, None, body()).is_retryable());
         assert!(Error::from_status(StatusCode::INTERNAL_SERVER_ERROR, None, body()).is_retryable());
+        assert!(Error::from_status(StatusCode::BAD_GATEWAY, None, body()).is_retryable());
     }
 }

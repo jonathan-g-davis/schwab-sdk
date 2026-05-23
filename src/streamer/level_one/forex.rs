@@ -182,7 +182,7 @@ pub struct Content {
 
 impl Content {
     pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<Self>> {
-        serde_json::from_value(remapped).map_err(|e| Error::Decode {
+        serde_json::from_value(remapped).map_err(|e| Error::Codec {
             context: "LEVELONE_FOREX content".to_string(),
             reason: e.to_string(),
         })

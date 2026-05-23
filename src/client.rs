@@ -105,15 +105,22 @@ impl SchwabClient {
     /// command.
     pub async fn streamer(&self) -> Result<(ReadHalf, WriteHalf)> {
         let user_preferences = self.user_preferences().get().await?;
-        let streamer_info = user_preferences
-            .streamer_info
-            .into_iter()
-            .next()
-            .ok_or(Error::MissingPreference("streamerInfo"))?;
+        let streamer_info =
+            user_preferences
+                .streamer_info
+                .into_iter()
+                .next()
+                .ok_or(Error::InvalidPreference {
+                    field: "streamerInfo",
+                    reason: "missing".to_string(),
+                })?;
         let uri = streamer_info
             .streamer_socket_url
             .parse::<Uri>()
-            .map_err(|e| Error::InvalidUri(format!("streamerSocketUrl: {e}")))?;
+            .map_err(|e| Error::InvalidPreference {
+                field: "streamerSocketUrl",
+                reason: e.to_string(),
+            })?;
         let websocket = websocket::connect(uri).await?;
         Ok(streamer::split(
             websocket,

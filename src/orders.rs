@@ -309,9 +309,9 @@ fn parse_order_id_from_location(response: &reqwest::Response) -> Result<i64> {
     let value = response
         .headers()
         .get(reqwest::header::LOCATION)
-        .ok_or(Error::MissingLocationHeader)?
+        .ok_or_else(|| Error::OrderIdUnrecoverable("missing Location header".to_string()))?
         .to_str()
-        .map_err(|e| Error::InvalidLocationHeader(format!("not ASCII: {e}")))?;
+        .map_err(|e| Error::OrderIdUnrecoverable(format!("Location header not ASCII: {e}")))?;
     parse_order_id_from_location_str(value)
 }
 
@@ -320,11 +320,11 @@ fn parse_order_id_from_location_str(location: &str) -> Result<i64> {
     let id_segment = trimmed
         .rsplit('/')
         .next()
-        .ok_or_else(|| Error::InvalidLocationHeader(location.to_string()))?;
+        .ok_or_else(|| Error::OrderIdUnrecoverable(location.to_string()))?;
     let id_segment = id_segment.split(['?', '#']).next().unwrap_or(id_segment);
     id_segment
         .parse::<i64>()
-        .map_err(|_| Error::InvalidLocationHeader(location.to_string()))
+        .map_err(|_| Error::OrderIdUnrecoverable(location.to_string()))
 }
 
 #[cfg(test)]
@@ -362,8 +362,8 @@ mod tests {
     fn parse_order_id_rejects_non_numeric() {
         let err = parse_order_id_from_location_str("/accounts/ABCDEF/orders/oops").unwrap_err();
         match err {
-            Error::InvalidLocationHeader(s) => assert!(s.contains("oops")),
-            other => panic!("expected InvalidLocationHeader, got {other:?}"),
+            Error::OrderIdUnrecoverable(s) => assert!(s.contains("oops")),
+            other => panic!("expected OrderIdUnrecoverable, got {other:?}"),
         }
     }
 }

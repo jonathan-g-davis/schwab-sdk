@@ -271,7 +271,7 @@ impl Content {
     /// Decode a remapped JSON object (numeric keys already resolved to
     /// snake_case names by the streamer frame parser) into a typed batch.
     pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<Self>> {
-        serde_json::from_value(remapped).map_err(|e| Error::Decode {
+        serde_json::from_value(remapped).map_err(|e| Error::Codec {
             context: "LEVELONE_EQUITIES content".to_string(),
             reason: e.to_string(),
         })
