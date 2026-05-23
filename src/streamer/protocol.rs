@@ -67,21 +67,56 @@ impl From<String> for Service {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+/// Open enum: a command string Schwab adds later that does not match a
+/// known variant decodes into [`StreamerCommand::Unknown`] with the raw
+/// wire value preserved, so an unrecognized command never fails the whole
+/// frame. Drops `Copy` because `Unknown(String)` carries an allocation;
+/// follows the same pattern as [`Service`] in this module.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    strum::Display,
+    strum::EnumString,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[serde(into = "String", from = "String")]
 #[non_exhaustive]
 pub enum StreamerCommand {
-    #[serde(rename = "LOGIN")]
+    #[strum(serialize = "LOGIN")]
     Login,
-    #[serde(rename = "SUBS")]
+    #[strum(serialize = "SUBS")]
     Subs,
-    #[serde(rename = "ADD")]
+    #[strum(serialize = "ADD")]
     Add,
-    #[serde(rename = "UNSUBS")]
+    #[strum(serialize = "UNSUBS")]
     Unsubs,
-    #[serde(rename = "VIEW")]
+    #[strum(serialize = "VIEW")]
     View,
-    #[serde(rename = "LOGOUT")]
+    #[strum(serialize = "LOGOUT")]
     Logout,
+    /// A command string Schwab sent that this crate does not recognize.
+    /// The raw wire value is preserved so callers can still route on it.
+    #[strum(default)]
+    Unknown(String),
+}
+
+impl From<StreamerCommand> for String {
+    fn from(c: StreamerCommand) -> Self {
+        c.to_string()
+    }
+}
+
+impl From<String> for StreamerCommand {
+    fn from(s: String) -> Self {
+        // `EnumString` with `#[strum(default)]` makes `FromStr` infallible:
+        // unrecognized strings land in `StreamerCommand::Unknown(s)`.
+        s.parse()
+            .expect("StreamerCommand FromStr is infallible (strum default)")
+    }
 }
 
 /// Status code on a streamer `response` frame, reporting the outcome of the
@@ -221,5 +256,35 @@ mod tests {
         assert!(!ResponseCode::ServiceNotAvailable.is_success());
         assert!(!ResponseCode::StopStreaming.is_success());
         assert!(!ResponseCode::Unknown(99).is_success());
+    }
+
+    #[test]
+    fn known_streamer_commands_round_trip() {
+        for cmd in [
+            StreamerCommand::Login,
+            StreamerCommand::Subs,
+            StreamerCommand::Add,
+            StreamerCommand::Unsubs,
+            StreamerCommand::View,
+            StreamerCommand::Logout,
+        ] {
+            let json = serde_json::to_string(&cmd).unwrap();
+            let back: StreamerCommand = serde_json::from_str(&json).unwrap();
+            assert_eq!(cmd, back);
+        }
+    }
+
+    #[test]
+    fn unknown_streamer_command_falls_back() {
+        // A command string Schwab adds after this crate was published must
+        // not fail the response frame; the raw value is preserved so
+        // callers can route on it.
+        let parsed: StreamerCommand = serde_json::from_str(r#""SOMETHING_NEW""#).unwrap();
+        assert_eq!(parsed, StreamerCommand::Unknown("SOMETHING_NEW".into()));
+        // Serializes back to the same raw value.
+        assert_eq!(
+            serde_json::to_string(&parsed).unwrap(),
+            r#""SOMETHING_NEW""#
+        );
     }
 }

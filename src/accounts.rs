@@ -142,39 +142,101 @@ pub struct Account {
 
 /// Margin or cash account. Discriminated by the wire `type` field.
 ///
-/// Both variants carry many `Option<Decimal>` balance fields, so the enum is
-/// around 1.5 KB; the response is allocated on the heap by reqwest's JSON
-/// decoder, so the enum-size warning is irrelevant.
+/// Account types Schwab adds after this crate was published land in
+/// [`SecuritiesAccount::Unknown`] with the raw JSON preserved, so a new
+/// `type` value never fails the whole response. Reconciliation code should
+/// treat [`SecuritiesAccount::Unknown`] as an unreconcilable account and
+/// surface it for manual review rather than making decisions on the partial
+/// data the accessors can offer.
+///
+/// Both `Margin` and `Cash` carry many `Option<Decimal>` balance fields, so
+/// the enum is around 1.5 KB; the response is allocated on the heap by
+/// reqwest's JSON decoder, so the enum-size warning is irrelevant.
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum SecuritiesAccount {
-    #[serde(rename = "MARGIN")]
     Margin(MarginAccount),
-    #[serde(rename = "CASH")]
     Cash(CashAccount),
+    /// Account `type` Schwab returned that this crate does not recognize.
+    /// `account_type` is the raw discriminator string; `raw` is the full
+    /// `securitiesAccount` object as Schwab sent it, for diagnostics.
+    Unknown {
+        account_type: String,
+        raw: serde_json::Value,
+    },
+}
+
+impl<'de> Deserialize<'de> for SecuritiesAccount {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Buffer the full object, then dispatch on `type`. Mirrors the
+        // pattern used by [`QuoteEntry`](crate::market_data::quotes::QuoteEntry):
+        // unknown discriminators never abort the parse.
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let account_type = value
+            .get("type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| serde::de::Error::missing_field("type"))?
+            .to_string();
+        match account_type.as_str() {
+            "MARGIN" => MarginAccount::deserialize(value)
+                .map(SecuritiesAccount::Margin)
+                .map_err(serde::de::Error::custom),
+            "CASH" => CashAccount::deserialize(value)
+                .map(SecuritiesAccount::Cash)
+                .map_err(serde::de::Error::custom),
+            _ => Ok(SecuritiesAccount::Unknown {
+                account_type,
+                raw: value,
+            }),
+        }
+    }
 }
 
 impl SecuritiesAccount {
-    pub fn account_number(&self) -> &AccountNumber {
+    /// The wire `type` discriminator. `"MARGIN"`, `"CASH"`, or whatever
+    /// string Schwab sent for a future account type.
+    pub fn account_type(&self) -> &str {
         match self {
-            SecuritiesAccount::Margin(a) => &a.account_number,
-            SecuritiesAccount::Cash(a) => &a.account_number,
+            SecuritiesAccount::Margin(_) => "MARGIN",
+            SecuritiesAccount::Cash(_) => "CASH",
+            SecuritiesAccount::Unknown { account_type, .. } => account_type,
         }
     }
 
+    /// `None` if the account type is unrecognized (the typed account number
+    /// is not extracted from the raw JSON).
+    pub fn account_number(&self) -> Option<&AccountNumber> {
+        match self {
+            SecuritiesAccount::Margin(a) => Some(&a.account_number),
+            SecuritiesAccount::Cash(a) => Some(&a.account_number),
+            SecuritiesAccount::Unknown { .. } => None,
+        }
+    }
+
+    /// Empty slice for an unrecognized account type. Iteration and
+    /// emptiness checks still work; callers that need to distinguish "no
+    /// positions" from "unknown account" should match on the variant.
     pub fn positions(&self) -> &[Position] {
         match self {
             SecuritiesAccount::Margin(a) => &a.positions,
             SecuritiesAccount::Cash(a) => &a.positions,
+            SecuritiesAccount::Unknown { .. } => &[],
         }
     }
 
-    pub fn is_day_trader(&self) -> bool {
+    /// `None` if the account type is unrecognized. Silent `false` would be
+    /// dangerous in a trading context (it would let PDT-sensitive logic
+    /// run against an account whose status is genuinely not known), so the
+    /// caller is forced to decide.
+    pub fn is_day_trader(&self) -> Option<bool> {
         match self {
-            SecuritiesAccount::Margin(a) => a.is_day_trader,
-            SecuritiesAccount::Cash(a) => a.is_day_trader,
+            SecuritiesAccount::Margin(a) => Some(a.is_day_trader),
+            SecuritiesAccount::Cash(a) => Some(a.is_day_trader),
+            SecuritiesAccount::Unknown { .. } => None,
         }
     }
 }
@@ -637,6 +699,50 @@ mod tests {
         assert_eq!(cash.account_number.expose_secret(), "87654321");
         let balances = cash.current_balances.as_ref().unwrap();
         assert_eq!(balances.cash_available_for_trading, Some(dec!(500.00)));
+    }
+
+    #[test]
+    fn unknown_account_type_parses_into_unknown_variant() {
+        // A `type` Schwab might add later (e.g., a custodial / retirement
+        // account type) must not fail the whole response - it lands in
+        // SecuritiesAccount::Unknown with the raw object preserved.
+        let json = r#"{
+            "securitiesAccount": {
+                "type": "FUTURES",
+                "accountNumber": "99999999",
+                "extraField": 42
+            }
+        }"#;
+        let parsed: Account = serde_json::from_str(json).unwrap();
+        match &parsed.securities_account {
+            SecuritiesAccount::Unknown { account_type, raw } => {
+                assert_eq!(account_type, "FUTURES");
+                assert_eq!(
+                    raw.get("accountNumber").and_then(|v| v.as_str()),
+                    Some("99999999")
+                );
+                assert_eq!(raw.get("extraField").and_then(|v| v.as_i64()), Some(42));
+            }
+            other => panic!("expected Unknown, got {other:?}"),
+        }
+        // Accessors return safe defaults / None for unknown account types.
+        assert_eq!(parsed.securities_account.account_type(), "FUTURES");
+        assert!(parsed.securities_account.account_number().is_none());
+        assert!(parsed.securities_account.positions().is_empty());
+        assert!(parsed.securities_account.is_day_trader().is_none());
+    }
+
+    #[test]
+    fn missing_account_type_is_a_parse_error() {
+        // Schwab's spec requires `type`; a payload missing it is malformed
+        // (not a forward-compat case) and must fail loudly.
+        let json = r#"{
+            "securitiesAccount": {
+                "accountNumber": "99999999"
+            }
+        }"#;
+        let err = serde_json::from_str::<Account>(json).unwrap_err();
+        assert!(err.to_string().contains("type"), "got: {err}");
     }
 
     #[test]
