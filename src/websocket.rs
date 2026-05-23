@@ -42,6 +42,16 @@ pub enum WebSocketError {
     TlsConfig(rustls::Error),
     #[error("failed to build upgrade request: {0}")]
     BuildRequest(http::Error),
+    /// Runtime frame error after the websocket is up: read/write/control
+    /// frame failures from `fastwebsockets`.
+    #[error("websocket runtime error: {0}")]
+    Runtime(#[from] fastwebsockets::WebSocketError),
+}
+
+impl From<fastwebsockets::WebSocketError> for crate::error::Error {
+    fn from(value: fastwebsockets::WebSocketError) -> Self {
+        crate::error::Error::WebSocket(WebSocketError::Runtime(value))
+    }
 }
 
 async fn connect_tls(uri: &Uri) -> Result<TlsStream<TcpStream>, WebSocketError> {

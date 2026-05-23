@@ -90,11 +90,10 @@ impl TryFrom<RawDataPayload> for DataPayload {
     type Error = Error;
 
     fn try_from(payload: RawDataPayload) -> Result<Self> {
-        let command =
-            SubscriptionCommand::try_from(payload.command).map_err(|e| Error::Decode {
-                context: "data payload command".to_string(),
-                reason: e,
-            })?;
+        let command = SubscriptionCommand::try_from(payload.command).map_err(|e| Error::Codec {
+            context: "data payload command".to_string(),
+            reason: e,
+        })?;
         let content = decode_service_content(&payload.service, payload.content)?;
         Ok(DataPayload {
             service: payload.service,
@@ -195,13 +194,13 @@ fn decode_service_content(service: &Service, content: serde_json::Value) -> Resu
 fn transform_keys<T: std::fmt::Display + TryFrom<u8>>(
     content: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let array = content.as_array().ok_or_else(|| Error::Decode {
+    let array = content.as_array().ok_or_else(|| Error::Codec {
         context: "data payload content".to_string(),
         reason: "expected array".to_string(),
     })?;
     let mut out = Vec::with_capacity(array.len());
     for item in array {
-        let object = item.as_object().ok_or_else(|| Error::Decode {
+        let object = item.as_object().ok_or_else(|| Error::Codec {
             context: "data payload item".to_string(),
             reason: "expected object".to_string(),
         })?;
@@ -268,7 +267,7 @@ mod tests {
 
     fn parse(raw: &str) -> Result<StreamerResponse> {
         let raw_response: RawStreamerResponse =
-            serde_json::from_slice(raw.as_bytes()).map_err(|e| Error::Decode {
+            serde_json::from_slice(raw.as_bytes()).map_err(|e| Error::Codec {
                 context: "test fixture".to_string(),
                 reason: e.to_string(),
             })?;
@@ -1096,7 +1095,7 @@ mod tests {
     fn malformed_json_returns_decode_error() {
         let result = parse("not json at all");
         match result {
-            Err(Error::Decode { .. }) => {}
+            Err(Error::Codec { .. }) => {}
             other => panic!("expected Decode error, got {other:?}"),
         }
     }
@@ -1114,7 +1113,7 @@ mod tests {
             }]
         }"#;
         match parse(frame) {
-            Err(Error::Decode { context, .. }) => {
+            Err(Error::Codec { context, .. }) => {
                 assert!(context.contains("content"), "context = {context}");
             }
             other => panic!("expected Decode error, got {other:?}"),

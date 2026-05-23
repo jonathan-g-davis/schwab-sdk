@@ -95,7 +95,7 @@ impl ReadHalf {
                         self.events_tx.send_replace(ConnectionEvent::StreamError {
                             message: e.to_string(),
                         });
-                        return Err(Error::Decode {
+                        return Err(Error::Codec {
                             context: "streamer response frame".to_string(),
                             reason: e.to_string(),
                         });
@@ -258,7 +258,7 @@ impl WriteHalf {
             schwab_client_correlation_id: self.correlation_id.clone(),
         };
 
-        let serialized = serde_json::to_string(&request).map_err(|e| Error::Encode {
+        let serialized = serde_json::to_string(&request).map_err(|e| Error::Codec {
             context: "streamer request envelope".to_string(),
             reason: e.to_string(),
         })?;
