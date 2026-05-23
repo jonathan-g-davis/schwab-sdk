@@ -21,7 +21,7 @@ use std::time::Duration;
 use http::StatusCode;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 
-use crate::websocket;
+use crate::streamer;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -50,7 +50,7 @@ pub enum Error {
     Transport(#[from] reqwest::Error),
     /// Streamer websocket: connect, handshake, or runtime frame error.
     #[error("websocket: {0}")]
-    WebSocket(#[from] websocket::WebSocketError),
+    WebSocket(#[from] streamer::WebSocketError),
     /// JSON serde failure on a wire body or streamer frame. `context`
     /// names the operation (e.g. `"decode CHART_EQUITY frame"`,
     /// `"encode subscribe request"`).

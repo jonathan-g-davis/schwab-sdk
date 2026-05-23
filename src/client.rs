@@ -15,7 +15,6 @@
 //! knows how to combine a verb, a base URL, the bearer header, and the
 //! response decoder.
 
-use http::Uri;
 use reqwest::{Method, RequestBuilder};
 use serde::de::DeserializeOwned;
 
@@ -28,7 +27,6 @@ use crate::secrets::{AccountHash, AuthToken};
 use crate::streamer::{self, ReadHalf, WriteHalf};
 use crate::transactions::Transactions;
 use crate::user_preferences::UserPreferences;
-use crate::websocket;
 
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
@@ -114,21 +112,7 @@ impl SchwabClient {
                     field: "streamerInfo",
                     reason: "missing".to_string(),
                 })?;
-        let uri = streamer_info
-            .streamer_socket_url
-            .parse::<Uri>()
-            .map_err(|e| Error::InvalidPreference {
-                field: "streamerSocketUrl",
-                reason: e.to_string(),
-            })?;
-        let websocket = websocket::connect(uri).await?;
-        Ok(streamer::split(
-            websocket,
-            streamer_info.schwab_client_customer_id,
-            streamer_info.schwab_client_correlation_id,
-            streamer_info.schwab_client_channel,
-            streamer_info.schwab_client_function_id,
-        ))
+        streamer::connect(streamer_info).await
     }
 
     /// Crate-private: handle for the trader-API transport. Endpoint

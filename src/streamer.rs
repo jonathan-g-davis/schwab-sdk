@@ -12,8 +12,7 @@ pub mod level_one;
 pub mod screener;
 pub mod subscription;
 
-pub(crate) use connection::split;
-pub use connection::{ReadHalf, WriteHalf};
+pub use connection::{ReadHalf, WebSocketError, WriteHalf, connect};
 pub use events::{ConnectionEvent, DisconnectReason};
 pub use protocol::{ResponseCode, Service, StreamerCommand};
 pub(crate) use request::StreamerRequest;

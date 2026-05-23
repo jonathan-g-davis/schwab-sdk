@@ -2,7 +2,6 @@
 
 mod client;
 mod constants;
-mod websocket;
 
 pub(crate) mod macros;
 
@@ -21,5 +20,4 @@ pub use constants::{
 };
 pub use error::{Error, ErrorBody, Result};
 pub use secrets::{AccountHash, AccountNumber, AuthToken, CustomerId};
-pub use streamer::StreamerResponse;
-pub use websocket::WebSocketError;
+pub use streamer::{StreamerResponse, WebSocketError};
