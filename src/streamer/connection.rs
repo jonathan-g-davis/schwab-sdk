@@ -164,12 +164,11 @@ impl WriteHalf {
     /// Returns when the frame has been handed to the socket; the LOGIN
     /// ack arrives later on the read half as a `response` frame.
     pub async fn login(&self, auth_token: AuthToken) -> Result<()> {
-        let request = admin::LoginBuilder::default()
-            .authorization(auth_token)
-            .schwab_client_channel(self.channel.clone())
-            .schwab_client_function_id(self.function_id.clone())
-            .build()
-            .map_err(|e| Error::Build(e.to_string()))?;
+        let request = admin::Login {
+            authorization: auth_token,
+            schwab_client_channel: self.channel.clone(),
+            schwab_client_function_id: self.function_id.clone(),
+        };
         self.send(request).await
     }
 

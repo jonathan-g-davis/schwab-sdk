@@ -1,3 +1,4 @@
+mod admin;
 mod connection;
 mod events;
 mod protocol;
@@ -5,7 +6,6 @@ mod request;
 mod response;
 
 pub mod account_activity;
-pub mod admin;
 pub mod book;
 pub mod chart;
 pub mod level_one;
