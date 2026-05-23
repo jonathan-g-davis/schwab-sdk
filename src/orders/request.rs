@@ -2,8 +2,10 @@
 //!
 //! [`OrderRequest`] is the body of `POST /accounts/{n}/orders` (place) and
 //! `PUT /accounts/{n}/orders/{id}` (replace). Construct via
-//! [`OrderRequest::single`] for the typed-state builder, or by populating
-//! fields directly for shapes the builder does not yet cover.
+//! [`OrderRequest::single`] for the typed-state builder, or via the
+//! composite-strategy factories [`OrderRequest::oco`] and
+//! [`OrderRequest::trigger`]. Fields are crate-private; the builder is the
+//! only path to a valid request body.
 
 use std::marker::PhantomData;
 
@@ -39,101 +41,130 @@ mod decimal_opt {
 
 /// Body of `POST /accounts/{accountNumber}/orders` (place) and
 /// `PUT /accounts/{accountNumber}/orders/{orderId}` (replace). Construct
-/// via [`OrderRequest::single`] (typestate builder) or by populating
-/// fields directly.
+/// via [`OrderRequest::single`] (typestate builder) or via the
+/// composite-strategy factories [`OrderRequest::oco`] and
+/// [`OrderRequest::trigger`].
 ///
 /// Response-only fields (`status`, `filledQuantity`, `enteredTime`,
 /// `tag`, `requestedDestination`, etc.) are not present here; they live
 /// on [`Order`](crate::orders::Order) instead.
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[non_exhaustive]
 pub struct OrderRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub session: Option<Session>,
+    pub(crate) session: Option<Session>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration: Option<Duration>,
+    pub(crate) duration: Option<Duration>,
     #[serde(rename = "orderType", skip_serializing_if = "Option::is_none")]
-    pub order_type: Option<OrderType>,
+    pub(crate) order_type: Option<OrderType>,
     #[serde(
         rename = "complexOrderStrategyType",
         skip_serializing_if = "Option::is_none"
     )]
-    pub complex_order_strategy_type: Option<ComplexOrderStrategyType>,
+    pub(crate) complex_order_strategy_type: Option<ComplexOrderStrategyType>,
     #[serde(skip_serializing_if = "Option::is_none", with = "decimal_opt")]
-    pub quantity: Option<Decimal>,
+    pub(crate) quantity: Option<Decimal>,
     #[serde(
         rename = "destinationLinkName",
         skip_serializing_if = "Option::is_none"
     )]
-    pub destination_link_name: Option<String>,
+    pub(crate) destination_link_name: Option<String>,
     #[serde(
         rename = "stopPrice",
         skip_serializing_if = "Option::is_none",
         with = "decimal_opt"
     )]
-    pub stop_price: Option<Decimal>,
+    pub(crate) stop_price: Option<Decimal>,
     #[serde(rename = "stopPriceLinkBasis", skip_serializing_if = "Option::is_none")]
-    pub stop_price_link_basis: Option<StopPriceLinkBasis>,
+    pub(crate) stop_price_link_basis: Option<StopPriceLinkBasis>,
     #[serde(rename = "stopPriceLinkType", skip_serializing_if = "Option::is_none")]
-    pub stop_price_link_type: Option<StopPriceLinkType>,
+    pub(crate) stop_price_link_type: Option<StopPriceLinkType>,
     #[serde(
         rename = "stopPriceOffset",
         skip_serializing_if = "Option::is_none",
         with = "decimal_opt"
     )]
-    pub stop_price_offset: Option<Decimal>,
+    pub(crate) stop_price_offset: Option<Decimal>,
     #[serde(rename = "stopType", skip_serializing_if = "Option::is_none")]
-    pub stop_type: Option<StopType>,
+    pub(crate) stop_type: Option<StopType>,
     #[serde(rename = "priceLinkBasis", skip_serializing_if = "Option::is_none")]
-    pub price_link_basis: Option<PriceLinkBasis>,
+    pub(crate) price_link_basis: Option<PriceLinkBasis>,
     #[serde(rename = "priceLinkType", skip_serializing_if = "Option::is_none")]
-    pub price_link_type: Option<PriceLinkType>,
+    pub(crate) price_link_type: Option<PriceLinkType>,
     #[serde(skip_serializing_if = "Option::is_none", with = "decimal_opt")]
-    pub price: Option<Decimal>,
+    pub(crate) price: Option<Decimal>,
     #[serde(rename = "taxLotMethod", skip_serializing_if = "Option::is_none")]
-    pub tax_lot_method: Option<TaxLotMethod>,
+    pub(crate) tax_lot_method: Option<TaxLotMethod>,
     #[serde(rename = "orderLegCollection", skip_serializing_if = "Vec::is_empty")]
-    pub order_leg_collection: Vec<OrderLegRequest>,
+    pub(crate) order_leg_collection: Vec<OrderLegRequest>,
     #[serde(
         rename = "activationPrice",
         skip_serializing_if = "Option::is_none",
         with = "decimal_opt"
     )]
-    pub activation_price: Option<Decimal>,
+    pub(crate) activation_price: Option<Decimal>,
     #[serde(rename = "specialInstruction", skip_serializing_if = "Option::is_none")]
-    pub special_instruction: Option<SpecialInstruction>,
+    pub(crate) special_instruction: Option<SpecialInstruction>,
     #[serde(rename = "orderStrategyType", skip_serializing_if = "Option::is_none")]
-    pub order_strategy_type: Option<OrderStrategyType>,
+    pub(crate) order_strategy_type: Option<OrderStrategyType>,
     #[serde(rename = "childOrderStrategies", skip_serializing_if = "Vec::is_empty")]
-    pub child_order_strategies: Vec<OrderRequest>,
+    pub(crate) child_order_strategies: Vec<OrderRequest>,
 }
 
-/// One leg of an [`OrderRequest`].
+impl OrderRequest {
+    pub(crate) fn empty() -> Self {
+        Self {
+            session: None,
+            duration: None,
+            order_type: None,
+            complex_order_strategy_type: None,
+            quantity: None,
+            destination_link_name: None,
+            stop_price: None,
+            stop_price_link_basis: None,
+            stop_price_link_type: None,
+            stop_price_offset: None,
+            stop_type: None,
+            price_link_basis: None,
+            price_link_type: None,
+            price: None,
+            tax_lot_method: None,
+            order_leg_collection: Vec::new(),
+            activation_price: None,
+            special_instruction: None,
+            order_strategy_type: None,
+            child_order_strategies: Vec::new(),
+        }
+    }
+}
+
+/// One leg of an [`OrderRequest`]. Fields are crate-private; legs are
+/// constructed by the builder's `equity_*` / `option_*` methods.
 #[derive(Debug, Clone, Default, Serialize)]
 #[non_exhaustive]
 pub struct OrderLegRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub instruction: Option<Instruction>,
+    pub(crate) instruction: Option<Instruction>,
     #[serde(skip_serializing_if = "Option::is_none", with = "decimal_opt")]
-    pub quantity: Option<Decimal>,
+    pub(crate) quantity: Option<Decimal>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub instrument: Option<OrderInstrumentRequest>,
+    pub(crate) instrument: Option<OrderInstrumentRequest>,
     #[serde(rename = "positionEffect", skip_serializing_if = "Option::is_none")]
-    pub position_effect: Option<PositionEffect>,
+    pub(crate) position_effect: Option<PositionEffect>,
     #[serde(rename = "quantityType", skip_serializing_if = "Option::is_none")]
-    pub quantity_type: Option<QuantityType>,
+    pub(crate) quantity_type: Option<QuantityType>,
 }
 
 /// Minimal request-side instrument: only `symbol` and `assetType` are
-/// settable. Uses the typed [`AssetType`] from
-/// [`crate::accounts`].
+/// settable. Uses the typed [`AssetType`] from [`crate::accounts`]. Fields
+/// are crate-private; instances are produced by the builder.
 #[derive(Debug, Clone, Default, Serialize)]
 #[non_exhaustive]
 pub struct OrderInstrumentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub symbol: Option<String>,
+    pub(crate) symbol: Option<String>,
     #[serde(rename = "assetType", skip_serializing_if = "Option::is_none")]
-    pub asset_type: Option<AssetType>,
+    pub(crate) asset_type: Option<AssetType>,
 }
 
 // --- Typestate builder for SINGLE-strategy orders ---
@@ -187,7 +218,7 @@ impl OrderRequest {
             session: Some(Session::Normal),
             duration: Some(Duration::Day),
             order_strategy_type: Some(OrderStrategyType::Single),
-            ..Default::default()
+            ..OrderRequest::empty()
         };
         SingleOrderBuilder {
             inner,
@@ -358,7 +389,7 @@ impl OrderRequest {
         OrderRequest {
             order_strategy_type: Some(OrderStrategyType::Oco),
             child_order_strategies: vec![child_a.into(), child_b.into()],
-            ..Default::default()
+            ..OrderRequest::empty()
         }
     }
 
