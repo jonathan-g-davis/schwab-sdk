@@ -1,0 +1,4 @@
+{
+    "message": "Not authorized to access this resource",
+    "errors": ["Invalid bearer token"]
+}
