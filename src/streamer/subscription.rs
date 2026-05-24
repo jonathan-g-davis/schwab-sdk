@@ -1,5 +1,3 @@
-use derive_builder::Builder;
-
 use crate::error::Result;
 use crate::streamer::Service;
 use crate::streamer::WriteHalf;
@@ -46,8 +44,7 @@ impl TryFrom<StreamerCommand> for Command {
     }
 }
 
-#[derive(Debug, Clone, Builder)]
-#[builder(pattern = "owned")]
+#[derive(Debug, Clone)]
 pub struct Subscription<T> {
     pub(super) command: Command,
     pub(super) keys: Vec<String>,
