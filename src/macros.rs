@@ -27,7 +27,7 @@ macro_rules! string_enum {
         #[derive(
             Debug, Clone, PartialEq, Eq, Hash,
             strum::Display, strum::EnumString,
-            Serialize, Deserialize,
+            serde::Serialize, serde::Deserialize,
         )]
         #[serde(into = "String", from = "String")]
         #[non_exhaustive]
@@ -47,7 +47,10 @@ macro_rules! string_enum {
 
         impl From<String> for $name {
             fn from(v: String) -> Self {
-                v.parse().expect(concat!(stringify!($name), " FromStr is infallible (strum default)"))
+                match v.as_str() {
+                    $($wire => $name::$variant,)*
+                    _ => $name::Unknown(v),
+                }
             }
         }
     };

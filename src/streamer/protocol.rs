@@ -1,121 +1,44 @@
-/// Schwab streamer service identifier.
-///
-/// Open enum: any wire string Schwab adds later that does not match a known
-/// variant decodes into [`Service::Unknown`] with the raw identifier
-/// preserved. Consumers can still see the original name and the dispatcher
-/// routes such messages to [`DataContent::Raw`].
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    strum::Display,
-    strum::EnumString,
-    serde::Serialize,
-    serde::Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-#[non_exhaustive]
-pub enum Service {
-    #[strum(serialize = "ADMIN")]
-    Admin,
-    #[strum(serialize = "LEVELONE_EQUITIES")]
-    LevelOneEquities,
-    #[strum(serialize = "LEVELONE_OPTIONS")]
-    LevelOneOptions,
-    #[strum(serialize = "LEVELONE_FUTURES")]
-    LevelOneFutures,
-    #[strum(serialize = "LEVELONE_FUTURES_OPTIONS")]
-    LevelOneFuturesOptions,
-    #[strum(serialize = "LEVELONE_FOREX")]
-    LevelOneForex,
-    #[strum(serialize = "NYSE_BOOK")]
-    NyseBook,
-    #[strum(serialize = "NASDAQ_BOOK")]
-    NasdaqBook,
-    #[strum(serialize = "OPTIONS_BOOK")]
-    OptionsBook,
-    #[strum(serialize = "CHART_EQUITY")]
-    ChartEquity,
-    #[strum(serialize = "CHART_FUTURES")]
-    ChartFutures,
-    #[strum(serialize = "SCREENER_EQUITY")]
-    ScreenerEquity,
-    #[strum(serialize = "SCREENER_OPTION")]
-    ScreenerOption,
-    #[strum(serialize = "ACCT_ACTIVITY")]
-    AccountActivity,
-    /// A service identifier Schwab sent that this crate does not recognize.
-    /// The raw wire string is preserved so consumers can route on it.
-    #[strum(default)]
-    Unknown(String),
-}
+use crate::macros::string_enum;
 
-impl From<Service> for String {
-    fn from(s: Service) -> Self {
-        s.to_string()
+string_enum! {
+    /// Schwab streamer service identifier.
+    ///
+    /// Open enum: any wire string Schwab adds later that does not match a known
+    /// variant decodes into [`Service::Unknown`] with the raw identifier
+    /// preserved. Consumers can still see the original name and the dispatcher
+    /// routes such messages to [`DataContent::Raw`].
+    Service {
+        Admin = "ADMIN",
+        LevelOneEquities = "LEVELONE_EQUITIES",
+        LevelOneOptions = "LEVELONE_OPTIONS",
+        LevelOneFutures = "LEVELONE_FUTURES",
+        LevelOneFuturesOptions = "LEVELONE_FUTURES_OPTIONS",
+        LevelOneForex = "LEVELONE_FOREX",
+        NyseBook = "NYSE_BOOK",
+        NasdaqBook = "NASDAQ_BOOK",
+        OptionsBook = "OPTIONS_BOOK",
+        ChartEquity = "CHART_EQUITY",
+        ChartFutures = "CHART_FUTURES",
+        ScreenerEquity = "SCREENER_EQUITY",
+        ScreenerOption = "SCREENER_OPTION",
+        AccountActivity = "ACCT_ACTIVITY",
     }
 }
 
-impl From<String> for Service {
-    fn from(s: String) -> Self {
-        // `EnumString` with `#[strum(default)]` makes `FromStr` infallible:
-        // unrecognized strings land in `Service::Unknown(s)`.
-        s.parse()
-            .expect("Service FromStr is infallible (strum default)")
-    }
-}
-
-/// Open enum: a command string Schwab adds later that does not match a
-/// known variant decodes into [`StreamerCommand::Unknown`] with the raw
-/// wire value preserved, so an unrecognized command never fails the whole
-/// frame. Drops `Copy` because `Unknown(String)` carries an allocation;
-/// follows the same pattern as [`Service`] in this module.
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Hash,
-    strum::Display,
-    strum::EnumString,
-    serde::Serialize,
-    serde::Deserialize,
-)]
-#[serde(into = "String", from = "String")]
-#[non_exhaustive]
-pub enum StreamerCommand {
-    #[strum(serialize = "LOGIN")]
-    Login,
-    #[strum(serialize = "SUBS")]
-    Subs,
-    #[strum(serialize = "ADD")]
-    Add,
-    #[strum(serialize = "UNSUBS")]
-    Unsubs,
-    #[strum(serialize = "VIEW")]
-    View,
-    #[strum(serialize = "LOGOUT")]
-    Logout,
-    /// A command string Schwab sent that this crate does not recognize.
-    /// The raw wire value is preserved so callers can still route on it.
-    #[strum(default)]
-    Unknown(String),
-}
-
-impl From<StreamerCommand> for String {
-    fn from(c: StreamerCommand) -> Self {
-        c.to_string()
-    }
-}
-
-impl From<String> for StreamerCommand {
-    fn from(s: String) -> Self {
-        // `EnumString` with `#[strum(default)]` makes `FromStr` infallible:
-        // unrecognized strings land in `StreamerCommand::Unknown(s)`.
-        s.parse()
-            .expect("StreamerCommand FromStr is infallible (strum default)")
+string_enum! {
+    /// A command string Schwab sends on a streamer frame.
+    /// 
+    /// Open enum: a command string Schwab adds later that does not match a
+    /// known variant decodes into [`StreamerCommand::Unknown`] with the raw
+    /// wire value preserved, so an unrecognized command never fails the whole
+    /// frame.
+    StreamerCommand {
+        Login = "LOGIN",
+        Subs = "SUBS",
+        Add = "ADD",
+        Unsubs = "UNSUBS",
+        View = "VIEW",
+        Logout = "LOGOUT",
     }
 }
 

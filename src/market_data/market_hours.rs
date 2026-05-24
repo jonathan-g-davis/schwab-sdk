@@ -11,7 +11,7 @@
 use std::collections::HashMap;
 
 use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::client::SchwabClient;
 use crate::error::Result;
