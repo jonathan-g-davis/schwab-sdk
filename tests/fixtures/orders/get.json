@@ -1,0 +1,10 @@
+{
+    "orderId": 100000001,
+    "status": "WORKING",
+    "orderType": "LIMIT",
+    "orderStrategyType": "SINGLE",
+    "session": "NORMAL",
+    "duration": "DAY",
+    "quantity": 10.0,
+    "price": 145.00
+}
