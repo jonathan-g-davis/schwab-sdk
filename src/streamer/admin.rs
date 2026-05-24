@@ -1,23 +1,23 @@
 use crate::secrets::AuthToken;
 use crate::streamer::{Service, StreamerCommand, StreamerRequest};
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone)]
 pub(crate) struct Login {
-    #[serde(rename = "Authorization")]
     pub authorization: AuthToken,
-    #[serde(rename = "SchwabClientChannel")]
     pub schwab_client_channel: String,
-    #[serde(rename = "SchwabClientFunctionId")]
     pub schwab_client_function_id: String,
 }
 
 impl From<Login> for StreamerRequest {
     fn from(login: Login) -> Self {
-        let parameters = serde_json::to_value(login).expect("Login serialization is infallible");
         StreamerRequest {
             service: Service::Admin,
             command: StreamerCommand::Login,
-            parameters,
+            parameters: serde_json::json!({
+                "Authorization": login.authorization.expose_secret(),
+                "SchwabClientChannel": login.schwab_client_channel,
+                "SchwabClientFunctionId": login.schwab_client_function_id,
+            }),
         }
     }
 }
@@ -39,18 +39,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_serialize_login() {
+    fn login_frame_parameters_encode_fields() {
         let login = Login {
             authorization: AuthToken::new("1234567890"),
-            schwab_client_channel: "test".to_string(),
-            schwab_client_function_id: "test".to_string(),
+            schwab_client_channel: "channel".to_string(),
+            schwab_client_function_id: "fn-id".to_string(),
         };
-
-        let serialized = serde_json::to_string(&login).unwrap();
-        assert_eq!(
-            serialized,
-            r#"{"Authorization":"1234567890","SchwabClientChannel":"test","SchwabClientFunctionId":"test"}"#
-        );
+        let request: StreamerRequest = login.into();
+        assert_eq!(request.parameters["Authorization"], "1234567890");
+        assert_eq!(request.parameters["SchwabClientChannel"], "channel");
+        assert_eq!(request.parameters["SchwabClientFunctionId"], "fn-id");
     }
 
     #[test]
