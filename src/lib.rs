@@ -1,5 +1,20 @@
 //! `schwab-sdk` - a typed Rust client for the Charles Schwab Trader API.
 
+// Panic-family lints are denied in production code. If a future change
+// genuinely needs one of these in non-test code, add `#[allow(...)]` with
+// a one-line comment explaining why.
+#![cfg_attr(
+    not(test),
+    deny(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+    )
+)]
+
 mod client;
 mod constants;
 

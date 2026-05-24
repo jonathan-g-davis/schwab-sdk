@@ -27,7 +27,7 @@ string_enum! {
 
 string_enum! {
     /// A command string Schwab sends on a streamer frame.
-    /// 
+    ///
     /// Open enum: a command string Schwab adds later that does not match a
     /// known variant decodes into [`StreamerCommand::Unknown`] with the raw
     /// wire value preserved, so an unrecognized command never fails the whole
