@@ -45,6 +45,8 @@ pub enum WebSocketError {
     TlsConfig(rustls::Error),
     #[error("failed to build upgrade request: {0}")]
     BuildRequest(http::Error),
+    #[error("unsupported websocket scheme: {0}")]
+    UnsupportedScheme(String),
     /// Runtime frame error after the websocket is up: read/write/control
     /// frame failures from `fastwebsockets`.
     #[error("websocket runtime error: {0}")]
@@ -89,9 +91,15 @@ async fn connect_tls(uri: &Uri) -> std::result::Result<TlsStream<TcpStream>, Web
         .map_err(WebSocketError::TlsStream)
 }
 
-async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocketError> {
-    let tls_stream = connect_tls(uri).await?;
+async fn connect_tcp(uri: &Uri) -> std::result::Result<TcpStream, WebSocketError> {
+    let host = uri.host().ok_or(WebSocketError::MissingHost)?;
+    let port = uri.port_u16().unwrap_or(80);
+    TcpStream::connect(format!("{}:{}", host, port))
+        .await
+        .map_err(WebSocketError::Connect)
+}
 
+async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocketError> {
     let req = Request::builder()
         .method(Method::GET)
         .uri(uri)
@@ -103,11 +111,24 @@ async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocke
         .body(Empty::<Bytes>::new())
         .map_err(WebSocketError::BuildRequest)?;
 
-    let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, tls_stream)
-        .await
-        .map_err(WebSocketError::Handshake)?;
-
-    Ok(ws)
+    match uri.scheme_str() {
+        Some("wss") => {
+            let stream = connect_tls(uri).await?;
+            let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, stream)
+                .await
+                .map_err(WebSocketError::Handshake)?;
+            Ok(ws)
+        }
+        Some("ws") => {
+            let stream = connect_tcp(uri).await?;
+            let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, stream)
+                .await
+                .map_err(WebSocketError::Handshake)?;
+            Ok(ws)
+        }
+        Some(other) => Err(WebSocketError::UnsupportedScheme(other.to_string())),
+        None => Err(WebSocketError::UnsupportedScheme(String::new())),
+    }
 }
 
 /// Open the streamer websocket using the connection details from
