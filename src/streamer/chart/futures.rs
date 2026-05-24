@@ -104,7 +104,44 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_chart_futures_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "CHART_FUTURES",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "/ESZ24",
+                    "delayed": false,
+                    "1": 1714949580000,
+                    "2": 5020.00, "3": 5025.50, "4": 5018.25, "5": 5024.75,
+                    "6": 8520
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ChartFutures);
+        let DataContent::ChartFutures(items) = &payload.content else {
+            panic!("expected ChartFutures, got {:?}", payload.content);
+        };
+        let candle = &items[0];
+        assert_eq!(candle.key, "/ESZ24");
+        assert_eq!(candle.chart_time, Some(1714949580000));
+        assert_eq!(candle.open_price, Some(dec!(5020.00)));
+        assert_eq!(candle.high_price, Some(dec!(5025.50)));
+        assert_eq!(candle.low_price, Some(dec!(5018.25)));
+        assert_eq!(candle.close_price, Some(dec!(5024.75)));
+        assert_eq!(candle.volume, Some(dec!(8520)));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

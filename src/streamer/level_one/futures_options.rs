@@ -190,7 +190,51 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_level_one_futures_options_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_FUTURES_OPTIONS",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "./OZCZ23C565",
+                    "delayed": false,
+                    "1": 12.25, "2": 12.50, "3": 12.375,
+                    "4": 5, "5": 7, "8": 234,
+                    "18": 1500.5,
+                    "19": 12.375, "20": 0.25, "21": 12.50,
+                    "22": 50.0,
+                    "24": "/ZCZ23", "25": 565.0,
+                    "28": "C"
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneFuturesOptions);
+        let DataContent::LevelOneFuturesOptions(items) = &payload.content else {
+            panic!("expected LevelOneFuturesOptions");
+        };
+        let item = &items[0];
+        assert_eq!(item.key, "./OZCZ23C565");
+        assert_eq!(item.bid_price, Some(dec!(12.25)));
+        assert_eq!(item.ask_price, Some(dec!(12.50)));
+        assert_eq!(item.total_volume, Some(234));
+        assert_eq!(item.open_interest, Some(dec!(1500.5))); // double per spec
+        assert_eq!(item.mark, Some(dec!(12.375)));
+        assert_eq!(item.future_multiplier, Some(dec!(50.0)));
+        assert_eq!(item.underlying_symbol.as_deref(), Some("/ZCZ23"));
+        assert_eq!(item.strike_price, Some(dec!(565.0)));
+        assert_eq!(item.contract_type.as_deref(), Some("C"));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

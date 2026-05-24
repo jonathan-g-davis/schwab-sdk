@@ -38,6 +38,54 @@ impl From<Logout> for StreamerRequest {
 mod tests {
     use super::*;
 
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::protocol::ResponseCode;
+    use crate::streamer::response::parse;
+
+    #[test]
+    fn parses_login_success_response() {
+        let frame = r#"{
+            "response": [{
+                "service": "ADMIN",
+                "command": "LOGIN",
+                "requestid": "1",
+                "SchwabClientCorrelId": "5be0b7e7-5b8b-4fd3-9bed-7f49106cfe96",
+                "timestamp": 1669828276886,
+                "content": { "code": 0, "msg": "server=s0166bdv-1;status=PN" }
+            }]
+        }"#;
+        match parse(frame).unwrap() {
+            StreamerResponse::Response(responses) => {
+                assert_eq!(responses.len(), 1);
+                let r = &responses[0];
+                assert_eq!(r.service, Service::Admin);
+                assert_eq!(r.command, StreamerCommand::Login);
+                assert_eq!(r.request_id, 1);
+                assert_eq!(r.content.code, ResponseCode::Ok);
+                assert!(r.content.message.contains("status=PN"));
+            }
+            other => panic!("expected Response, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_login_denied_response() {
+        let frame = r#"{
+            "response": [{
+                "service": "ADMIN",
+                "command": "LOGIN",
+                "requestid": "1",
+                "SchwabClientCorrelId": "x",
+                "timestamp": 1669828982588,
+                "content": { "code": 3, "msg": "Login Denied.: token is invalid or has expired." }
+            }]
+        }"#;
+        let StreamerResponse::Response(responses) = parse(frame).unwrap() else {
+            panic!("expected Response");
+        };
+        assert_eq!(responses[0].content.code, ResponseCode::LoginDenied);
+    }
+
     #[test]
     fn login_frame_parameters_encode_fields() {
         let login = Login {

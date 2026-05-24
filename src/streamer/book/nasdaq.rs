@@ -61,7 +61,76 @@ pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<book::Cont
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_nasdaq_book_data_into_typed_content() {
+        // Two bid levels (one with two MMs) and one ask level. Mirrors the
+        // shape NYSE_BOOK uses since both share `book::Content`.
+        let frame = r#"{
+            "data": [{
+                "service": "NASDAQ_BOOK",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "MSFT",
+                    "delayed": false,
+                    "1": 1714949592300,
+                    "2": [
+                        {
+                            "0": 425.10,
+                            "1": 800,
+                            "2": 2,
+                            "3": [
+                                {"0": "MMA", "1": 500, "2": 1714949592000},
+                                {"0": "MMB", "1": 300, "2": 1714949592100}
+                            ]
+                        },
+                        {
+                            "0": 425.05,
+                            "1": 1200,
+                            "2": 1,
+                            "3": [{"0": "MMC", "1": 1200, "2": 1714949591900}]
+                        }
+                    ],
+                    "3": [{
+                        "0": 425.15,
+                        "1": 600,
+                        "2": 1,
+                        "3": [{"0": "MMD", "1": 600, "2": 1714949592250}]
+                    }]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::NasdaqBook);
+        let DataContent::NasdaqBook(items) = &payload.content else {
+            panic!("expected NasdaqBook, got {:?}", payload.content);
+        };
+        let msft = &items[0];
+        assert_eq!(msft.key, "MSFT");
+        assert_eq!(msft.market_snapshot_time, 1714949592300);
+
+        assert_eq!(msft.bid_side_levels.len(), 2);
+        assert_eq!(msft.bid_side_levels[0].price, dec!(425.10));
+        assert_eq!(msft.bid_side_levels[0].aggregate_size, 800);
+        assert_eq!(msft.bid_side_levels[0].market_makers.len(), 2);
+        assert_eq!(msft.bid_side_levels[1].price, dec!(425.05));
+        assert_eq!(msft.bid_side_levels[1].market_maker_count, 1);
+
+        assert_eq!(msft.ask_side_levels.len(), 1);
+        assert_eq!(msft.ask_side_levels[0].price, dec!(425.15));
+        assert_eq!(
+            msft.ask_side_levels[0].market_makers[0].market_maker_id,
+            "MMD"
+        );
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

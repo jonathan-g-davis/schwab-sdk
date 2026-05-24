@@ -268,6 +268,73 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::response::{DataContent, parse};
+    use crate::streamer::{StreamerResponse, SubscriptionCommand};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_level_one_equities_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_EQUITIES",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [
+                    {
+                        "key": "SCHW",
+                        "delayed": false,
+                        "assetMainType": "EQUITY",
+                        "assetSubType": "COE",
+                        "cusip": "808513105",
+                        "1": 76.08, "2": 76.49, "3": 76.44,
+                        "4": 3, "5": 1, "8": 5414735, "10": 76.47
+                    },
+                    {
+                        "key": "AAPL",
+                        "delayed": false,
+                        "assetMainType": "EQUITY",
+                        "assetSubType": "COE",
+                        "cusip": "037833100",
+                        "1": 183.75, "2": 183.8, "3": 183.8,
+                        "4": 1, "5": 2, "8": 163224109, "10": 187
+                    }
+                ]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        assert_eq!(data.len(), 1);
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneEquities);
+        assert_eq!(payload.timestamp, 1714949592301);
+        assert_eq!(payload.command, SubscriptionCommand::Subscribe);
+
+        let DataContent::LevelOneEquities(items) = &payload.content else {
+            panic!("expected LevelOneEquities, got {:?}", payload.content);
+        };
+        assert_eq!(items.len(), 2);
+
+        let schw = &items[0];
+        assert_eq!(schw.key, "SCHW");
+        assert!(!schw.delayed);
+        assert_eq!(schw.cusip.as_deref(), Some("808513105"));
+        assert_eq!(schw.bid_price, Some(dec!(76.08)));
+        assert_eq!(schw.ask_price, Some(dec!(76.49)));
+        assert_eq!(schw.last_price, Some(dec!(76.44)));
+        assert_eq!(schw.bid_size, Some(3));
+        assert_eq!(schw.ask_size, Some(1));
+        assert_eq!(schw.total_volume, Some(5414735));
+        assert_eq!(schw.high_price, Some(dec!(76.47)));
+        // Fields not present on the wire stay None.
+        assert_eq!(schw.low_price, None);
+        assert_eq!(schw.dividend_yield, None);
+
+        let aapl = &items[1];
+        assert_eq!(aapl.key, "AAPL");
+        assert_eq!(aapl.bid_price, Some(dec!(183.75)));
+        assert_eq!(aapl.last_price, Some(dec!(183.8)));
+    }
 
     #[test]
     fn test_serialize_parameters() {

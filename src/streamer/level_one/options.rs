@@ -285,7 +285,64 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_level_one_options_data_into_typed_content() {
+        // An ATM-ish AAPL call: bid 5.10 / ask 5.20, last 5.15, delta 0.52,
+        // gamma 0.04, theta -0.08, vega 0.13, 7 DTE.
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_OPTIONS",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "AAPL  240315C00200000",
+                    "delayed": false,
+                    "assetMainType": "OPTION",
+                    "2": 5.10, "3": 5.20, "4": 5.15,
+                    "8": 12345, "9": 6789,
+                    "20": 200.0, "21": "C", "22": "AAPL",
+                    "27": 7, "28": 0.52, "29": 0.04, "30": -0.08, "31": 0.13,
+                    "37": 5.15,
+                    "48": true
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneOptions);
+
+        let DataContent::LevelOneOptions(items) = &payload.content else {
+            panic!("expected LevelOneOptions, got {:?}", payload.content);
+        };
+        assert_eq!(items.len(), 1);
+        let aapl = &items[0];
+        assert_eq!(aapl.key, "AAPL  240315C00200000");
+        assert_eq!(aapl.bid_price, Some(dec!(5.10)));
+        assert_eq!(aapl.ask_price, Some(dec!(5.20)));
+        assert_eq!(aapl.last_price, Some(dec!(5.15)));
+        assert_eq!(aapl.total_volume, Some(12345));
+        assert_eq!(aapl.open_interest, Some(6789));
+        assert_eq!(aapl.strike_price, Some(dec!(200.0)));
+        assert_eq!(aapl.contract_type.as_deref(), Some("C"));
+        assert_eq!(aapl.underlying.as_deref(), Some("AAPL"));
+        assert_eq!(aapl.days_to_expiration, Some(7));
+        assert_eq!(aapl.delta, Some(dec!(0.52)));
+        assert_eq!(aapl.gamma, Some(dec!(0.04)));
+        assert_eq!(aapl.theta, Some(dec!(-0.08)));
+        assert_eq!(aapl.vega, Some(dec!(0.13)));
+        assert_eq!(aapl.mark_price, Some(dec!(5.15)));
+        assert_eq!(aapl.is_penny_pilot, Some(true));
+        // Fields not on wire stay None.
+        assert_eq!(aapl.rho, None);
+        assert_eq!(aapl.implied_yield, None);
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

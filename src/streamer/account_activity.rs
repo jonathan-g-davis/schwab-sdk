@@ -98,7 +98,80 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+
+    #[test]
+    fn parses_account_activity_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "ACCT_ACTIVITY",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "seq": 42,
+                    "key": "my-correl-id",
+                    "delayed": false,
+                    "0": "my-correl-id",
+                    "1": "12345678",
+                    "2": "OrderEntryRequest",
+                    "3": "{\"orderId\":\"ABC\",\"symbol\":\"AAPL\",\"quantity\":10}"
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::AccountActivity);
+        let DataContent::AccountActivity(items) = &payload.content else {
+            panic!("expected AccountActivity, got {:?}", payload.content);
+        };
+        let msg = &items[0];
+        assert_eq!(msg.key, "my-correl-id");
+        assert_eq!(msg.seq, Some(42));
+        assert_eq!(msg.subscription_key.as_deref(), Some("my-correl-id"));
+        assert_eq!(
+            msg.account.as_ref().map(|a| a.expose_secret().to_string()),
+            Some("12345678".to_string())
+        );
+        assert_eq!(msg.message_type.as_deref(), Some("OrderEntryRequest"));
+        assert!(
+            msg.message_data
+                .as_deref()
+                .map(|s| s.contains("AAPL"))
+                .unwrap_or(false),
+            "message_data should preserve raw payload"
+        );
+    }
+
+    #[test]
+    fn account_in_account_activity_redacts_on_debug() {
+        // Compile-time check that Account is the redacted newtype.
+        let frame = r#"{
+            "data": [{
+                "service": "ACCT_ACTIVITY",
+                "timestamp": 1,
+                "command": "SUBS",
+                "content": [{
+                    "seq": 1, "key": "k", "delayed": false,
+                    "1": "12345678"
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let DataContent::AccountActivity(items) = &data[0].content else {
+            panic!("expected AccountActivity");
+        };
+        let debug = format!("{:?}", items[0]);
+        assert!(
+            !debug.contains("12345678"),
+            "account number leaked through Debug: {debug}"
+        );
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {
