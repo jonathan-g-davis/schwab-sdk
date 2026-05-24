@@ -24,7 +24,7 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::de::value::MapAccessDeserializer;
 use serde::de::{MapAccess, SeqAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 
 use crate::client::SchwabClient;
 use crate::error::Result;

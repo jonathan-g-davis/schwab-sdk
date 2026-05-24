@@ -4,8 +4,6 @@
 //! Schwab after this crate was published deserialize cleanly. The
 //! `string_enum!` macro lives in [`crate::macros`].
 
-use serde::{Deserialize, Serialize};
-
 use crate::macros::string_enum;
 
 string_enum! {
