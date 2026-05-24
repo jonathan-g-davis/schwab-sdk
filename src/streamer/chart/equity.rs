@@ -10,19 +10,10 @@ use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
-use crate::streamer::{
-    Service, StreamerRequest,
-    subscription::{Subscription, subscribe_parameters},
-};
+use crate::streamer::{Service, subscription::SubscriptionField};
 
-impl From<Subscription<Field>> for StreamerRequest {
-    fn from(subscription: Subscription<Field>) -> Self {
-        StreamerRequest {
-            service: Service::ChartEquity,
-            command: subscription.command.into(),
-            parameters: subscribe_parameters(subscription.keys, subscription.fields),
-        }
-    }
+impl SubscriptionField for Field {
+    const SERVICE: Service = Service::ChartEquity;
 }
 
 #[derive(
@@ -123,6 +114,7 @@ impl Content {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::streamer::StreamerRequest;
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
 
     #[test]
