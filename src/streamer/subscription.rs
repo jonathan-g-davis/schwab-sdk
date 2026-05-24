@@ -1,6 +1,7 @@
 use derive_builder::Builder;
 
 use crate::error::Result;
+use crate::streamer::Service;
 use crate::streamer::WriteHalf;
 use crate::streamer::protocol::StreamerCommand;
 use crate::streamer::request::StreamerRequest;
@@ -57,10 +58,7 @@ pub struct Subscription<T> {
 ///
 /// Returns the JSON object Schwab expects on the wire (`{"keys": "<csv>",
 /// "fields": "<csv>"}`).
-pub(super) fn subscribe_parameters<F, I>(
-    keys: Vec<String>,
-    fields: I,
-) -> serde_json::Value
+pub(super) fn subscribe_parameters<F, I>(keys: Vec<String>, fields: I) -> serde_json::Value
 where
     F: Into<u8> + Copy,
     I: IntoIterator<Item = F>,
@@ -72,6 +70,22 @@ where
         .collect::<Vec<_>>()
         .join(",");
     serde_json::json!({ "keys": keys, "fields": fields })
+}
+
+/// Binds a field enum to its streamer service, enabling the generic
+/// `From<Subscription<F>> for StreamerRequest` impl below.
+pub(crate) trait SubscriptionField: Into<u8> + Copy {
+    const SERVICE: Service;
+}
+
+impl<F: SubscriptionField> From<Subscription<F>> for StreamerRequest {
+    fn from(s: Subscription<F>) -> Self {
+        StreamerRequest {
+            service: F::SERVICE,
+            command: s.command.into(),
+            parameters: subscribe_parameters(s.keys, s.fields),
+        }
+    }
 }
 
 // --- Typestate builder for subscribe/add/unsubscribe/view requests ---
@@ -179,9 +193,8 @@ impl<F> SubscribeRequest<'_, F, Ready> {
     }
 }
 
-// The bound mentions the crate-internal IR `StreamerRequest`; it is
-// satisfied by the per-service `From<Subscription<F>>` impls inside this
-// crate, never by external code, so the lint warning is expected.
+// The bound mentions the crate-internal `StreamerRequest`; it is satisfied
+// by the generic `impl<F: SubscriptionField>` above, never by external code.
 #[allow(private_bounds)]
 impl<F> SubscribeRequest<'_, F, Ready>
 where

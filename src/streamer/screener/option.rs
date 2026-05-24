@@ -7,24 +7,15 @@ use strum::{Display, EnumString, FromRepr};
 
 use crate::error::Result;
 use crate::streamer::screener;
-use crate::streamer::{
-    Service, StreamerRequest,
-    subscription::{Subscription, subscribe_parameters},
-};
+use crate::streamer::{Service, subscription::SubscriptionField};
 
-impl From<Subscription<Field>> for StreamerRequest {
-    fn from(subscription: Subscription<Field>) -> Self {
-        StreamerRequest {
-            service: Service::ScreenerOption,
-            command: subscription.command.into(),
-            parameters: subscribe_parameters(subscription.keys, subscription.fields),
-        }
-    }
+impl SubscriptionField for Field {
+    const SERVICE: Service = Service::ScreenerOption;
 }
 
 /// Field enum for the SCREENER_OPTION service. Identical layout to
-/// SCREENER_EQUITY but distinct so the `From<Subscription<Field>>` impl picks
-/// the correct `Service`.
+/// SCREENER_EQUITY but distinct so the `SubscriptionField` impl can bind the
+/// correct `Service` variant.
 #[derive(
     Debug,
     Clone,
@@ -69,6 +60,7 @@ pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<screener::
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::streamer::StreamerRequest;
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
 
     #[test]

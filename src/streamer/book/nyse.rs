@@ -8,24 +8,15 @@ use strum::{Display, EnumString, FromRepr};
 
 use crate::error::Result;
 use crate::streamer::book;
-use crate::streamer::{
-    Service, StreamerRequest,
-    subscription::{Subscription, subscribe_parameters},
-};
+use crate::streamer::{Service, subscription::SubscriptionField};
 
-impl From<Subscription<Field>> for StreamerRequest {
-    fn from(subscription: Subscription<Field>) -> Self {
-        StreamerRequest {
-            service: Service::NyseBook,
-            command: subscription.command.into(),
-            parameters: subscribe_parameters(subscription.keys, subscription.fields),
-        }
-    }
+impl SubscriptionField for Field {
+    const SERVICE: Service = Service::NyseBook;
 }
 
 /// Field enum for the NYSE_BOOK service. Identical layout to NASDAQ_BOOK and
-/// OPTIONS_BOOK but a distinct type so the `From<Subscription<Field>>` impl
-/// can pick the right `Service` variant.
+/// OPTIONS_BOOK but a distinct type so the `SubscriptionField` impl can bind
+/// the correct `Service` variant.
 #[derive(
     Debug,
     Clone,
@@ -69,6 +60,7 @@ pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<book::Cont
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::streamer::StreamerRequest;
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
 
     #[test]
