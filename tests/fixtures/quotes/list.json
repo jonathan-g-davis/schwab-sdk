@@ -1,0 +1,42 @@
+{
+    "AAPL": {
+        "assetMainType": "EQUITY",
+        "assetSubType": "COE",
+        "ssid": 1234567890,
+        "symbol": "AAPL",
+        "realtime": true,
+        "quoteType": "NBBO",
+        "quote": {
+            "lastPrice": 175.50,
+            "bidPrice": 175.48,
+            "askPrice": 175.52,
+            "totalVolume": 45000000
+        },
+        "reference": {
+            "cusip": "037833100",
+            "description": "Apple Inc. - Common Stock",
+            "exchange": "q",
+            "exchangeName": "NASDAQ"
+        }
+    },
+    "MSFT": {
+        "assetMainType": "EQUITY",
+        "assetSubType": "COE",
+        "ssid": 9876543210,
+        "symbol": "MSFT",
+        "realtime": true,
+        "quoteType": "NBBO",
+        "quote": {
+            "lastPrice": 415.20,
+            "bidPrice": 415.18,
+            "askPrice": 415.22,
+            "totalVolume": 18000000
+        },
+        "reference": {
+            "cusip": "594918104",
+            "description": "Microsoft Corporation",
+            "exchange": "q",
+            "exchangeName": "NASDAQ"
+        }
+    }
+}
