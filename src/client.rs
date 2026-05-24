@@ -213,12 +213,20 @@ impl<'a> Transport<'a> {
 
     /// Send a prepared [`RequestBuilder`] and decode the JSON body into
     /// `T` on 2xx, or map the response to an [`Error`].
+    ///
+    /// Body bytes are read first so that a malformed response body produces
+    /// [`Error::Codec`] rather than [`Error::Transport`]; transport errors
+    /// are reserved for network-level failures (DNS, connect, TLS, I/O).
     pub(crate) async fn execute_json<T: DeserializeOwned>(
         &self,
         request: RequestBuilder,
     ) -> Result<T> {
         let response = self.execute(request).await?;
-        Ok(response.json::<T>().await?)
+        let bytes = response.bytes().await?;
+        serde_json::from_slice(&bytes).map_err(|e| Error::Codec {
+            context: "decode response body".to_string(),
+            reason: e.to_string(),
+        })
     }
 
     /// Convenience: GET + decode for endpoints that take no query
