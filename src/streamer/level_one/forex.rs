@@ -179,7 +179,52 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_level_one_forex_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_FOREX",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "EUR/USD",
+                    "delayed": false,
+                    "1": 1.0825, "2": 1.0826, "3": 1.08255,
+                    "4": 1000000, "5": 1500000,
+                    "10": 1.0850, "11": 1.0810, "12": 1.0820,
+                    "14": "Euro/US Dollar",
+                    "16": 0.00055, "17": 0.0508,
+                    "19": 5,
+                    "25": true, "29": 1.08255
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneForex);
+        let DataContent::LevelOneForex(items) = &payload.content else {
+            panic!("expected LevelOneForex");
+        };
+        let eur = &items[0];
+        assert_eq!(eur.key, "EUR/USD");
+        assert_eq!(eur.bid_price, Some(dec!(1.0825)));
+        assert_eq!(eur.ask_price, Some(dec!(1.0826)));
+        assert_eq!(eur.last_price, Some(dec!(1.08255)));
+        assert_eq!(eur.bid_size, Some(1_000_000));
+        assert_eq!(eur.ask_size, Some(1_500_000));
+        assert_eq!(eur.description.as_deref(), Some("Euro/US Dollar"));
+        assert_eq!(eur.percent_change, Some(dec!(0.0508)));
+        assert_eq!(eur.digits, Some(5));
+        assert_eq!(eur.is_tradable, Some(true));
+        assert_eq!(eur.mark, Some(dec!(1.08255)));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

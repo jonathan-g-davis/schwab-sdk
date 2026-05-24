@@ -222,7 +222,59 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_level_one_futures_data_into_typed_content() {
+        // /ESZ24 (E-Mini S&P 500 Dec 2024) with quotes, volume, multiplier.
+        let frame = r#"{
+            "data": [{
+                "service": "LEVELONE_FUTURES",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "/ESZ24",
+                    "delayed": false,
+                    "1": 5025.25, "2": 5025.50, "3": 5025.25,
+                    "4": 12, "5": 9,
+                    "8": 1234567, "12": 5050.00, "13": 5005.75,
+                    "16": "E-Mini S&P 500 Dec 24",
+                    "24": 5025.375,
+                    "25": 0.25, "26": 12.50,
+                    "30": true, "31": 50.0, "32": true
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::LevelOneFutures);
+        let DataContent::LevelOneFutures(items) = &payload.content else {
+            panic!("expected LevelOneFutures, got {:?}", payload.content);
+        };
+        assert_eq!(items.len(), 1);
+        let es = &items[0];
+        assert_eq!(es.key, "/ESZ24");
+        assert_eq!(es.bid_price, Some(dec!(5025.25)));
+        assert_eq!(es.ask_price, Some(dec!(5025.50)));
+        assert_eq!(es.last_price, Some(dec!(5025.25)));
+        assert_eq!(es.bid_size, Some(12));
+        assert_eq!(es.ask_size, Some(9));
+        assert_eq!(es.total_volume, Some(1234567));
+        assert_eq!(es.high_price, Some(dec!(5050.00)));
+        assert_eq!(es.low_price, Some(dec!(5005.75)));
+        assert_eq!(es.description.as_deref(), Some("E-Mini S&P 500 Dec 24"));
+        assert_eq!(es.mark, Some(dec!(5025.375)));
+        assert_eq!(es.tick, Some(dec!(0.25)));
+        assert_eq!(es.tick_amount, Some(dec!(12.50)));
+        assert_eq!(es.future_is_tradable, Some(true));
+        assert_eq!(es.future_multiplier, Some(dec!(50.0)));
+        assert_eq!(es.future_is_active, Some(true));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

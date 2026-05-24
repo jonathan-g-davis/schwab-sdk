@@ -61,7 +61,58 @@ pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<screener::
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_screener_option_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "SCREENER_OPTION",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "OPTION_CALL_VOLUME_5",
+                    "delayed": false,
+                    "1": 1714949590000,
+                    "2": "VOLUME",
+                    "3": 5,
+                    "4": [{
+                        "description": "AAPL Mar 15 2024 200 Call",
+                        "lastPrice": 5.15,
+                        "marketShare": 0.40,
+                        "netChange": 0.05,
+                        "netPercentChange": 0.9804,
+                        "symbol": "AAPL  240315C00200000",
+                        "totalVolume": 12345,
+                        "trades": 312,
+                        "volume": 8400
+                    }]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ScreenerOption);
+        let DataContent::ScreenerOption(rows) = &payload.content else {
+            panic!("expected ScreenerOption, got {:?}", payload.content);
+        };
+        let row = &rows[0];
+        assert_eq!(row.key, "OPTION_CALL_VOLUME_5");
+        assert_eq!(row.sort_field.as_deref(), Some("VOLUME"));
+        assert_eq!(row.frequency, Some(5));
+        assert_eq!(row.items.len(), 1);
+
+        let item = &row.items[0];
+        assert_eq!(item.symbol.as_deref(), Some("AAPL  240315C00200000"));
+        assert_eq!(item.last_price, Some(dec!(5.15)));
+        assert_eq!(item.net_change, Some(dec!(0.05)));
+        assert_eq!(item.volume, Some(8400));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

@@ -115,7 +115,48 @@ impl Content {
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_chart_equity_data_into_typed_content() {
+        let frame = r#"{
+            "data": [{
+                "service": "CHART_EQUITY",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "AAPL",
+                    "delayed": false,
+                    "1": 183.50, "2": 183.80, "3": 183.45, "4": 183.75,
+                    "5": 125000,
+                    "6": 1234,
+                    "7": 1714949580000,
+                    "8": 19850
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ChartEquity);
+        let DataContent::ChartEquity(items) = &payload.content else {
+            panic!("expected ChartEquity, got {:?}", payload.content);
+        };
+        let candle = &items[0];
+        assert_eq!(candle.key, "AAPL");
+        assert_eq!(candle.open_price, Some(dec!(183.50)));
+        assert_eq!(candle.high_price, Some(dec!(183.80)));
+        assert_eq!(candle.low_price, Some(dec!(183.45)));
+        assert_eq!(candle.close_price, Some(dec!(183.75)));
+        assert_eq!(candle.volume, Some(dec!(125000)));
+        assert_eq!(candle.sequence, Some(1234));
+        assert_eq!(candle.chart_time, Some(1714949580000));
+        assert_eq!(candle.chart_day, Some(19850));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {

@@ -61,7 +61,83 @@ pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<screener::
 mod tests {
     use super::*;
     use crate::streamer::StreamerRequest;
+    use crate::streamer::StreamerResponse;
+    use crate::streamer::response::{DataContent, parse};
     use crate::streamer::subscription::{Command, Subscription, subscribe_parameters};
+    use rust_decimal_macros::dec;
+
+    #[test]
+    fn parses_screener_equity_data_into_typed_content() {
+        // Two-item ranking on NYSE volume, 5-minute window. Items carry
+        // camelCase named fields per Schwab's spec.
+        let frame = r#"{
+            "data": [{
+                "service": "SCREENER_EQUITY",
+                "timestamp": 1714949592301,
+                "command": "SUBS",
+                "content": [{
+                    "key": "NYSE_VOLUME_5",
+                    "delayed": false,
+                    "1": 1714949590000,
+                    "2": "VOLUME",
+                    "3": 5,
+                    "4": [
+                        {
+                            "description": "Apple Inc.",
+                            "lastPrice": 183.50,
+                            "marketShare": 1.25,
+                            "netChange": 0.75,
+                            "netPercentChange": 0.4106,
+                            "symbol": "AAPL",
+                            "totalVolume": 163224109,
+                            "trades": 95012,
+                            "volume": 12500000
+                        },
+                        {
+                            "description": "Microsoft Corp.",
+                            "lastPrice": 425.10,
+                            "marketShare": 0.85,
+                            "netChange": -1.20,
+                            "netPercentChange": -0.2814,
+                            "symbol": "MSFT",
+                            "totalVolume": 22500000,
+                            "trades": 41200,
+                            "volume": 7250000
+                        }
+                    ]
+                }]
+            }]
+        }"#;
+        let StreamerResponse::Data(data) = parse(frame).unwrap() else {
+            panic!("expected Data");
+        };
+        let payload = &data[0];
+        assert_eq!(payload.service, Service::ScreenerEquity);
+        let DataContent::ScreenerEquity(rows) = &payload.content else {
+            panic!("expected ScreenerEquity, got {:?}", payload.content);
+        };
+        let row = &rows[0];
+        assert_eq!(row.key, "NYSE_VOLUME_5");
+        assert_eq!(row.timestamp, Some(1714949590000));
+        assert_eq!(row.sort_field.as_deref(), Some("VOLUME"));
+        assert_eq!(row.frequency, Some(5));
+        assert_eq!(row.items.len(), 2);
+
+        let aapl = &row.items[0];
+        assert_eq!(aapl.symbol.as_deref(), Some("AAPL"));
+        assert_eq!(aapl.description.as_deref(), Some("Apple Inc."));
+        assert_eq!(aapl.last_price, Some(dec!(183.50)));
+        assert_eq!(aapl.market_share, Some(dec!(1.25)));
+        assert_eq!(aapl.net_change, Some(dec!(0.75)));
+        assert_eq!(aapl.net_percent_change, Some(dec!(0.4106)));
+        assert_eq!(aapl.total_volume, Some(163224109));
+        assert_eq!(aapl.trades, Some(95012));
+        assert_eq!(aapl.volume, Some(12500000));
+
+        let msft = &row.items[1];
+        assert_eq!(msft.symbol.as_deref(), Some("MSFT"));
+        assert_eq!(msft.net_change, Some(dec!(-1.20)));
+    }
 
     #[test]
     fn fields_serialize_as_numeric_index() {
