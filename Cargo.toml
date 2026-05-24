@@ -27,4 +27,7 @@ tokio-rustls = "0.26.4"
 zeroize = { version = "1.8", features = ["derive"] }
 
 [dev-dependencies]
+futures-util = "0.3"
 rust_decimal_macros = "1.36"
+tokio-tungstenite = "0.27"
+wiremock = "0.6"

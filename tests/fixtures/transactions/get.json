@@ -1,0 +1,9 @@
+[
+    {
+        "activityId": 1111111111,
+        "description": "SOLD 5 AAPL @ 150.00",
+        "accountNumber": "12345678",
+        "type": "TRADE",
+        "status": "VALID"
+    }
+]

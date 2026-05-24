@@ -1,0 +1,14 @@
+{
+    "securitiesAccount": {
+        "type": "CASH",
+        "accountNumber": "87654321",
+        "roundTrips": 0,
+        "isDayTrader": false,
+        "isClosingOnlyRestricted": false,
+        "pfcbFlag": false,
+        "currentBalances": {
+            "cashAvailableForTrading": 5000.00,
+            "totalCash": 5000.00
+        }
+    }
+}
