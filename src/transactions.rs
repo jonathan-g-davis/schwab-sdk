@@ -1,4 +1,4 @@
-//! `GET /accounts/{accountNumber}/transactions*` - Schwab Trader API.
+//! `GET /accounts/{accountNumber}/transactions*`
 //!
 //! Endpoints:
 //!
@@ -95,6 +95,7 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<Vec<Transaction>> {
         let hash = self.account_hash.expose_secret();
         // Schwab's documented format is `yyyy-MM-dd'T'HH:mm:ss.SSSZ`;
@@ -123,57 +124,79 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Transaction {
+    /// Schwab-internal activity id; useful when contacting support.
     #[serde(default, rename = "activityId")]
     pub activity_id: Option<i64>,
     /// Time the transaction was recorded.
     #[serde(default)]
     pub time: Option<DateTime<Utc>>,
+    /// User context for the activity (rep id, advisor user, etc.).
     #[serde(default)]
     pub user: Option<UserDetails>,
+    /// Free-form description Schwab assigns (e.g. `"BOUGHT 10 AAPL @ 145.32"`).
     #[serde(default)]
     pub description: Option<String>,
     /// Plain account number that owns this transaction.
     #[serde(default, rename = "accountNumber")]
     pub account_number: Option<AccountNumber>,
+    /// High-level transaction category.
     #[serde(default, rename = "type")]
     pub transaction_type: Option<TransactionType>,
+    /// Settlement status (valid / pending / invalid).
     #[serde(default)]
     pub status: Option<TransactionStatus>,
+    /// Sub-account bucket the activity posted to (cash / margin / short / etc.).
     #[serde(default, rename = "subAccount")]
     pub sub_account: Option<SubAccount>,
+    /// Trade date (typically the execution day).
     #[serde(default, rename = "tradeDate")]
     pub trade_date: Option<DateTime<Utc>>,
+    /// Settlement date.
     #[serde(default, rename = "settlementDate")]
     pub settlement_date: Option<DateTime<Utc>>,
+    /// Position id this activity attaches to, if any.
     #[serde(default, rename = "positionId")]
     pub position_id: Option<i64>,
+    /// Order id this activity originates from, if any.
     #[serde(default, rename = "orderId")]
     pub order_id: Option<i64>,
+    /// Net cash impact on the account, USD. Negative for debits.
     #[serde(default, with = "decimal_opt", rename = "netAmount")]
     pub net_amount: Option<Decimal>,
+    /// What kind of activity this row represents (execution, transfer, etc.).
     #[serde(default, rename = "activityType")]
     pub activity_type: Option<ActivityType>,
+    /// Per-leg breakdown (security moved + fees).
     #[serde(default, rename = "transferItems")]
     pub transfer_items: Vec<TransferItem>,
 }
 
+/// User identification attached to a transaction.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct UserDetails {
+    /// Schwab CD domain id.
     #[serde(default, rename = "cdDomainId")]
     pub cd_domain_id: Option<String>,
+    /// Login name of the user who initiated the activity.
     #[serde(default)]
     pub login: Option<String>,
+    /// Role / category of the user (advisor, broker, client, system).
     #[serde(default, rename = "type")]
     pub user_type: Option<UserType>,
+    /// Internal user id.
     #[serde(default, rename = "userId")]
     pub user_id: Option<i64>,
+    /// System user name when the action originated from a service account.
     #[serde(default, rename = "systemUserName")]
     pub system_user_name: Option<String>,
+    /// First name.
     #[serde(default, rename = "firstName")]
     pub first_name: Option<String>,
+    /// Last name.
     #[serde(default, rename = "lastName")]
     pub last_name: Option<String>,
+    /// Broker rep code, when the action came from a Schwab rep.
     #[serde(default, rename = "brokerRepCode")]
     pub broker_rep_code: Option<String>,
 }
@@ -184,16 +207,23 @@ pub struct UserDetails {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct TransferItem {
+    /// Instrument moved. `None` on pure-fee items.
     #[serde(default)]
     pub instrument: Option<TransactionInstrument>,
+    /// Quantity moved (shares / contracts) for security items; signed dollar
+    /// amount for fee items.
     #[serde(default, with = "decimal_opt")]
     pub amount: Option<Decimal>,
+    /// Total cost basis of the leg, USD. Negative for buys (cash outflow).
     #[serde(default, with = "decimal_opt")]
     pub cost: Option<Decimal>,
+    /// Per-unit price, USD.
     #[serde(default, with = "decimal_opt")]
     pub price: Option<Decimal>,
+    /// Fee classification for fee items. `None` on security items.
     #[serde(default, rename = "feeType")]
     pub fee_type: Option<FeeType>,
+    /// Whether the leg opened or closed a position.
     #[serde(default, rename = "positionEffect")]
     pub position_effect: Option<PositionEffect>,
 }
@@ -210,16 +240,23 @@ pub struct TransferItem {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct TransactionInstrument {
+    /// Asset-class discriminator. Match on this to interpret the variant-
+    /// specific fields below.
     #[serde(rename = "assetType")]
     pub asset_type: AssetType,
+    /// CUSIP, when Schwab has assigned one.
     #[serde(default)]
     pub cusip: Option<String>,
+    /// Wire symbol (Schwab format).
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Human-readable description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab-internal instrument id.
     #[serde(default, rename = "instrumentId")]
     pub instrument_id: Option<i64>,
+    /// Net price change since the prior close, USD.
     #[serde(default, with = "decimal_opt", rename = "netChange")]
     pub net_change: Option<Decimal>,
     /// Variant-specific subtype string (e.g. `COMMON_STOCK`, `VANILLA`,
@@ -229,18 +266,25 @@ pub struct TransactionInstrument {
     pub variant_type: Option<String>,
 
     // Option fields. `None` for non-futures/options.
+    /// Expiration date for options and futures.
     #[serde(default, rename = "expirationDate")]
     pub expiration_date: Option<DateTime<Utc>>,
+    /// Deliverables for options. Empty on non-option asset types.
     #[serde(default, rename = "optionDeliverables")]
     pub option_deliverables: Vec<TransactionApiOptionDeliverable>,
+    /// Shares-per-contract multiplier on the option premium (typically 100).
     #[serde(default, rename = "optionPremiumMultiplier")]
     pub option_premium_multiplier: Option<i64>,
+    /// Put / call flag for options.
     #[serde(default, rename = "putCall")]
     pub put_call: Option<PutCall>,
+    /// Strike price for options, USD.
     #[serde(default, with = "decimal_opt", rename = "strikePrice")]
     pub strike_price: Option<Decimal>,
+    /// Symbol of the underlying instrument for options.
     #[serde(default, rename = "underlyingSymbol")]
     pub underlying_symbol: Option<String>,
+    /// CUSIP of the underlying instrument for options.
     #[serde(default, rename = "underlyingCusip")]
     pub underlying_cusip: Option<String>,
     /// `TransactionOption.deliverable`: the instrument delivered when an
@@ -250,26 +294,36 @@ pub struct TransactionInstrument {
     pub deliverable: Option<Box<TransactionInstrument>>,
 
     // Fixed-income fields.
+    /// Maturity date for fixed-income instruments.
     #[serde(default, rename = "maturityDate")]
     pub maturity_date: Option<DateTime<Utc>>,
+    /// Mortgage-backed pool factor (remaining principal fraction).
     #[serde(default, with = "decimal_opt")]
     pub factor: Option<Decimal>,
+    /// Contract multiplier (e.g. shares per bond, units per future).
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
+    /// Current coupon rate for floating-rate fixed-income instruments.
     #[serde(default, with = "decimal_opt", rename = "variableRate")]
     pub variable_rate: Option<Decimal>,
 
     // Mutual-fund fields.
+    /// Fund-family display name.
     #[serde(default, rename = "fundFamilyName")]
     pub fund_family_name: Option<String>,
+    /// Fund-family symbol prefix.
     #[serde(default, rename = "fundFamilySymbol")]
     pub fund_family_symbol: Option<String>,
+    /// Fund group classification.
     #[serde(default, rename = "fundGroup")]
     pub fund_group: Option<String>,
+    /// Exchange cutoff time for trades placed today.
     #[serde(default, rename = "exchangeCutoffTime")]
     pub exchange_cutoff_time: Option<DateTime<Utc>>,
+    /// Purchase cutoff time for trades placed today.
     #[serde(default, rename = "purchaseCutoffTime")]
     pub purchase_cutoff_time: Option<DateTime<Utc>>,
+    /// Redemption cutoff time for trades placed today.
     #[serde(default, rename = "redemptionCutoffTime")]
     pub redemption_cutoff_time: Option<DateTime<Utc>>,
 
@@ -278,30 +332,40 @@ pub struct TransactionInstrument {
     // `Future.expirationDate` shares the `expiration_date` field defined
     // above (the spec uses the same wire name on both `Future` and
     // `TransactionOption`).
+    /// `true` if this futures contract is currently the front month.
     #[serde(default, rename = "activeContract")]
     pub active_contract: Option<bool>,
+    /// Last day this futures contract trades.
     #[serde(default, rename = "lastTradingDate")]
     pub last_trading_date: Option<DateTime<Utc>>,
+    /// First-notice date for physically-settled futures.
     #[serde(default, rename = "firstNoticeDate")]
     pub first_notice_date: Option<DateTime<Utc>>,
 
     // Forex fields. Each currency is itself a `TransactionInstrument`
     // with `assetType` = `CURRENCY`; boxed to break the recursive type.
+    /// Base currency of a forex pair (e.g. `EUR` in `EUR/USD`).
     #[serde(default, rename = "baseCurrency")]
     pub base_currency: Option<Box<TransactionInstrument>>,
+    /// Counter currency of a forex pair (e.g. `USD` in `EUR/USD`).
     #[serde(default, rename = "counterCurrency")]
     pub counter_currency: Option<Box<TransactionInstrument>>,
 }
 
+/// One deliverable component of an option contract on a [`Transaction`].
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct TransactionApiOptionDeliverable {
+    /// Root symbol of the deliverable.
     #[serde(default, rename = "rootSymbol")]
     pub root_symbol: Option<String>,
+    /// Strike as a percentage (used for indexed deliverables).
     #[serde(default, rename = "strikePercent")]
     pub strike_percent: Option<i64>,
+    /// Ordinal index when an option has multiple deliverables.
     #[serde(default, rename = "deliverableNumber")]
     pub deliverable_number: Option<i64>,
+    /// Units delivered per contract.
     #[serde(default, with = "decimal_opt", rename = "deliverableUnits")]
     pub deliverable_units: Option<Decimal>,
     /// The instrument that will be delivered for this deliverable entry
@@ -310,6 +374,7 @@ pub struct TransactionApiOptionDeliverable {
     /// this field.
     #[serde(default)]
     pub deliverable: Option<Box<TransactionInstrument>>,
+    /// Asset class of the deliverable.
     #[serde(default, rename = "assetType")]
     pub asset_type: Option<AssetType>,
 }
@@ -320,101 +385,172 @@ string_enum! {
     /// `types` query parameter for [`Transactions::list`] and the `type`
     /// field on a [`Transaction`].
     TransactionType {
+        /// Trade execution (buy / sell / option assignment / etc.).
         Trade = "TRADE",
+        /// Securities or cash transferred in / out without a trade.
         ReceiveAndDeliver = "RECEIVE_AND_DELIVER",
+        /// Dividend payment or interest accrual.
         DividendOrInterest = "DIVIDEND_OR_INTEREST",
+        /// Inbound ACH transfer.
         AchReceipt = "ACH_RECEIPT",
+        /// Outbound ACH transfer.
         AchDisbursement = "ACH_DISBURSEMENT",
+        /// Cash deposit.
         CashReceipt = "CASH_RECEIPT",
+        /// Cash withdrawal.
         CashDisbursement = "CASH_DISBURSEMENT",
+        /// Electronic funds transfer.
         ElectronicFund = "ELECTRONIC_FUND",
+        /// Outbound wire transfer.
         WireOut = "WIRE_OUT",
+        /// Inbound wire transfer.
         WireIn = "WIRE_IN",
+        /// Internal journal entry between accounts.
         Journal = "JOURNAL",
+        /// Memo-only entry (no cash or position impact).
         Memorandum = "MEMORANDUM",
+        /// Margin call activity.
         MarginCall = "MARGIN_CALL",
+        /// Money-market fund sweep.
         MoneyMarket = "MONEY_MARKET",
+        /// Special memorandum account adjustment.
         SmaAdjustment = "SMA_ADJUSTMENT",
     }
 }
 
 string_enum! {
+    /// Sub-category for a transaction `activityType`.
     ActivityType {
+        /// Correction to a prior activity row.
         ActivityCorrection = "ACTIVITY_CORRECTION",
+        /// Order execution (fill).
         Execution = "EXECUTION",
+        /// Order lifecycle event (place / replace / cancel).
         OrderAction = "ORDER_ACTION",
+        /// Non-trade transfer of cash or securities.
         Transfer = "TRANSFER",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// Settlement status for a transaction.
     TransactionStatus {
+        /// Settled / posted.
         Valid = "VALID",
+        /// Rejected or reversed.
         Invalid = "INVALID",
+        /// Awaiting settlement.
         Pending = "PENDING",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// Sub-account bucket the activity posted to.
     SubAccount {
+        /// Cash sub-account.
         Cash = "CASH",
+        /// Margin sub-account.
         Margin = "MARGIN",
+        /// Short sub-account.
         Short = "SHORT",
+        /// Dividend sub-account.
         Div = "DIV",
+        /// Income sub-account.
         Income = "INCOME",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// User category attached to a transaction.
     UserType {
+        /// Registered investment advisor user.
         Advisor = "ADVISOR_USER",
+        /// Schwab broker (firm employee).
         Broker = "BROKER_USER",
+        /// End client.
         Client = "CLIENT_USER",
+        /// Automated system / service account.
         System = "SYSTEM_USER",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// Classification of a fee leg on a [`TransferItem`].
+    ///
     /// Variant order matches the order of the `FeeType` enum in the
     /// Schwab Trader API OpenAPI spec.
     FeeType {
+        /// Broker commission.
         Commission = "COMMISSION",
+        /// SEC Section-31 fee.
         SecFee = "SEC_FEE",
+        /// Securities Transaction Reporting (STR) fee.
         StrFee = "STR_FEE",
+        /// Regulatory R-fee.
         RFee = "R_FEE",
+        /// Contingent deferred sales charge.
         CdscFee = "CDSC_FEE",
+        /// Options Regulatory Fee.
         OptRegFee = "OPT_REG_FEE",
+        /// Additional miscellaneous charge.
         AdditionalFee = "ADDITIONAL_FEE",
+        /// Catch-all miscellaneous fee.
         MiscellaneousFee = "MISCELLANEOUS_FEE",
+        /// Financial Transaction Tax (e.g. French FTT).
         Ftt = "FTT",
+        /// Futures clearing fee.
         FuturesClearingFee = "FUTURES_CLEARING_FEE",
+        /// Futures desk-office fee.
         FuturesDeskOfficeFee = "FUTURES_DESK_OFFICE_FEE",
+        /// Futures exchange fee.
         FuturesExchangeFee = "FUTURES_EXCHANGE_FEE",
+        /// CME Globex venue fee.
         FuturesGlobexFee = "FUTURES_GLOBEX_FEE",
+        /// National Futures Association fee.
         FuturesNfaFee = "FUTURES_NFA_FEE",
+        /// Futures pit-brokerage fee.
         FuturesPitBrokerageFee = "FUTURES_PIT_BROKERAGE_FEE",
+        /// Futures transaction fee.
         FuturesTransactionFee = "FUTURES_TRANSACTION_FEE",
+        /// Reduced commission applied to low-proceed trades.
         LowProceedsCommission = "LOW_PROCEEDS_COMMISSION",
+        /// Base charge.
         BaseCharge = "BASE_CHARGE",
+        /// General charge.
         GeneralCharge = "GENERAL_CHARGE",
+        /// Australian GST fee.
         GstFee = "GST_FEE",
+        /// Trading Activity Fee (FINRA).
         TafFee = "TAF_FEE",
+        /// OCC index-option processing fee.
         IndexOptionFee = "INDEX_OPTION_FEE",
+        /// TEFRA backup withholding.
         TefraTax = "TEFRA_TAX",
+        /// State-level tax.
         StateTax = "STATE_TAX",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// Whether a leg opened or closed a position.
     PositionEffect {
+        /// Opened a new position (added to existing inventory).
         Opening = "OPENING",
+        /// Closed (reduced or flattened) an existing position.
         Closing = "CLOSING",
+        /// Schwab determined the effect automatically.
         Automatic = "AUTOMATIC",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
@@ -426,16 +562,27 @@ string_enum! {
     /// [`crate::accounts::AssetType`]; both share the same
     /// wire-string space and forward-compat catch-all.
     AssetType {
+        /// Listed equity.
         Equity = "EQUITY",
+        /// Listed option contract.
         Option = "OPTION",
+        /// Market index (non-tradeable reference).
         Index = "INDEX",
+        /// Mutual fund.
         MutualFund = "MUTUAL_FUND",
+        /// Money-market or other cash-equivalent.
         CashEquivalent = "CASH_EQUIVALENT",
+        /// Fixed-income security.
         FixedIncome = "FIXED_INCOME",
+        /// Currency (cash holding).
         Currency = "CURRENCY",
+        /// Collective investment trust or similar pooled vehicle.
         CollectiveInvestment = "COLLECTIVE_INVESTMENT",
+        /// Foreign-exchange pair.
         Forex = "FOREX",
+        /// Futures contract.
         Future = "FUTURE",
+        /// Schwab "product" wrapper (structured product, etc.).
         Product = "PRODUCT",
     }
 }
@@ -447,9 +594,13 @@ impl Default for AssetType {
 }
 
 string_enum! {
+    /// Whether an option contract is a put or a call.
     PutCall {
+        /// Put.
         Put = "PUT",
+        /// Call.
         Call = "CALL",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
