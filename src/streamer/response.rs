@@ -4,34 +4,48 @@ use crate::streamer::protocol::{ResponseCode, Service, StreamerCommand};
 use crate::streamer::subscription::Command as SubscriptionCommand;
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 
+/// One element of a `response` array on a streamer frame: the
+/// acknowledgement Schwab returns for a command (login, subscribe, etc.).
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct ResponsePayload {
+    /// Echo of the `request_id` the client sent on the command.
     #[serde(rename = "requestid")]
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     pub request_id: u64,
+    /// Service the command targeted.
     pub service: Service,
+    /// Schwab-side timestamp, epoch milliseconds.
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     pub timestamp: u64,
+    /// Command this response acknowledges.
     pub command: StreamerCommand,
+    /// Per-session correlation id, attached to every frame for support tracing.
     #[serde(rename = "SchwabClientCorrelId")]
     pub schwab_client_correlation_id: String,
+    /// Outcome of the command (response code + human-readable message).
     pub content: ResponseContent,
 }
 
+/// Outcome payload inside a [`ResponsePayload`].
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct ResponseContent {
+    /// Status code from Schwab.
     pub code: ResponseCode,
+    /// Human-readable status message.
     #[serde(rename = "msg")]
     pub message: String,
 }
 
+/// Heartbeat frame, sent by Schwab on the `notify` channel at regular
+/// intervals to confirm the session is alive.
 #[serde_as]
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct Heartbeat {
+    /// Heartbeat timestamp, epoch milliseconds.
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
     pub heartbeat: u64,
 }
@@ -51,33 +65,50 @@ pub(super) struct RawDataPayload {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct DataPayload {
+    /// Service the payload comes from.
     pub service: Service,
+    /// Schwab-side timestamp, epoch milliseconds.
     pub timestamp: u64,
+    /// Command that produced this payload (subscribe/add/unsubscribe/view).
     pub command: SubscriptionCommand,
+    /// Typed payload content.
     pub content: DataContent,
 }
 
 /// Typed content per streamer service.
 ///
-/// Each variant corresponds to a service whose payload `schwab-rs` decodes
+/// Each variant corresponds to a service whose payload `schwab-sdk` decodes
 /// into typed fields. Services not yet typed land in [`DataContent::Raw`]
 /// with Schwab's numeric-keyed JSON object preserved, so callers can still
 /// destructure them by hand until a typed variant is added.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DataContent {
+    /// LEVELONE_EQUITIES batch.
     LevelOneEquities(Vec<level_one::equities::Content>),
+    /// LEVELONE_OPTIONS batch.
     LevelOneOptions(Vec<level_one::options::Content>),
+    /// LEVELONE_FUTURES batch.
     LevelOneFutures(Vec<level_one::futures::Content>),
+    /// LEVELONE_FUTURES_OPTIONS batch.
     LevelOneFuturesOptions(Vec<level_one::futures_options::Content>),
+    /// LEVELONE_FOREX batch.
     LevelOneForex(Vec<level_one::forex::Content>),
+    /// NYSE_BOOK batch.
     NyseBook(Vec<book::Content>),
+    /// NASDAQ_BOOK batch.
     NasdaqBook(Vec<book::Content>),
+    /// OPTIONS_BOOK batch.
     OptionsBook(Vec<book::Content>),
+    /// CHART_EQUITY batch.
     ChartEquity(Vec<chart::equity::Content>),
+    /// CHART_FUTURES batch.
     ChartFutures(Vec<chart::futures::Content>),
+    /// SCREENER_EQUITY batch.
     ScreenerEquity(Vec<screener::Content>),
+    /// SCREENER_OPTION batch.
     ScreenerOption(Vec<screener::Content>),
+    /// ACCT_ACTIVITY batch.
     AccountActivity(Vec<account_activity::Content>),
     /// Untyped fallback for services that don't have a typed variant yet.
     /// The inner value is the raw `content` array from Schwab with numeric
@@ -233,11 +264,15 @@ pub(super) enum RawStreamerResponse {
     Data(Vec<RawDataPayload>),
 }
 
+/// One streamer frame, dispatched on its top-level array key.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum StreamerResponse {
+    /// Acknowledgements for commands (login, subscribe, etc.).
     Response(Vec<ResponsePayload>),
+    /// Heartbeats from the `notify` channel.
     Notify(Vec<Heartbeat>),
+    /// Service data payloads.
     Data(Vec<DataPayload>),
 }
 

@@ -29,22 +29,32 @@ type WsReadHalf = FragmentCollectorRead<tokio::io::ReadHalf<Upgraded>>;
 type WsWriteHalf = WebSocketWrite<tokio::io::WriteHalf<Upgraded>>;
 type WebSocket = fastwebsockets::WebSocket<Upgraded>;
 
+/// Errors that surface from the streamer transport (TCP / TLS / WebSocket
+/// handshake plus any frame-level error after the socket is up).
 #[derive(Debug, thiserror::Error)]
 pub enum WebSocketError {
+    /// TCP connect failed.
     #[error("failed to connect to server")]
     Connect(std::io::Error),
+    /// WebSocket upgrade handshake failed.
     #[error("failed to perform websocket handshake")]
     Handshake(fastwebsockets::WebSocketError),
+    /// `streamerSocketUrl` host is not a valid DNS name.
     #[error("invalid domain")]
     InvalidDomain(rustls_pki_types::InvalidDnsNameError),
+    /// `streamerSocketUrl` did not include a host component.
     #[error("host is required")]
     MissingHost,
+    /// TLS handshake failed on top of the TCP socket.
     #[error("failed to create TLS stream")]
     TlsStream(std::io::Error),
+    /// Building the rustls client config failed.
     #[error("failed to configure TLS: {0}")]
     TlsConfig(rustls::Error),
+    /// Building the HTTP upgrade request failed.
     #[error("failed to build upgrade request: {0}")]
     BuildRequest(http::Error),
+    /// `streamerSocketUrl` used a scheme other than `ws://` or `wss://`.
     #[error("unsupported websocket scheme: {0}")]
     UnsupportedScheme(String),
     /// Runtime frame error after the websocket is up: read/write/control
@@ -228,6 +238,10 @@ async fn write_one(
     write_half.lock().await.write_frame(frame).await
 }
 
+/// Read half of the streamer session. Yields one
+/// [`StreamerResponse`] per [`Self::recv`] call. Cloneable through
+/// [`Self::events`] for connection-state observation only; the read half
+/// itself is single-consumer.
 pub struct ReadHalf {
     read_half: WsReadHalf,
     write_half: Arc<Mutex<WsWriteHalf>>,
@@ -235,6 +249,17 @@ pub struct ReadHalf {
 }
 
 impl ReadHalf {
+    /// Receive the next streamer frame.
+    ///
+    /// Blocks until a text frame arrives, then parses it into a
+    /// [`StreamerResponse`]. Control frames (ping/pong/close) are handled
+    /// inline, so this method only returns on real protocol traffic.
+    ///
+    /// Errors:
+    /// - [`Error::WebSocket`](crate::Error::WebSocket) on transport
+    ///   failure (the [`ConnectionEvent::Disconnected`] event also fires
+    ///   on the watch channel returned by [`Self::events`]).
+    /// - [`Error::Codec`](crate::Error::Codec) on a malformed frame.
     pub async fn recv(&mut self) -> Result<StreamerResponse> {
         let write_half = self.write_half.clone();
         let mut send_fn = move |frame| write_one(write_half.clone(), frame);
@@ -309,6 +334,10 @@ fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &Stre
     }
 }
 
+/// Write half of the streamer session. Sends login/logout/subscribe
+/// frames. Cloneable: all clones share the same underlying socket and
+/// monotonic request-id counter, so they can be moved into independent
+/// tasks safely.
 #[derive(Clone)]
 pub struct WriteHalf {
     write_half: Arc<Mutex<WsWriteHalf>>,
@@ -321,7 +350,7 @@ pub struct WriteHalf {
 
 impl WriteHalf {
     /// Send the streamer LOGIN frame establishing the session. Must be
-    /// called before any subscribe / add / unsubscribe / view request.
+    /// called before any subscribe/add/unsubscribe/view request.
     /// Returns when the frame has been handed to the socket; the LOGIN
     /// ack arrives later on the read half as a `response` frame.
     pub async fn login(&self, auth_token: AuthToken) -> Result<()> {

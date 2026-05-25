@@ -10,6 +10,8 @@
 //! `Connected` is the watch channel's initial value: the streamer only
 //! exists once the WS handshake has succeeded.
 
+/// Lifecycle event for one streamer WebSocket session, published on the
+/// watch channel returned by [`ReadHalf::events`](super::ReadHalf::events).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConnectionEvent {
     /// WS handshake complete; no login attempt observed yet on this session.
@@ -18,11 +20,15 @@ pub enum ConnectionEvent {
     LoggedIn,
     /// Recoverable error on the stream. The connection may still be alive;
     /// the consumer can choose to keep reading or treat as fatal.
-    StreamError { message: String },
+    StreamError {
+        /// Free-form error message from the parser or transport.
+        message: String,
+    },
     /// The connection is dead and the consumer should reconnect.
     Disconnected(DisconnectReason),
 }
 
+/// Why a [`ConnectionEvent::Disconnected`] event was emitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DisconnectReason {
     /// WebSocket transport-level failure (read_frame error, EOF, etc.).
