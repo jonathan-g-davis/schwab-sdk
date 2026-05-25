@@ -33,30 +33,42 @@ impl<'a> UserPreferences<'a> {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct UserPreference {
+    /// Per-account preferences (nickname, default position effect, etc.).
     #[serde(rename = "accounts", default)]
     pub accounts: Vec<UserPreferenceAccount>,
+    /// Streamer connection blocks. Typically one element; the first is what
+    /// [`SchwabClient::streamer`](crate::SchwabClient::streamer) uses.
     #[serde(rename = "streamerInfo", default)]
     pub streamer_info: Vec<StreamerInfo>,
+    /// Market-data entitlements (level 1, level 2, etc.).
     #[serde(rename = "offers", default)]
     pub offers: Vec<Offer>,
 }
 
-/// Per-account entry.
+/// Per-account entry inside a [`UserPreference`].
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct UserPreferenceAccount {
+    /// Plain account number.
     #[serde(rename = "accountNumber")]
     pub account_number: Option<AccountNumber>,
+    /// `true` if this is the client's primary account.
     #[serde(rename = "primaryAccount", default)]
     pub primary_account: bool,
+    /// Account type as Schwab labels it (`"MARGIN"`, `"CASH"`, etc.).
     #[serde(rename = "type")]
     pub account_type: Option<String>,
+    /// Client-chosen nickname for the account.
     #[serde(rename = "nickName")]
     pub nickname: Option<String>,
+    /// Schwab UI color tag (`"Green"` or `"Blue"`).
     #[serde(rename = "accountColor")]
     pub account_color: Option<String>,
+    /// Masked id Schwab displays (e.g. `"...5678"`).
     #[serde(rename = "displayAcctId")]
     pub display_account_id: Option<AccountNumber>,
+    /// `true` if Schwab should auto-determine `position_effect`
+    /// (open / close) on submitted orders.
     #[serde(rename = "autoPositionEffect", default)]
     pub auto_position_effect: bool,
 }
@@ -68,24 +80,32 @@ pub struct UserPreferenceAccount {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct StreamerInfo {
+    /// WebSocket URL to connect to (`wss://...`).
     #[serde(rename = "streamerSocketUrl")]
     pub streamer_socket_url: Option<String>,
+    /// `schwabClientCustomerId` echoed back into every streamer request envelope.
     #[serde(rename = "schwabClientCustomerId")]
     pub schwab_client_customer_id: Option<CustomerId>,
+    /// Per-session correlation id, attached to every frame for support tracing.
     #[serde(rename = "schwabClientCorrelId")]
     pub schwab_client_correlation_id: Option<String>,
+    /// Schwab channel string (e.g. `"N9"`).
     #[serde(rename = "schwabClientChannel")]
     pub schwab_client_channel: Option<String>,
+    /// Schwab function id (e.g. `"APIAPP"`).
     #[serde(rename = "schwabClientFunctionId")]
     pub schwab_client_function_id: Option<String>,
 }
 
-/// Market-data offer entry.
+/// Market-data entitlement entry.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct Offer {
+    /// `true` if the account is entitled to level-2 (order-book) data.
     #[serde(rename = "level2Permissions", default)]
     pub level2_permissions: bool,
+    /// Market-data permission code Schwab assigned (e.g. `"NP"` for
+    /// non-professional).
     #[serde(rename = "mktDataPermission")]
     pub market_data_permission: Option<String>,
 }

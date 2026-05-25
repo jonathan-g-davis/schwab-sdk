@@ -218,7 +218,7 @@ impl SecuritiesAccount {
     }
 
     /// The account number.
-    /// 
+    ///
     /// Unrecognized account types return `None`.
     pub fn account_number(&self) -> Option<&AccountNumber> {
         match self {
@@ -229,7 +229,7 @@ impl SecuritiesAccount {
     }
 
     /// The positions for the account.
-    /// 
+    ///
     /// Unrecognized account types return an empty slice.
     pub fn positions(&self) -> &[Position] {
         match self {
@@ -240,7 +240,7 @@ impl SecuritiesAccount {
     }
 
     /// Whether the account is a pattern day trader.
-    /// 
+    ///
     /// Unrecognized account types return `None`. Silent `false` would be
     /// dangerous in a trading context (it would let PDT-sensitive logic
     /// run against an account whose status is genuinely not known), so the
