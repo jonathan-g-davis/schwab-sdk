@@ -55,6 +55,60 @@ use crate::secrets::AccountHash;
 
 /// Accessor for `/accounts/{accountNumber}/orders*`. Construct via
 /// [`SchwabClient::orders`](crate::SchwabClient::orders).
+///
+/// # Examples
+///
+/// Place an equity market buy. [`Orders::place`] accepts any
+/// `impl Into<OrderRequest>`, so a shortcut builder flows in without an
+/// explicit `.build()`. On success Schwab returns the new order id parsed
+/// from the `Location` header.
+///
+/// ```no_run
+/// use rust_decimal_macros::dec;
+/// use schwab_sdk::{AuthToken, SchwabClient};
+/// use schwab_sdk::orders::OrderRequest;
+///
+/// # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+/// let client = SchwabClient::new(AuthToken::new("token"));
+///
+/// let order_id = client
+///     .orders(account_hash)
+///     .place(OrderRequest::buy_market("AAPL", dec!(10)))
+///     .await?;
+/// println!("placed order {order_id}");
+/// # Ok(())
+/// # }
+/// ```
+///
+/// List the working orders from the last week, then reprice and cancel one.
+/// A replace cancels the original and returns a **new** id; the old id is
+/// dead afterward.
+///
+/// ```no_run
+/// use chrono::{Duration as ChronoDuration, Utc};
+/// use rust_decimal_macros::dec;
+/// use schwab_sdk::{AuthToken, SchwabClient};
+/// use schwab_sdk::orders::{ApiOrderStatus, OrderRequest};
+///
+/// # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+/// let client = SchwabClient::new(AuthToken::new("token"));
+/// let orders = client.orders(account_hash);
+///
+/// let working = orders
+///     .list(Utc::now() - ChronoDuration::days(7), Utc::now())
+///     .status(ApiOrderStatus::Working)
+///     .send()
+///     .await?;
+///
+/// if let Some(open_id) = working.first().and_then(|o| o.order_id) {
+///     let new_id = orders
+///         .replace(open_id, OrderRequest::buy_limit("AAPL", dec!(10), dec!(141.00)))
+///         .await?;
+///     orders.cancel(new_id).await?;
+/// }
+/// # Ok(())
+/// # }
+/// ```
 pub struct Orders<'a, 'b> {
     client: &'a SchwabClient,
     account_hash: &'b AccountHash,
@@ -147,6 +201,32 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// include `rejects` even though the response status is 200; callers
     /// should inspect [`PreviewOrder::order_validation_result`] before
     /// treating the preview as approval).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rust_decimal_macros::dec;
+    /// use schwab_sdk::{AuthToken, SchwabClient};
+    /// use schwab_sdk::orders::OrderRequest;
+    ///
+    /// # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+    /// let client = SchwabClient::new(AuthToken::new("token"));
+    ///
+    /// let preview = client
+    ///     .orders(account_hash)
+    ///     .preview(OrderRequest::buy_limit("AAPL", dec!(10), dec!(140.00)))
+    ///     .await?;
+    ///
+    /// // A 200 can still carry rejects; check before treating it as approval.
+    /// if let Some(result) = &preview.order_validation_result {
+    ///     if !result.rejects.is_empty() {
+    ///         println!("rejected: {:?}", result.rejects);
+    ///         return Ok(());
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn preview(&self, order: impl Into<OrderRequest>) -> Result<PreviewOrder> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
