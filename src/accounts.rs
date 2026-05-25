@@ -32,16 +32,23 @@
 //! # }
 //! ```
 //!
-//! Read balances off a single account. Balance fields are `Option<Decimal>`;
-//! `None` means Schwab omitted the field, which is distinct from a sent zero.
+//! Read balances off a single account. The `{accountNumber}` path segment
+//! is the encrypted [`AccountHash`] from [`Accounts::numbers`], never the
+//! plain account number. Balance fields are `Option<Decimal>`, where `None`
+//! means Schwab omitted the field, distinct from a sent zero.
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};
 //! use schwab_sdk::accounts::SecuritiesAccount;
 //!
-//! # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+//! # async fn run() -> schwab_sdk::Result<()> {
 //! let client = SchwabClient::new(AuthToken::new("token"));
 //!
+//! // The plain -> encrypted-hash mapping. The hash is used for other endpoints.
+//! let accounts = client.accounts().numbers().await?;
+//! let account_hash = &accounts.first().expect("a linked account").hash_value;
+//!
+//! // Get the account and read the balances.
 //! let account = client.accounts().get(account_hash).with_positions().send().await?;
 //! if let SecuritiesAccount::Margin(margin) = &account.securities_account {
 //!     if let Some(balances) = &margin.current_balances {

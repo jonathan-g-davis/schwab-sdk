@@ -13,11 +13,12 @@
 //! # Examples
 //!
 //! Without [`ListQuotesBuilder::fields`] Schwab returns every root node;
-//! narrowing the selection reduces the payload.
+//! narrowing the selection reduces the payload. The response is a map keyed
+//! by symbol; match on the [`QuoteEntry`] variant to read the typed fields.
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};
-//! use schwab_sdk::market_data::QuoteField;
+//! use schwab_sdk::market_data::{QuoteEntry, QuoteField};
 //!
 //! # async fn run() -> schwab_sdk::Result<()> {
 //! let client = SchwabClient::new(AuthToken::new("token"));
@@ -29,7 +30,12 @@
 //!     .fields([QuoteField::Quote, QuoteField::Reference])
 //!     .send()
 //!     .await?;
-//! # let _ = quotes;
+//!
+//! if let Some(QuoteEntry::Equity(equity)) = quotes.get("AAPL") {
+//!     if let Some(quote) = &equity.quote {
+//!         println!("bid {:?} / ask {:?}", quote.bid_price, quote.ask_price);
+//!     }
+//! }
 //! # Ok(())
 //! # }
 //! ```
