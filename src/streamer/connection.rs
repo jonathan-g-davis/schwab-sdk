@@ -55,7 +55,11 @@ pub enum WebSocketError {
     /// Building the HTTP upgrade request failed.
     #[error("failed to build upgrade request: {0}")]
     BuildRequest(http::Error),
-    /// `streamerSocketUrl` used a scheme other than `ws://` or `wss://`.
+    /// `streamerSocketUrl` used a scheme that is not permitted for the
+    /// current build. `wss://` is always accepted; `ws://` is accepted
+    /// only in debug builds, because a plaintext WebSocket would carry
+    /// the bearer token in the LOGIN frame in the clear. Any other
+    /// scheme (or a URL with no scheme at all) is always rejected.
     #[error("unsupported websocket scheme: {0}")]
     UnsupportedScheme(String),
     /// Runtime frame error after the websocket is up: read/write/control
@@ -110,7 +114,38 @@ async fn connect_tcp(uri: &Uri) -> std::result::Result<TcpStream, WebSocketError
         .map_err(WebSocketError::Connect)
 }
 
+/// Which transport to use for a given streamer URL scheme.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WsTransport {
+    /// TLS handshake on top of TCP (`wss://`).
+    Tls,
+    /// Plain TCP (`ws://`). Reachable only in debug builds; the
+    /// streamer LOGIN frame would otherwise put the bearer on the wire
+    /// in cleartext.
+    Plain,
+}
+
+/// Map a URI scheme to the [`WsTransport`] to use. `allow_insecure`
+/// gates `ws://`; release builds set it to `false`.
+///
+/// Extracted from [`connect_websocket`] so both modes are unit-testable
+/// from a single test binary without rebuilding in release mode.
+fn check_websocket_scheme(
+    scheme: Option<&str>,
+    allow_insecure: bool,
+) -> std::result::Result<WsTransport, WebSocketError> {
+    match scheme {
+        Some("wss") => Ok(WsTransport::Tls),
+        Some("ws") if allow_insecure => Ok(WsTransport::Plain),
+        Some("ws") => Err(WebSocketError::UnsupportedScheme("ws".to_string())),
+        Some(other) => Err(WebSocketError::UnsupportedScheme(other.to_string())),
+        None => Err(WebSocketError::UnsupportedScheme(String::new())),
+    }
+}
+
 async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocketError> {
+    let transport = check_websocket_scheme(uri.scheme_str(), cfg!(debug_assertions))?;
+
     let req = Request::builder()
         .method(Method::GET)
         .uri(uri)
@@ -122,23 +157,21 @@ async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocke
         .body(Empty::<Bytes>::new())
         .map_err(WebSocketError::BuildRequest)?;
 
-    match uri.scheme_str() {
-        Some("wss") => {
+    match transport {
+        WsTransport::Tls => {
             let stream = connect_tls(uri).await?;
             let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, stream)
                 .await
                 .map_err(WebSocketError::Handshake)?;
             Ok(ws)
         }
-        Some("ws") => {
+        WsTransport::Plain => {
             let stream = connect_tcp(uri).await?;
             let (ws, _) = fastwebsockets::handshake::client(&SpawnExecutor, req, stream)
                 .await
                 .map_err(WebSocketError::Handshake)?;
             Ok(ws)
         }
-        Some(other) => Err(WebSocketError::UnsupportedScheme(other.to_string())),
-        None => Err(WebSocketError::UnsupportedScheme(String::new())),
     }
 }
 
@@ -695,5 +728,71 @@ mod tests {
         let r = StreamerResponse::Notify(vec![]);
         classify_and_emit(&tx, &r);
         assert!(!rx.has_changed().unwrap());
+    }
+
+    #[test]
+    fn wss_is_accepted_in_both_modes() {
+        assert_eq!(
+            check_websocket_scheme(Some("wss"), false).unwrap(),
+            WsTransport::Tls
+        );
+        assert_eq!(
+            check_websocket_scheme(Some("wss"), true).unwrap(),
+            WsTransport::Tls
+        );
+    }
+
+    #[test]
+    fn ws_is_rejected_when_insecure_disallowed() {
+        match check_websocket_scheme(Some("ws"), false) {
+            Err(WebSocketError::UnsupportedScheme(scheme)) => assert_eq!(scheme, "ws"),
+            other => panic!("expected UnsupportedScheme(ws), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn ws_is_accepted_when_insecure_permitted() {
+        assert_eq!(
+            check_websocket_scheme(Some("ws"), true).unwrap(),
+            WsTransport::Plain
+        );
+    }
+
+    #[test]
+    fn other_schemes_are_always_rejected() {
+        for scheme in ["http", "https", "ftp", "file", ""] {
+            assert!(
+                matches!(
+                    check_websocket_scheme(Some(scheme), true).unwrap_err(),
+                    WebSocketError::UnsupportedScheme(_)
+                ),
+                "scheme {scheme:?} should be rejected with insecure mode on"
+            );
+            assert!(
+                matches!(
+                    check_websocket_scheme(Some(scheme), false).unwrap_err(),
+                    WebSocketError::UnsupportedScheme(_)
+                ),
+                "scheme {scheme:?} should be rejected with insecure mode off"
+            );
+        }
+    }
+
+    #[test]
+    fn no_scheme_is_rejected() {
+        assert!(matches!(
+            check_websocket_scheme(None, true).unwrap_err(),
+            WebSocketError::UnsupportedScheme(s) if s.is_empty()
+        ));
+        assert!(matches!(
+            check_websocket_scheme(None, false).unwrap_err(),
+            WebSocketError::UnsupportedScheme(s) if s.is_empty()
+        ));
+    }
+
+    #[test]
+    fn case_sensitive_scheme_match() {
+        assert!(check_websocket_scheme(Some("Wss"), false).is_err(),);
+        assert!(check_websocket_scheme(Some("WSS"), false).is_err(),);
     }
 }

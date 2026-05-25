@@ -100,6 +100,15 @@ impl SchwabClient {
 
     /// Override the trader base URL (default: [`TRADER_BASE_URL`]).
     ///
+    /// Release builds require `https://`; passing any other scheme
+    /// returns [`Error::InsecureBaseUrl`]. Debug builds additionally
+    /// permit `http://` so local mock servers (wiremock and similar)
+    /// can be wired up in tests, but the moment the same binary is
+    /// rebuilt in release mode an `http://` override fails. Production
+    /// deployments must use release builds; an SDK consumer that wants
+    /// to point at a non-Schwab `https://` host (e.g. an enterprise
+    /// proxy) may do so freely.
+    ///
     /// # Examples
     ///
     /// Point both API families at a local fixture server, e.g. for
@@ -108,20 +117,30 @@ impl SchwabClient {
     /// ```no_run
     /// use schwab_sdk::{AuthToken, SchwabClient};
     ///
+    /// # fn main() -> schwab_sdk::Result<()> {
     /// let client = SchwabClient::new(AuthToken::new("token"))
-    ///     .with_trader_base_url("https://127.0.0.1:8443/trader/v1")
-    ///     .with_market_data_base_url("https://127.0.0.1:8443/marketdata/v1");
+    ///     .with_trader_base_url("https://127.0.0.1:8443/trader/v1")?
+    ///     .with_market_data_base_url("https://127.0.0.1:8443/marketdata/v1")?;
     /// # let _ = client;
+    /// # Ok(())
+    /// # }
     /// ```
-    pub fn with_trader_base_url(mut self, url: impl Into<String>) -> Self {
-        self.trader_base_url = url.into();
-        self
+    pub fn with_trader_base_url(mut self, url: impl Into<String>) -> Result<Self> {
+        let url = url.into();
+        validate_base_url(&url, cfg!(debug_assertions))?;
+        self.trader_base_url = url;
+        Ok(self)
     }
 
     /// Override the market-data base URL (default: [`MARKET_DATA_BASE_URL`]).
-    pub fn with_market_data_base_url(mut self, url: impl Into<String>) -> Self {
-        self.market_data_base_url = url.into();
-        self
+    ///
+    /// Same scheme rules as [`Self::with_trader_base_url`]: `https://`
+    /// always, `http://` in debug builds only.
+    pub fn with_market_data_base_url(mut self, url: impl Into<String>) -> Result<Self> {
+        let url = url.into();
+        validate_base_url(&url, cfg!(debug_assertions))?;
+        self.market_data_base_url = url;
+        Ok(self)
     }
 
     /// Accessor for the `/accounts*` endpoint family.
@@ -332,5 +351,100 @@ impl<'a> AuthedRequest<'a> {
             context: "decode response body".to_string(),
             reason: e.to_string(),
         })
+    }
+}
+
+/// Validate that `url` is a permissible base URL for the current build.
+///
+/// Always accepts `https://`. Accepts `http://` only when
+/// `allow_insecure` is set, which the public builders tie to
+/// `cfg!(debug_assertions)` so release binaries cannot put a bearer
+/// token on the wire over plaintext. Any other scheme (or an empty
+/// string) is rejected.
+///
+/// Extracted from the builders so both modes are unit-testable from a
+/// single test binary without rebuilding in release mode.
+fn validate_base_url(url: &str, allow_insecure: bool) -> Result<()> {
+    if url.starts_with("https://") {
+        return Ok(());
+    }
+    if allow_insecure && url.starts_with("http://") {
+        return Ok(());
+    }
+    Err(Error::InsecureBaseUrl {
+        url: url.to_string(),
+        reason: if allow_insecure {
+            "expected http:// or https://".to_string()
+        } else {
+            "release builds require https://".to_string()
+        },
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn https_is_accepted_in_both_modes() {
+        assert!(validate_base_url("https://api.schwabapi.com/trader/v1", false).is_ok());
+        assert!(validate_base_url("https://api.schwabapi.com/trader/v1", true).is_ok());
+        assert!(validate_base_url("https://127.0.0.1:8443/trader/v1", false).is_ok());
+    }
+
+    #[test]
+    fn http_is_rejected_when_insecure_disallowed() {
+        let err = validate_base_url("http://127.0.0.1:8080", false).unwrap_err();
+        match err {
+            Error::InsecureBaseUrl { url, reason } => {
+                assert_eq!(url, "http://127.0.0.1:8080");
+                assert!(
+                    reason.contains("https://"),
+                    "reason should name the required scheme: {reason}"
+                );
+            }
+            other => panic!("expected InsecureBaseUrl, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn http_is_accepted_when_insecure_permitted() {
+        assert!(validate_base_url("http://127.0.0.1:8080", true).is_ok());
+        assert!(validate_base_url("http://localhost/trader/v1", true).is_ok());
+    }
+
+    #[test]
+    fn other_schemes_are_always_rejected() {
+        for url in [
+            "ftp://example.com",
+            "ws://example.com",
+            "wss://example.com",
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "",
+            "api.schwabapi.com/trader/v1",
+            "//api.schwabapi.com/trader/v1",
+        ] {
+            assert!(
+                matches!(
+                    validate_base_url(url, true).unwrap_err(),
+                    Error::InsecureBaseUrl { .. }
+                ),
+                "{url} should be rejected even with insecure mode on"
+            );
+            assert!(
+                matches!(
+                    validate_base_url(url, false).unwrap_err(),
+                    Error::InsecureBaseUrl { .. }
+                ),
+                "{url} should be rejected with insecure mode off"
+            );
+        }
+    }
+
+    #[test]
+    fn case_sensitive_scheme_match() {
+        assert!(validate_base_url("HTTPS://api.schwabapi.com", true).is_err());
+        assert!(validate_base_url("Https://api.schwabapi.com", false).is_err());
     }
 }

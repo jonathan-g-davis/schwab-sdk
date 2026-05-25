@@ -40,7 +40,7 @@ use crate::secrets::AuthToken;
 /// use arc_swap::ArcSwap;
 /// use async_trait::async_trait;
 /// use schwab_sdk::{AuthToken, Error, SchwabClient, TokenProvider};
-/// 
+///
 /// struct SwappableProvider(ArcSwap<AuthToken>);
 ///
 /// impl SwappableProvider {
@@ -71,10 +71,10 @@ use crate::secrets::AuthToken;
 ///     // Your refresh task obtains a new access token out of band, then
 ///     // hands it to the provider.
 ///     provider.rotate(AuthToken::new("rotated-token"));
-/// 
+///
 ///     // The next REST call sees the rotated token.
 ///     let _ = client.accounts().numbers().await?;
-/// 
+///
 ///     Ok(())
 /// }
 /// ```

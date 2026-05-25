@@ -112,6 +112,19 @@ pub enum Error {
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+    /// A base URL passed to [`crate::SchwabClient::with_trader_base_url`]
+    /// or [`crate::SchwabClient::with_market_data_base_url`] used a
+    /// scheme that is not permitted for the current build. Release
+    /// builds require `https://`; debug builds additionally permit
+    /// `http://` so local fixture servers (wiremock and similar) can be
+    /// wired up in tests.
+    #[error("insecure base url {url}: {reason}")]
+    InsecureBaseUrl {
+        /// The rejected URL string.
+        url: String,
+        /// Why the URL was rejected.
+        reason: String,
+    },
 }
 
 impl Error {
@@ -186,7 +199,8 @@ impl Error {
             | Error::Codec { .. }
             | Error::InvalidPreference { .. }
             | Error::OrderIdUnrecoverable(_)
-            | Error::TokenProvider { .. } => false,
+            | Error::TokenProvider { .. }
+            | Error::InsecureBaseUrl { .. } => false,
         }
     }
 

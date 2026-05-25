@@ -21,5 +21,7 @@ pub async fn market_mock() -> MockServer {
 pub fn client_for(trader: &MockServer, market: &MockServer) -> SchwabClient {
     SchwabClient::new(AuthToken::new(TEST_TOKEN))
         .with_trader_base_url(trader.uri())
+        .expect("wiremock URI is http:// which is permitted in debug builds")
         .with_market_data_base_url(market.uri())
+        .expect("wiremock URI is http:// which is permitted in debug builds")
 }
