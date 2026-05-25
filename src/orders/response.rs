@@ -308,4 +308,62 @@ mod tests {
         assert!(order.child_order_strategies.is_empty());
         assert!(order.replacing_order_collection.is_empty());
     }
+
+    #[test]
+    fn oco_strategy_parses_with_two_child_orders_and_no_top_level_legs() {
+        // OCO ("one cancels other"): the parent carries no orderLegCollection;
+        // each child is an independent SINGLE strategy with its own leg.
+        let json = r#"{
+            "orderId": 100000005,
+            "orderStrategyType": "OCO",
+            "childOrderStrategies": [
+                {
+                    "orderId": 100000006,
+                    "orderStrategyType": "SINGLE",
+                    "orderType": "LIMIT",
+                    "price": 155.00,
+                    "quantity": 10.0,
+                    "orderLegCollection": [{
+                        "instruction": "SELL",
+                        "quantity": 10.0,
+                        "instrument": { "assetType": "EQUITY", "symbol": "AAPL" }
+                    }]
+                },
+                {
+                    "orderId": 100000007,
+                    "orderStrategyType": "SINGLE",
+                    "orderType": "STOP",
+                    "stopPrice": 135.00,
+                    "quantity": 10.0,
+                    "orderLegCollection": [{
+                        "instruction": "SELL",
+                        "quantity": 10.0,
+                        "instrument": { "assetType": "EQUITY", "symbol": "AAPL" }
+                    }]
+                }
+            ]
+        }"#;
+        let order: Order = serde_json::from_str(json).unwrap();
+        assert_eq!(order.order_id, Some(100000005));
+        assert_eq!(order.order_strategy_type, Some(OrderStrategyType::Oco));
+        assert!(order.order_leg_collection.is_empty());
+
+        assert_eq!(order.child_order_strategies.len(), 2);
+        let limit_leg = &order.child_order_strategies[0];
+        assert_eq!(limit_leg.order_id, Some(100000006));
+        assert_eq!(limit_leg.order_strategy_type, Some(OrderStrategyType::Single));
+        assert_eq!(limit_leg.order_type, Some(OrderType::Limit));
+        assert_eq!(limit_leg.price, Some(dec!(155.00)));
+        assert_eq!(limit_leg.order_leg_collection.len(), 1);
+        assert_eq!(
+            limit_leg.order_leg_collection[0].instruction,
+            Some(Instruction::Sell)
+        );
+
+        let stop_leg = &order.child_order_strategies[1];
+        assert_eq!(stop_leg.order_id, Some(100000007));
+        assert_eq!(stop_leg.order_type, Some(OrderType::Stop));
+        assert_eq!(stop_leg.stop_price, Some(dec!(135.00)));
+        assert_eq!(stop_leg.order_leg_collection.len(), 1);
+    }
 }
