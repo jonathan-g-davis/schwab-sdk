@@ -25,7 +25,9 @@ pub mod options;
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Content {
+    /// Subscription key (the symbol the book is for).
     pub key: String,
+    /// `true` if the book is delayed.
     pub delayed: bool,
     /// Field 0. Schwab echoes the symbol back here on some ticks; usually
     /// duplicates `key`.
