@@ -27,6 +27,26 @@
 //!   but the Schwab API exposes no client-controllable idempotency key;
 //!   callers that need retry-safe submission must dedupe at their own
 //!   layer.
+//!
+//! # Examples
+//!
+//! Construct a client from a bearer token and make a call. The token is
+//! obtained out of band; this crate does not perform the OAuth
+//! authorization-code exchange.
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let token = AuthToken::new(std::env::var("SCHWAB_ACCESS_TOKEN").unwrap());
+//! let client = SchwabClient::new(token);
+//!
+//! // Namespace accessors are methods on the client.
+//! let accounts = client.accounts().numbers().await?;
+//! println!("{} linked account(s)", accounts.len());
+//! # Ok(())
+//! # }
+//! ```
 
 // Panic-family lints are denied in production code. If a future change
 // genuinely needs one of these in non-test code, add `#[allow(...)]` with
