@@ -15,13 +15,14 @@ use tokio::sync::{Mutex, watch};
 use tokio_rustls::{TlsConnector, client::TlsStream, rustls};
 
 use crate::error::{Error, Result};
-use crate::secrets::{AuthToken, CustomerId};
+use crate::secrets::CustomerId;
 use crate::streamer::events::{ConnectionEvent, DisconnectReason};
 use crate::streamer::protocol::{ResponseCode, Service, StreamerCommand};
 use crate::streamer::request::{RequestPayload, StreamerRequest};
 use crate::streamer::response::{RawStreamerResponse, StreamerResponse};
 use crate::streamer::subscription::SubscribeRequest;
 use crate::streamer::{account_activity, admin, book, chart, level_one, screener};
+use crate::token::TokenProvider;
 use crate::user_preferences::StreamerInfo;
 
 type Upgraded = TokioIo<hyper::upgrade::Upgraded>;
@@ -145,15 +146,23 @@ async fn connect_websocket(uri: &Uri) -> std::result::Result<WebSocket, WebSocke
 /// `/userPreference` and return the read and write halves of the session.
 /// Call [`WriteHalf::login`] before any other command.
 ///
+/// `token_provider` is the [`TokenProvider`] used to fetch the bearer for
+/// the LOGIN frame. It is consulted at LOGIN-frame construction so a token
+/// rotated in the provider after `connect` returns is the one carried on
+/// the wire when `login` is called.
+///
 /// Every field on `streamer_info` is `Option` per the spec; this function
 /// validates that the fields needed to log in and route subscribe frames
 /// (socket URL, customer id, correlation id, channel, function id) are
 /// all present, returning [`Error::InvalidPreference`] for the first
 /// missing one.
-pub async fn connect(streamer_info: StreamerInfo) -> Result<(ReadHalf, WriteHalf)> {
+pub async fn connect(
+    streamer_info: StreamerInfo,
+    token_provider: Arc<dyn TokenProvider + Send + Sync>,
+) -> Result<(ReadHalf, WriteHalf)> {
     let validated = ValidatedStreamerInfo::try_from(streamer_info)?;
     let websocket = connect_websocket(&validated.socket_url).await?;
-    Ok(split(websocket, validated))
+    Ok(split(websocket, validated, token_provider))
 }
 
 /// `StreamerInfo` after the per-field optionality has been resolved.
@@ -203,7 +212,11 @@ impl TryFrom<StreamerInfo> for ValidatedStreamerInfo {
 /// it inside `read_frame`'s control-frame callback to reply to pings and
 /// close frames. No background task is spawned; all I/O happens inline on
 /// the caller's own stack inside `recv()` / `send()`.
-fn split(websocket: WebSocket, streamer_info: ValidatedStreamerInfo) -> (ReadHalf, WriteHalf) {
+fn split(
+    websocket: WebSocket,
+    streamer_info: ValidatedStreamerInfo,
+    token_provider: Arc<dyn TokenProvider + Send + Sync>,
+) -> (ReadHalf, WriteHalf) {
     let (read_half, write_half) = websocket.split(tokio::io::split);
     let write_half = Arc::new(Mutex::new(write_half));
     let (events_tx, _) = watch::channel(ConnectionEvent::Connected);
@@ -221,6 +234,7 @@ fn split(websocket: WebSocket, streamer_info: ValidatedStreamerInfo) -> (ReadHal
         channel: streamer_info.channel,
         function_id: streamer_info.function_id,
         request_id: Arc::new(AtomicU64::new(0)),
+        token_provider,
     };
 
     (reader, writer)
@@ -335,9 +349,9 @@ fn classify_and_emit(events_tx: &watch::Sender<ConnectionEvent>, response: &Stre
 }
 
 /// Write half of the streamer session. Sends login/logout/subscribe
-/// frames. Cloneable: all clones share the same underlying socket and
-/// monotonic request-id counter, so they can be moved into independent
-/// tasks safely.
+/// frames. Cloneable: all clones share the same underlying socket,
+/// monotonic request-id counter, and [`TokenProvider`], so they can be
+/// moved into independent tasks safely.
 #[derive(Clone)]
 pub struct WriteHalf {
     write_half: Arc<Mutex<WsWriteHalf>>,
@@ -346,6 +360,7 @@ pub struct WriteHalf {
     channel: String,
     function_id: String,
     request_id: Arc<AtomicU64>,
+    token_provider: Arc<dyn TokenProvider + Send + Sync>,
 }
 
 impl WriteHalf {
@@ -353,7 +368,15 @@ impl WriteHalf {
     /// called before any subscribe/add/unsubscribe/view request.
     /// Returns when the frame has been handed to the socket; the LOGIN
     /// ack arrives later on the read half as a `response` frame.
-    pub async fn login(&self, auth_token: AuthToken) -> Result<()> {
+    ///
+    /// The bearer carried by the frame is fetched from the
+    /// [`TokenProvider`] supplied to [`connect`] at the moment `login`
+    /// is called - calling `login` again after the provider observes a
+    /// rotated token will re-LOGIN with the new value.
+    /// [`Error::TokenProvider`] surfaces if the provider fails before
+    /// any frame is written.
+    pub async fn login(&self) -> Result<()> {
+        let auth_token = self.token_provider.access_token().await?;
         let request = admin::Login {
             authorization: auth_token,
             schwab_client_channel: self.channel.clone(),

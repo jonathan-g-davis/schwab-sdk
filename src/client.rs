@@ -174,7 +174,7 @@ impl SchwabClient {
                     field: "streamerInfo",
                     reason: "missing".to_string(),
                 })?;
-        streamer::connect(streamer_info).await
+        streamer::connect(streamer_info, self.token_provider.clone()).await
     }
 
     /// Handle for the trader-API transport. Endpoint builders that hit
