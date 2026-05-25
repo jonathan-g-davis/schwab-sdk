@@ -210,6 +210,29 @@ provider.0.store(Arc::new(AuthToken::new("rotated")));
 The SDK ships only `StaticTokenProvider`; refreshing providers,
 persistence backends, and scheduling are application concerns.
 
+## Retries and idempotency
+
+`Error::is_retryable` and `Error::retry_after` classify a failure so you can
+layer a backoff policy on top. Read-only and naturally idempotent requests
+(quotes, account reads, order lists, cancels) can be retried directly on a
+retryable error.
+
+**Order placement is not retry-safe.** Schwab's Trader API has no
+client-supplied idempotency key, so placing an order is *not* safe to retry.
+If a `place` call fails after the request reached Schwab (a timeout, a
+dropped connection, a 5xx), the order may have been accepted even though you
+received an `Err`. There is no key you can resend to deduplicate it.
+
+The recovery pattern is to reconcile before determing whether to resubmit:
+
+1. Record the time just before calling `place`.
+2. If `place` returns a retryable error, list the orders entered since that
+   time with `client.orders(account_hash).list(from, to)`.
+3. Match the returned orders by symbol, side, and quantity. If one matches,
+   the order landed - adopt its id. If none does, it is safe to resubmit.
+
+The same applies to `replace`, which Schwab implements as a cancel-and-place.
+
 ## License
 
 Licensed under either of
