@@ -40,8 +40,10 @@ impl<'a> ExpirationChain<'a> {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ExpirationChainResponse {
+    /// Schwab response status string (typically `"SUCCESS"`).
     #[serde(default)]
     pub status: Option<String>,
+    /// One entry per expiration date in the series.
     #[serde(rename = "expirationList", default)]
     pub expiration_list: Vec<Expiration>,
 }
@@ -50,17 +52,20 @@ pub struct ExpirationChainResponse {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Expiration {
+    /// Calendar days until expiration.
     #[serde(rename = "daysToExpiration", default)]
     pub days_to_expiration: Option<i32>,
     /// `yyyy-MM-dd` expiration date. The live API sends this as
     /// `expirationDate`; `expiration` is accepted as an alias.
     #[serde(rename = "expirationDate", alias = "expiration", default)]
     pub expiration_date: Option<String>,
+    /// Expiration classification (standard/weekly/quarterly/...).
     #[serde(rename = "expirationType", default)]
     pub expiration_type: Option<ExpirationType>,
     /// `true` for standard (monthly) expirations.
     #[serde(default)]
     pub standard: Option<bool>,
+    /// AM/PM settlement.
     #[serde(rename = "settlementType", default)]
     pub settlement_type: Option<SettlementType>,
     /// Comma-separated option root symbols for this expiration.

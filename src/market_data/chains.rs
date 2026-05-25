@@ -196,6 +196,7 @@ impl<'a> GetChainBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<OptionChain> {
         let md = self.client.market_data_http();
         let mut request = md.get("/chains").query(&[("symbol", self.symbol.as_str())]);
@@ -274,7 +275,7 @@ impl<'a> GetChainBuilder<'a> {
 /// contracts at that strike.
 pub type OptionContractMap = HashMap<String, Vec<OptionContract>>;
 
-/// Deserialize a `callExpDateMap` / `putExpDateMap`.
+/// Deserialize a `callExpDateMap`/`putExpDateMap`.
 ///
 /// Schwab's published schema types the per-strike value as a single
 /// [`OptionContract`]; an array of contracts can also appear at that
@@ -346,28 +347,38 @@ impl<'de> Visitor<'de> for ContractsVisitor {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OptionChain {
+    /// Underlying symbol the chain is for.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Schwab response status string (typically `"SUCCESS"`).
     #[serde(default)]
     pub status: Option<String>,
     /// Underlying quote; populated when `include_underlying_quote` was
     /// set on the request.
     #[serde(default)]
     pub underlying: Option<Underlying>,
+    /// Strategy Schwab used to assemble the chain.
     #[serde(default)]
     pub strategy: Option<OptionStrategy>,
+    /// Strike interval used for spread-strategy chains.
     #[serde(default, with = "decimal_opt")]
     pub interval: Option<Decimal>,
+    /// `true` if the chain is built from delayed quotes.
     #[serde(rename = "isDelayed", default)]
     pub is_delayed: Option<bool>,
+    /// `true` if the underlying is an index.
     #[serde(rename = "isIndex", default)]
     pub is_index: Option<bool>,
+    /// Days to expiration for `ANALYTICAL` strategy chains.
     #[serde(rename = "daysToExpiration", default, with = "decimal_opt")]
     pub days_to_expiration: Option<Decimal>,
+    /// Interest rate used for `ANALYTICAL` theoretical-value math (fraction).
     #[serde(rename = "interestRate", default, with = "decimal_opt")]
     pub interest_rate: Option<Decimal>,
+    /// Underlying price used for `ANALYTICAL` theoretical-value math.
     #[serde(rename = "underlyingPrice", default, with = "decimal_opt")]
     pub underlying_price: Option<Decimal>,
+    /// Volatility used for `ANALYTICAL` theoretical-value math.
     #[serde(default, with = "decimal_opt")]
     pub volatility: Option<Decimal>,
     /// Call contracts, keyed by `"<expiration>:<days-to-expiration>"`.
@@ -390,52 +401,73 @@ pub struct OptionChain {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Underlying {
+    /// Best ask, USD.
     #[serde(default, with = "decimal_opt")]
     pub ask: Option<Decimal>,
+    /// Best ask size.
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i64>,
+    /// Best bid, USD.
     #[serde(default, with = "decimal_opt")]
     pub bid: Option<Decimal>,
+    /// Best bid size.
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i64>,
+    /// Net change since prior close, USD.
     #[serde(default, with = "decimal_opt")]
     pub change: Option<Decimal>,
+    /// Prior session close, USD.
     #[serde(default, with = "decimal_opt")]
     pub close: Option<Decimal>,
+    /// `true` if the quote is delayed.
     #[serde(default)]
     pub delayed: Option<bool>,
+    /// Underlying description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Listing exchange (typed enum specific to chain responses).
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<UnderlyingExchange>,
+    /// 52-week high, USD.
     #[serde(rename = "fiftyTwoWeekHigh", default, with = "decimal_opt")]
     pub fifty_two_week_high: Option<Decimal>,
+    /// 52-week low, USD.
     #[serde(rename = "fiftyTwoWeekLow", default, with = "decimal_opt")]
     pub fifty_two_week_low: Option<Decimal>,
+    /// Day high, USD.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// Last trade, USD.
     #[serde(default, with = "decimal_opt")]
     pub last: Option<Decimal>,
+    /// Day low, USD.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Mark price, USD.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
+    /// Mark change since prior close, USD.
     #[serde(rename = "markChange", default, with = "decimal_opt")]
     pub mark_change: Option<Decimal>,
+    /// Mark change since prior close as a fraction.
     #[serde(rename = "markPercentChange", default, with = "decimal_opt")]
     pub mark_percent_change: Option<Decimal>,
+    /// Day open, USD.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "percentChange", default, with = "decimal_opt")]
     pub percent_change: Option<Decimal>,
-    /// Epoch milliseconds.
+    /// Last quote time, epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// Underlying symbol.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Cumulative session volume.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Epoch milliseconds.
+    /// Last trade time, epoch milliseconds.
     #[serde(rename = "tradeTime", default)]
     pub trade_time: Option<i64>,
 }
@@ -444,39 +476,55 @@ pub struct Underlying {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OptionContract {
+    /// Put/call discriminator.
     #[serde(rename = "putCall", default)]
     pub put_call: Option<PutCall>,
+    /// OSI option symbol.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Human-readable contract description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
+    /// Best bid premium, USD.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Best ask premium, USD.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Last trade premium, USD.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Mark price, USD.
     #[serde(rename = "markPrice", default, with = "decimal_opt")]
     pub mark_price: Option<Decimal>,
+    /// Best bid size (contracts).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i64>,
+    /// Best ask size (contracts).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i64>,
+    /// Last trade size (contracts).
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i64>,
+    /// Day high premium, USD.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// Day low premium, USD.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Day open premium, USD.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
+    /// Prior session close premium, USD.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Epoch milliseconds.
+    /// Trade date, epoch milliseconds.
     #[serde(rename = "tradeDate", default)]
     pub trade_date: Option<i64>,
     /// Epoch milliseconds. Schwab's published schema mistypes this as a
@@ -487,66 +535,94 @@ pub struct OptionContract {
     /// [`Self::quote_time_in_long`].
     #[serde(rename = "tradeTimeInLong", default)]
     pub trade_time_in_long: Option<i64>,
+    /// Net change since prior close, USD.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Implied volatility as a percentage.
     #[serde(default, with = "decimal_opt")]
     pub volatility: Option<Decimal>,
+    /// Delta (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub delta: Option<Decimal>,
+    /// Gamma (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub gamma: Option<Decimal>,
+    /// Theta (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub theta: Option<Decimal>,
+    /// Vega (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub vega: Option<Decimal>,
+    /// Rho (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub rho: Option<Decimal>,
+    /// Extrinsic (time) value, USD.
     #[serde(rename = "timeValue", default, with = "decimal_opt")]
     pub time_value: Option<Decimal>,
+    /// Open interest (contracts).
     #[serde(rename = "openInterest", default, with = "decimal_opt")]
     pub open_interest: Option<Decimal>,
+    /// `true` if the contract is in the money.
     #[serde(rename = "isInTheMoney", default)]
     pub is_in_the_money: Option<bool>,
+    /// Theoretical fair value from Schwab's pricing model, USD.
     #[serde(rename = "theoreticalOptionValue", default, with = "decimal_opt")]
     pub theoretical_option_value: Option<Decimal>,
+    /// Theoretical volatility used in the pricing model.
     #[serde(rename = "theoreticalVolatility", default, with = "decimal_opt")]
     pub theoretical_volatility: Option<Decimal>,
+    /// `true` if the contract is a mini option (smaller deliverable).
     #[serde(rename = "isMini", default)]
     pub is_mini: Option<bool>,
+    /// `true` for non-standard contracts (corporate-action-adjusted, etc.).
     #[serde(rename = "isNonStandard", default)]
     pub is_non_standard: Option<bool>,
+    /// Deliverables backing the contract.
     #[serde(rename = "optionDeliverablesList", default)]
     pub option_deliverables_list: Vec<OptionDeliverables>,
+    /// Strike price, USD.
     #[serde(rename = "strikePrice", default, with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
     /// `yyyy-MM-dd'T'HH:mm:ss` expiration timestamp string.
     #[serde(rename = "expirationDate", default)]
     pub expiration_date: Option<String>,
+    /// Calendar days until expiration.
     #[serde(rename = "daysToExpiration", default)]
     pub days_to_expiration: Option<i32>,
+    /// Expiration classification (standard/weekly/quarterly/...).
     #[serde(rename = "expirationType", default)]
     pub expiration_type: Option<ExpirationType>,
-    /// Epoch milliseconds.
+    /// Last trading day, epoch milliseconds.
     #[serde(rename = "lastTradingDay", default)]
     pub last_trading_day: Option<i64>,
+    /// Shares-per-contract multiplier (typically 100).
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
+    /// AM/PM settlement.
     #[serde(rename = "settlementType", default)]
     pub settlement_type: Option<SettlementType>,
+    /// Free-form note Schwab attaches to the deliverable.
     #[serde(rename = "deliverableNote", default)]
     pub deliverable_note: Option<String>,
+    /// `true` for index options.
     #[serde(rename = "isIndexOption", default)]
     pub is_index_option: Option<bool>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "percentChange", default, with = "decimal_opt")]
     pub percent_change: Option<Decimal>,
+    /// Mark change since prior close, USD.
     #[serde(rename = "markChange", default, with = "decimal_opt")]
     pub mark_change: Option<Decimal>,
+    /// Mark change since prior close as a fraction.
     #[serde(rename = "markPercentChange", default, with = "decimal_opt")]
     pub mark_percent_change: Option<Decimal>,
+    /// `true` if the contract is in the SEC Penny Pilot program.
     #[serde(rename = "isPennyPilot", default)]
     pub is_penny_pilot: Option<bool>,
+    /// Intrinsic value, USD.
     #[serde(rename = "intrinsicValue", default, with = "decimal_opt")]
     pub intrinsic_value: Option<Decimal>,
+    /// Option root symbol (the underlying's OSI root).
     #[serde(rename = "optionRoot", default)]
     pub option_root: Option<String>,
 }
@@ -555,13 +631,17 @@ pub struct OptionContract {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OptionDeliverables {
+    /// Symbol of the deliverable.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Asset class of the deliverable (kept as a string here; the value
+    /// space differs from [`crate::accounts::AssetType`]).
     #[serde(rename = "assetType", default)]
     pub asset_type: Option<String>,
     /// Number of units delivered, sent by Schwab as a string.
     #[serde(rename = "deliverableUnits", default)]
     pub deliverable_units: Option<String>,
+    /// Settlement currency code.
     #[serde(rename = "currencyType", default)]
     pub currency_type: Option<String>,
 }
@@ -571,8 +651,11 @@ pub struct OptionDeliverables {
 string_enum! {
     /// `contractType` query value.
     ContractType {
+        /// Calls only.
         Call = "CALL",
+        /// Puts only.
         Put = "PUT",
+        /// Both calls and puts.
         All = "ALL",
     }
 }
@@ -581,17 +664,29 @@ string_enum! {
     /// Option chain `strategy`. Used both as a `strategy` query value and
     /// in the [`OptionChain::strategy`] response field.
     OptionStrategy {
+        /// Standalone contracts (default).
         Single = "SINGLE",
+        /// Theoretical pricing with caller-supplied vol/rate/underlying.
         Analytical = "ANALYTICAL",
+        /// Covered (call/put + underlying) combinations.
         Covered = "COVERED",
+        /// Vertical spreads.
         Vertical = "VERTICAL",
+        /// Calendar (horizontal) spreads.
         Calendar = "CALENDAR",
+        /// Strangles.
         Strangle = "STRANGLE",
+        /// Straddles.
         Straddle = "STRADDLE",
+        /// Butterflies.
         Butterfly = "BUTTERFLY",
+        /// Condors.
         Condor = "CONDOR",
+        /// Diagonal spreads.
         Diagonal = "DIAGONAL",
+        /// Collars.
         Collar = "COLLAR",
+        /// Roll combinations.
         Roll = "ROLL",
     }
 }
@@ -611,6 +706,7 @@ string_enum! {
         Sbk = "SBK",
         /// Strikes near market.
         Snk = "SNK",
+        /// All strikes (no moneyness filter).
         All = "ALL",
     }
 }
@@ -618,18 +714,31 @@ string_enum! {
 string_enum! {
     /// `expMonth` query value.
     ExpirationMonth {
+        /// January.
         Jan = "JAN",
+        /// February.
         Feb = "FEB",
+        /// March.
         Mar = "MAR",
+        /// April.
         Apr = "APR",
+        /// May.
         May = "MAY",
+        /// June.
         Jun = "JUN",
+        /// July.
         Jul = "JUL",
+        /// August.
         Aug = "AUG",
+        /// September.
         Sep = "SEP",
+        /// October.
         Oct = "OCT",
+        /// November.
         Nov = "NOV",
+        /// December.
         Dec = "DEC",
+        /// All months (no month filter).
         All = "ALL",
     }
 }
@@ -637,7 +746,9 @@ string_enum! {
 string_enum! {
     /// `optionType` query value.
     OptionType {
+        /// Standard (non-adjusted) contracts only.
         Standard = "S",
+        /// Non-standard (e.g. corporate-action-adjusted) contracts only.
         NonStandard = "NS",
     }
 }
@@ -657,7 +768,9 @@ string_enum! {
 string_enum! {
     /// Put/call discriminator on an [`OptionContract`].
     PutCall {
+        /// Put.
         Put = "PUT",
+        /// Call.
         Call = "CALL",
     }
 }
@@ -665,13 +778,21 @@ string_enum! {
 string_enum! {
     /// Exchange of the [`Underlying`] security.
     UnderlyingExchange {
+        /// Index (no listing exchange).
         Ind = "IND",
+        /// NYSE American (formerly AMEX).
         Ase = "ASE",
+        /// New York Stock Exchange.
         Nys = "NYS",
+        /// Nasdaq.
         Nas = "NAS",
+        /// Nasdaq Capital Market.
         Nap = "NAP",
+        /// Pacific Stock Exchange / NYSE Arca.
         Pac = "PAC",
+        /// OCC Options Price Reporting Authority.
         Opr = "OPR",
+        /// BATS Global Markets.
         Bats = "BATS",
     }
 }
@@ -680,9 +801,13 @@ string_enum! {
     /// Option expiration calendar cycle. `M` end-of-month, `Q` quarterly,
     /// `S` standard (3rd-Friday) and `W` weekly.
     ExpirationType {
+        /// End-of-month expiration.
         EndOfMonth = "M",
+        /// Quarterly expiration.
         Quarterly = "Q",
+        /// Standard 3rd-Friday monthly expiration.
         Standard = "S",
+        /// Weekly expiration.
         Weekly = "W",
     }
 }
