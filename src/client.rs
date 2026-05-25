@@ -28,6 +28,16 @@ use crate::streamer::{self, ReadHalf, WriteHalf};
 use crate::transactions::Transactions;
 use crate::user_preferences::UserPreferences;
 
+/// An HTTP client for the Charles Schwab Trader API.
+///
+/// Owns the bearer [`AuthToken`] for authenticating requests.
+/// Use the namespace accessors ([`Self::accounts`], [`Self::orders`],
+/// [`Self::market_data`], etc.) to construct typed request builders.
+/// Use [`Self::streamer`] to open the streaming WebSocket session.
+///
+/// The client is backed by `reqwest::Client` and is therefore `Clone`
+/// and reuse is encouraged as opposed to creating new instances for each
+/// request.
 #[derive(Debug, Clone)]
 pub struct SchwabClient {
     client: reqwest::Client,
@@ -38,9 +48,10 @@ pub struct SchwabClient {
 
 impl SchwabClient {
     /// Construct a client with Schwab's production base URLs for both the
-    /// trader and market-data APIs. Override either via
-    /// [`Self::with_trader_base_url`] / [`Self::with_market_data_base_url`]
-    /// for staging or test fixtures.
+    /// trader and market-data APIs.
+    /// 
+    /// Override either via [`Self::with_trader_base_url`] /
+    /// [`Self::with_market_data_base_url`] for staging or test fixtures.
     pub fn new(auth_token: AuthToken) -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -67,18 +78,6 @@ impl SchwabClient {
         Accounts::new(self)
     }
 
-    /// Accessor for `/userPreference`.
-    pub fn user_preferences(&self) -> UserPreferences<'_> {
-        UserPreferences::new(self)
-    }
-
-    /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
-    /// family. `account_hash` is the encrypted value from
-    /// [`crate::accounts::Accounts::numbers`].
-    pub fn transactions<'a, 'b>(&'a self, account_hash: &'b AccountHash) -> Transactions<'a, 'b> {
-        Transactions::new(self, account_hash)
-    }
-
     /// Accessor for the `/accounts/{accountNumber}/orders*` endpoint
     /// family (single-account scope).
     pub fn orders<'a, 'b>(&'a self, account_hash: &'b AccountHash) -> Orders<'a, 'b> {
@@ -89,6 +88,18 @@ impl SchwabClient {
     /// the date window at 60 days for this endpoint.
     pub fn orders_all(&self) -> AllOrders<'_> {
         AllOrders::new(self)
+    }
+
+    /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
+    /// family. `account_hash` is the encrypted value from
+    /// [`crate::accounts::Accounts::numbers`].
+    pub fn transactions<'a, 'b>(&'a self, account_hash: &'b AccountHash) -> Transactions<'a, 'b> {
+        Transactions::new(self, account_hash)
+    }
+
+    /// Accessor for `/userPreference`.
+    pub fn user_preferences(&self) -> UserPreferences<'_> {
+        UserPreferences::new(self)
     }
 
     /// Accessor for the market-data endpoint families (quotes, price
@@ -176,8 +187,6 @@ impl<'a> Transport<'a> {
     }
 
     /// Build a GET request against `{base_url}{path}` with bearer auth.
-    /// `path` is appended verbatim, so callers are responsible for
-    /// URL-encoding any path segments they interpolate.
     pub(crate) fn get(&self, path: &str) -> RequestBuilder {
         self.request(Method::GET, path)
     }
