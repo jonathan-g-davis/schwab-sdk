@@ -28,39 +28,73 @@ impl SubscriptionField for Field {
     EnumString,
     FromRepr,
 )]
+/// Numbered subscription field for LEVELONE_FOREX.
+///
+/// Pass any combination to [`SubscribeRequest::fields`](crate::streamer::SubscribeRequest::fields);
+/// each variant corresponds 1:1 with the matching field on [`Content`].
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum Field {
+    /// Wire symbol (field 0).
     Symbol,
+    /// Best bid (field 1).
     BidPrice,
+    /// Best ask (field 2).
     AskPrice,
+    /// Last trade price (field 3).
     LastPrice,
+    /// Best bid size (field 4).
     BidSize,
+    /// Best ask size (field 5).
     AskSize,
+    /// Cumulative session volume (field 6).
     TotalVolume,
+    /// Last trade size (field 7).
     LastSize,
+    /// Last quote time, epoch milliseconds (field 8).
     QuoteTime,
+    /// Last trade time, epoch milliseconds (field 9).
     TradeTime,
+    /// Day high (field 10).
     HighPrice,
+    /// Day low (field 11).
     LowPrice,
+    /// Prior session close (field 12).
     ClosePrice,
+    /// Schwab exchange code (field 13).
     Exchange,
+    /// Pair description (field 14).
     Description,
+    /// Day open (field 15).
     OpenPrice,
+    /// Net change since prior close (field 16).
     NetChange,
+    /// Net change since prior close as a fraction (field 17).
     PercentChange,
+    /// Exchange display name (field 18).
     ExchangeName,
+    /// Decimal digits Schwab uses for price display (field 19).
     Digits,
+    /// Security status string (field 20).
     SecurityStatus,
+    /// Minimum tick size (field 21).
     Tick,
+    /// Notional value of one tick (field 22).
     TickAmount,
+    /// Product/pair category (field 23).
     Product,
+    /// Trading-hours description (field 24).
     TradingHours,
+    /// `true` if the pair is tradable (field 25).
     IsTradable,
+    /// Market maker name, when applicable (field 26).
     MarketMaker,
+    /// 52-week high (field 27).
     High52Week,
+    /// 52-week low (field 28).
     Low52Week,
+    /// Mark-to-market value (field 29).
     Mark,
 }
 
@@ -82,91 +116,99 @@ impl TryFrom<u8> for Field {
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {
+    /// Subscription key (the forex pair, e.g. `"EUR/USD"`).
     pub key: String,
+    /// `true` if the quote is delayed.
     pub delayed: bool,
+    /// Asset class string (`"FOREX"`).
     #[serde(rename = "assetMainType")]
     pub asset_main_type: Option<String>,
+    /// Asset sub-type string.
     #[serde(rename = "assetSubType")]
     pub asset_sub_type: Option<String>,
+    /// CUSIP, when Schwab supplies one.
     pub cusip: Option<String>,
 
-    // Field 0
+    /// Field 0: wire symbol.
     pub symbol: Option<String>,
-    // Field 1
+    /// Field 1: best bid.
     #[serde(with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
-    // Field 2
+    /// Field 2: best ask.
     #[serde(with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
-    // Field 3
+    /// Field 3: last trade price.
     #[serde(with = "decimal_opt")]
     pub last_price: Option<Decimal>,
-    // Field 4
+    /// Field 4: best bid size.
     pub bid_size: Option<u64>,
-    // Field 5
+    /// Field 5: best ask size.
     pub ask_size: Option<u64>,
-    // Field 6
+    /// Field 6: cumulative session volume.
     pub total_volume: Option<u64>,
-    // Field 7
+    /// Field 7: last trade size.
     pub last_size: Option<u64>,
-    // Field 8
+    /// Field 8: last quote time, epoch milliseconds.
     pub quote_time: Option<u64>,
-    // Field 9
+    /// Field 9: last trade time, epoch milliseconds.
     pub trade_time: Option<u64>,
-    // Field 10
+    /// Field 10: day high.
     #[serde(with = "decimal_opt")]
     pub high_price: Option<Decimal>,
-    // Field 11
+    /// Field 11: day low.
     #[serde(with = "decimal_opt")]
     pub low_price: Option<Decimal>,
-    // Field 12
+    /// Field 12: prior session close.
     #[serde(with = "decimal_opt")]
     pub close_price: Option<Decimal>,
-    // Field 13
+    /// Field 13: Schwab exchange code.
     pub exchange: Option<String>,
-    // Field 14
+    /// Field 14: pair description.
     pub description: Option<String>,
-    // Field 15
+    /// Field 15: day open.
     #[serde(with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    // Field 16
+    /// Field 16: net change since prior close.
     #[serde(with = "decimal_opt")]
     pub net_change: Option<Decimal>,
-    // Field 17 - if(close > 0): (last - close) / close, else 0.
+    /// Field 17: net change since prior close as a fraction
+    /// (`if close > 0: (last - close) / close, else 0`).
     #[serde(with = "decimal_opt")]
     pub percent_change: Option<Decimal>,
-    // Field 18
+    /// Field 18: exchange display name.
     pub exchange_name: Option<String>,
-    // Field 19
+    /// Field 19: decimal digits Schwab uses for price display.
     pub digits: Option<i32>,
-    // Field 20
+    /// Field 20: security status string.
     pub security_status: Option<String>,
-    // Field 21
+    /// Field 21: minimum tick size.
     #[serde(with = "decimal_opt")]
     pub tick: Option<Decimal>,
-    // Field 22
+    /// Field 22: notional value of one tick.
     #[serde(with = "decimal_opt")]
     pub tick_amount: Option<Decimal>,
-    // Field 23
+    /// Field 23: product/pair category.
     pub product: Option<String>,
-    // Field 24
+    /// Field 24: trading-hours description.
     pub trading_hours: Option<String>,
-    // Field 25
+    /// Field 25: `true` if the pair is tradable through Schwab.
     pub is_tradable: Option<bool>,
-    // Field 26
+    /// Field 26: market maker name, when applicable.
     pub market_maker: Option<String>,
-    // Field 27
+    /// Field 27: 52-week high.
     #[serde(with = "decimal_opt")]
     pub high52_week: Option<Decimal>,
-    // Field 28
+    /// Field 28: 52-week low.
     #[serde(with = "decimal_opt")]
     pub low52_week: Option<Decimal>,
-    // Field 29 - mark-to-market value.
+    /// Field 29: mark-to-market value.
     #[serde(with = "decimal_opt")]
     pub mark: Option<Decimal>,
 }
 
 impl Content {
+    /// Decode a remapped JSON object (numeric keys already resolved to
+    /// snake_case names by the streamer frame parser) into a typed batch.
     pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<Self>> {
         serde_json::from_value(remapped).map_err(|e| Error::Codec {
             context: "LEVELONE_FOREX content".to_string(),
