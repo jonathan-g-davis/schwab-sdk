@@ -20,6 +20,38 @@
 //!
 //! This builder accepts any `i32`/enum combination; out-of-range values
 //! surface as 400 from Schwab rather than being rejected at compile time.
+//!
+//! # Examples
+//!
+//! Daily candles for the last month:
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::{FrequencyType, PeriodType};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let history = client
+//!     .market_data()
+//!     .price_history()
+//!     .get("AAPL")
+//!     .period_type(PeriodType::Month)
+//!     .period(1)
+//!     .frequency_type(FrequencyType::Daily)
+//!     .frequency(1)
+//!     .send()
+//!     .await?;
+//!
+//! for candle in &history.candles {
+//!     println!(
+//!         "{:?} O:{:?} H:{:?} L:{:?} C:{:?}",
+//!         candle.datetime, candle.open, candle.high, candle.low, candle.close,
+//!     );
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;

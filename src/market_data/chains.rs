@@ -15,6 +15,31 @@
 //! list form.
 //!
 //! Reached through [`MarketData::chains`](super::MarketData::chains).
+//!
+//! # Examples
+//!
+//! Fetch the near-the-money calls for a symbol. Every filter is optional;
+//! narrow the chain before sending.
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::ContractType;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let chain = client
+//!     .market_data()
+//!     .chains()
+//!     .get("AAPL")
+//!     .contract_type(ContractType::Call)
+//!     .strike_count(5)
+//!     .send()
+//!     .await?;
+//! # let _ = chain;
+//! # Ok(())
+//! # }
+//! ```
 
 use std::collections::HashMap;
 use std::fmt;
