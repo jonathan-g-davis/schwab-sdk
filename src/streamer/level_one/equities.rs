@@ -162,11 +162,7 @@ impl TryFrom<u8> for Field {
 /// numerically indexed; the remaining fields correspond 1:1 with the
 /// `Field` enum above.
 ///
-/// **Decimal precision**: prices deserialize via `rust_decimal::serde::float_option`,
-/// which routes through `f64`. For Schwab equity quotes this is well within
-/// `f64`'s ~15-digit precision.
-///
-/// **Timestamps** are milliseconds since the Unix epoch (`u64`)
+/// **Timestamps** are milliseconds since the Unix epoch (`u64`).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
