@@ -15,6 +15,25 @@
 //! [`Error::is_retryable`] and [`Error::retry_after`] are the only retry
 //! seams the crate provides. Application code can use these to wire in
 //! `backon` or another policy on top.
+//!
+//! # Examples
+//!
+//! Branch on whether a failure is worth retrying:
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, Error, SchwabClient};
+//!
+//! # async fn run() {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! match client.market_data().quotes().list(["AAPL"]).send().await {
+//!     Ok(quotes) => println!("{} entries", quotes.len()),
+//!     Err(err) if err.is_retryable() => println!("transient, safe to retry: {err}"),
+//!     Err(Error::Unauthorized(_)) => println!("token rejected; refresh and retry"),
+//!     Err(err) => println!("terminal: {err}"),
+//! }
+//! # }
+//! ```
 
 use std::time::Duration;
 
@@ -120,6 +139,42 @@ impl Error {
     ///
     /// `schwab-sdk` does not implement retry itself; this method exists
     /// so downstream consumers can utilize it in their own retry logic.
+    ///
+    /// # Examples
+    ///
+    /// A minimal backoff loop honoring [`Self::retry_after`] when present.
+    /// In real code a crate such as `backon` is preferable; this shows the
+    /// seam.
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    /// use schwab_sdk::Result;
+    ///
+    /// async fn with_retry<F, Fut, T>(mut op: F) -> Result<T>
+    /// where
+    ///     F: FnMut() -> Fut,
+    ///     Fut: std::future::Future<Output = Result<T>>,
+    /// {
+    ///     let mut attempts = 0;
+    ///     loop {
+    ///         match op().await {
+    ///             Ok(value) => return Ok(value),
+    ///             Err(err) if err.is_retryable() && attempts < 3 => {
+    ///                 attempts += 1;
+    ///                 let delay = err.retry_after().unwrap_or(Duration::from_millis(500));
+    ///                 tokio::time::sleep(delay).await;
+    ///             }
+    ///             Err(err) => return Err(err),
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// # async fn caller(client: schwab_sdk::SchwabClient) -> Result<()> {
+    /// let quotes = with_retry(|| client.market_data().quotes().list(["AAPL"]).send()).await?;
+    /// # let _ = quotes;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn is_retryable(&self) -> bool {
         match self {
             Error::RateLimited { .. } => true,
@@ -149,6 +204,23 @@ impl Error {
 ///
 /// Schwab's Trader and Market Data APIs return structurally different
 /// error envelopes; this preserves whichever shape arrived.
+///
+/// # Examples
+///
+/// ```no_run
+/// use schwab_sdk::{Error, ErrorBody};
+///
+/// # fn report(err: Error) {
+/// match err {
+///     Error::Http { status, body } => match body {
+///         ErrorBody::Trader(svc) => eprintln!("{status}: {}", svc.message),
+///         ErrorBody::MarketData(resp) => eprintln!("{status}: {resp}"),
+///         ErrorBody::Unrecognized(raw) => eprintln!("{status}: {raw}"),
+///     },
+///     other => eprintln!("{other}"),
+/// }
+/// # }
+/// ```
 #[derive(Debug, Clone)]
 pub enum ErrorBody {
     /// Trader API shape: a top-level message plus error strings.
