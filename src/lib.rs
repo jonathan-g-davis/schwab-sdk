@@ -59,6 +59,11 @@ pub mod streamer;
 pub mod transactions;
 pub mod user_preferences;
 
+// Re-exports of dependencies whose types appear in the public API.
+pub use chrono;
+pub use http;
+pub use rust_decimal;
+
 pub use client::SchwabClient;
 pub use constants::{
     DEFAULT_AUTH_TOKEN_EXPIRY, DEFAULT_REFRESH_TOKEN_EXPIRY, MARKET_DATA_BASE_URL, TRADER_BASE_URL,
