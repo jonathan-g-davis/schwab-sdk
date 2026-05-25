@@ -16,6 +16,7 @@ use crate::orders::enums::{
     ApiOrderStatus, ComplexOrderStrategyType, Duration, Instruction, OrderStrategyType, OrderType,
     Session,
 };
+use crate::secrets::AccountNumber;
 
 /// Top-level response body of `previewOrder`.
 #[derive(Debug, Clone, Deserialize)]
@@ -39,7 +40,7 @@ pub struct PreviewOrder {
 #[non_exhaustive]
 pub struct OrderStrategy {
     #[serde(default, rename = "accountNumber")]
-    pub account_number: Option<String>,
+    pub account_number: Option<AccountNumber>,
     #[serde(default, rename = "advancedOrderType")]
     pub advanced_order_type: Option<AdvancedOrderType>,
     #[serde(default, rename = "closeTime")]
@@ -446,5 +447,16 @@ mod tests {
             let parsed: FeeType = serde_json::from_str(&json).unwrap();
             assert_eq!(serde_json::to_string(&parsed).unwrap(), json);
         }
+    }
+
+    #[test]
+    fn account_number_in_order_strategy_redacts_on_debug() {
+        let json = r#"{"accountNumber": "12345678"}"#;
+        let strategy: OrderStrategy = serde_json::from_str(json).unwrap();
+        let debug = format!("{:?}", strategy);
+        assert!(
+            !debug.contains("12345678"),
+            "account number leaked through Debug: {debug}"
+        );
     }
 }
