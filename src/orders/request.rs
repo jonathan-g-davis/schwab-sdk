@@ -6,6 +6,39 @@
 //! composite-strategy factories [`OrderRequest::oco`] and
 //! [`OrderRequest::trigger`]. The builder is the only path to a valid
 //! request body.
+//!
+//! # Examples
+//!
+//! The typestate builder enforces construction order at compile time: an
+//! order type before a leg, and at least one leg before `.build()`.
+//!
+//! ```
+//! use rust_decimal_macros::dec;
+//! use schwab_sdk::orders::{Duration, OrderRequest, Session};
+//!
+//! // Limit buy, good-till-cancel, extended session.
+//! let order = OrderRequest::single()
+//!     .limit(dec!(140.00))
+//!     .equity_buy("AAPL", dec!(5))
+//!     .duration(Duration::GoodTillCancel)
+//!     .session(Session::Seamless)
+//!     .build();
+//! # let _ = order;
+//! ```
+//!
+//! A two-leg vertical spread chains legs on one order with a net-debit price:
+//!
+//! ```
+//! use rust_decimal_macros::dec;
+//! use schwab_sdk::orders::OrderRequest;
+//!
+//! let spread = OrderRequest::single()
+//!     .net_debit(dec!(0.10))
+//!     .option_buy_to_open("XYZ   240315P00045000", dec!(2))
+//!     .option_sell_to_open("XYZ   240315P00043000", dec!(2))
+//!     .build();
+//! # let _ = spread;
+//! ```
 
 use std::marker::PhantomData;
 
@@ -212,7 +245,7 @@ pub struct SingleOrderBuilder<State> {
 impl OrderRequest {
     /// Begin building a `SINGLE` strategy order. Defaults `session=NORMAL`
     /// and `duration=DAY`; override with [`SingleOrderBuilder::session`]
-    /// and [`SingleOrderBuilder::duration`] on the [`Ready`] state.
+    /// and [`SingleOrderBuilder::duration`] on the `Ready` state.
     pub fn single() -> SingleOrderBuilder<NeedsType> {
         let inner = OrderRequest {
             session: Some(Session::Normal),
@@ -385,6 +418,31 @@ impl OrderRequest {
     /// The `duration` on each child controls how long that side stays
     /// live - for a take-profit + stop-loss pair you typically want both
     /// children set to [`Duration::GoodTillCancel`] via the builder.
+    ///
+    /// # Examples
+    ///
+    /// A bracket exit: a take-profit limit paired with a stop-loss, first to
+    /// fill cancels the other. Both children are good-till-cancel so neither
+    /// expires at the close.
+    ///
+    /// ```
+    /// use rust_decimal_macros::dec;
+    /// use schwab_sdk::orders::{Duration, OrderRequest};
+    ///
+    /// let take_profit = OrderRequest::single()
+    ///     .limit(dec!(15.27))
+    ///     .equity_sell("XYZ", dec!(5))
+    ///     .duration(Duration::GoodTillCancel)
+    ///     .build();
+    /// let stop_loss = OrderRequest::single()
+    ///     .stop(dec!(11.27))
+    ///     .equity_sell("XYZ", dec!(5))
+    ///     .duration(Duration::GoodTillCancel)
+    ///     .build();
+    ///
+    /// let bracket = OrderRequest::oco(take_profit, stop_loss);
+    /// # let _ = bracket;
+    /// ```
     pub fn oco(child_a: impl Into<OrderRequest>, child_b: impl Into<OrderRequest>) -> OrderRequest {
         OrderRequest {
             order_strategy_type: Some(OrderStrategyType::Oco),
@@ -403,6 +461,31 @@ impl OrderRequest {
     ///
     /// 1st-Trigger-OCO is the composition
     /// `OrderRequest::trigger(parent, OrderRequest::oco(profit, stop))`.
+    ///
+    /// # Examples
+    ///
+    /// Open a position, then attach a profit target and a stop once the
+    /// entry fills (1st-trigger-OCO):
+    ///
+    /// ```
+    /// use rust_decimal_macros::dec;
+    /// use schwab_sdk::orders::{Duration, OrderRequest};
+    ///
+    /// let entry = OrderRequest::buy_limit("XYZ", dec!(5), dec!(14.97));
+    /// let take_profit = OrderRequest::single()
+    ///     .limit(dec!(15.27))
+    ///     .equity_sell("XYZ", dec!(5))
+    ///     .duration(Duration::GoodTillCancel)
+    ///     .build();
+    /// let stop_loss = OrderRequest::single()
+    ///     .stop(dec!(11.27))
+    ///     .equity_sell("XYZ", dec!(5))
+    ///     .duration(Duration::GoodTillCancel)
+    ///     .build();
+    ///
+    /// let order = OrderRequest::trigger(entry, OrderRequest::oco(take_profit, stop_loss));
+    /// # let _ = order;
+    /// ```
     pub fn trigger(
         parent: impl Into<OrderRequest>,
         child: impl Into<OrderRequest>,
