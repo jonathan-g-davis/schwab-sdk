@@ -25,6 +25,61 @@ What this crate does **not** do:
 
 API documentation lives at [docs.rs/schwab-sdk][docs].
 
+## Design
+
+`schwab-sdk` is a faithful, typed mapping of Schwab's API. It provides
+building blocks, not a framework. The crate is intended to empower developers
+to create their own application quickly and safely without getting in the way.
+
+- **Building blocks without policy.** The crate types every REST endpoint and
+  streamer service and stops there. Credential storage, the OAuth
+  authorization flow, retry loops, rate limiters, reconnect-and-resubscribe,
+  and any strategy / portfolio / risk logic are deliberately left to the
+  caller. Where a consumer needs to plug in behavior, the crate exposes a
+  seam (see below) rather than shipping a default that takes over.
+
+- **No panics.** The crate does not contain `panic!()`, `expect()`, or `unwrap()`
+  in any production code. Where operations are fallible (even if unlikely), a
+  `Result` is returned instead.
+
+- **Spec implemented as written; notable exceptions called out explicitly.**
+  Field names, request shapes, and the documented enum values follow Schwab's
+  published schema. Where the wire is ambiguous or still evolving, decoding
+  stays permissive: every enum carries an `Unknown` / `Raw` fallback, so a
+  discriminant or service Schwab adds later deserializes into a catch-all variant
+  (with the raw value preserved) instead of failing the whole response. An invalid
+  symbol in a quote batch comes back as a typed error entry, not an `Err`.
+
+- **Types that make mistakes hard.** Every price, quantity, and money field
+  is [`rust_decimal::Decimal`], never `f64`, so no precision is lost at the
+  boundary. Bearer tokens, customer ids, and account numbers are
+  [`secrecy`]-backed newtypes that redact in `Debug` and zeroize on drop, so
+  a credential cannot leak through a stray `dbg!` or log line. The streamer's
+  subscribe builders are typestate: picking a verb and a field set is checked
+  at compile time.
+
+- **Errors are structured, retry is a seam.** A single `thiserror` enum
+  surfaces every failure; Schwab's two distinct error-body shapes (Trader vs
+  Market Data) are both preserved. The crate never retries for you -
+  `Error::is_retryable` and `Error::retry_after` classify a failure so you
+  can layer `backon` or any policy on top. Token rotation goes through the
+  `TokenProvider` trait, and streamer connection state is published on a
+  `ConnectionEvent` watch channel so a reconnect loop lives in your code.
+
+- **Forward compatible.** Public enums and response structs are
+  `#[non_exhaustive]`, so Schwab adding a field or variant is a non-breaking
+  change for downstreams rather than a new major version.
+
+- **Tested at the wire boundary.** Every request and response type has
+  serialization round-trip coverage, and the streamer frame parser is tested
+  against captured frames. The suite runs against mocked transports. No live
+  Schwab session or credentials are required for `cargo test`.
+
+- **Runtime.** Built on Tokio. No async runtime is started for you, and once
+  the streamer is connected, no background task drives it. Reads and writes
+  happen inline on the task that calls `recv` / `send`, so you decide how the
+  halves are scheduled.
+
 ## Usage
 
 Resolve an account, read a quote, and place an order against it:
