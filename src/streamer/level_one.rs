@@ -10,7 +10,7 @@
 //!
 //! Every service provides a `Field` enum (one variant per documented field)
 //! and a typed `Content` struct that consumers receive through
-//! [`DataContent`].
+//! [`DataContent`](super::DataContent).
 //!
 //! Delivery type for all LEVELONE_* services is "Change": only the fields
 //! that changed since the previous tick are present, so all numerically-

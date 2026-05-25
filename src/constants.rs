@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-/// Lifetime of a freshly issued Schwab OAuth access token ([`AuthToken`]).
+/// Lifetime of a freshly issued Schwab OAuth access token
+/// ([`AuthToken`](crate::AuthToken)).
 /// Schwab issues access tokens valid for 30 minutes. A token may be
 /// revoked or invalidated earlier, so treat this as the issued upper
 /// bound rather than a guarantee.

@@ -1,18 +1,32 @@
+//! Subscribe/add/unsubscribe/view commands for the streamer.
+//!
+//! Per-service entry points on [`WriteHalf`] (e.g. `equities`,
+//! `chart_equity`) return a typestate [`SubscribeRequest`] that walks the
+//! caller through picking a verb, supplying keys and a field selection,
+//! and writing the frame.
+
 use crate::error::Result;
 use crate::streamer::Service;
 use crate::streamer::WriteHalf;
 use crate::streamer::protocol::StreamerCommand;
 use crate::streamer::request::StreamerRequest;
 
+/// Subscription verb. Narrower than [`StreamerCommand`]: only the four
+/// verbs that operate on a subscription. Re-exported as
+/// [`SubscriptionCommand`](super::SubscriptionCommand).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Command {
+    /// Subscribe (replaces any existing subscription on the same service).
     #[serde(rename = "SUBS")]
     Subscribe,
+    /// Add to an existing subscription.
     #[serde(rename = "ADD")]
     Add,
+    /// Unsubscribe.
     #[serde(rename = "UNSUBS")]
     Unsubscribe,
+    /// Change the field set without re-subscribing.
     #[serde(rename = "VIEW")]
     View,
 }
@@ -44,6 +58,8 @@ impl TryFrom<StreamerCommand> for Command {
     }
 }
 
+/// Fully assembled subscription frame: verb, keys, and the typed field set.
+/// Convert into a [`StreamerRequest`] via `From`.
 #[derive(Debug, Clone)]
 pub struct Subscription<T> {
     pub(super) command: Command,
@@ -106,7 +122,7 @@ pub struct Ready {
 /// `unsubscribe` / `view`) transitions the builder from
 /// [`NeedsVerb`] to [`Ready`]; the type system then makes `fields(...)` and
 /// `send()` reachable. Calling `send()` without first picking a verb is a
-/// compile-time error, not a runtime one.
+/// compile-time error.
 #[must_use = "call .send() to write the streamer frame"]
 pub struct SubscribeRequest<'a, F, S = NeedsVerb> {
     write_half: &'a WriteHalf,
