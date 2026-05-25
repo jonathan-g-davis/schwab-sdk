@@ -14,6 +14,7 @@
         clippy::unimplemented,
     )
 )]
+#![warn(missing_docs)]
 
 mod client;
 mod constants;
