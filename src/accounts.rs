@@ -11,6 +11,46 @@
 //!   account, keyed by the encrypted hash.
 //!
 //! Reached through [`SchwabClient::accounts`](crate::SchwabClient::accounts).
+//!
+//! # Examples
+//!
+//! List every linked account with positions. Balances come back by default;
+//! positions are opt-in via [`ListAccountsBuilder::with_positions`].
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let accounts = client.accounts().list().with_positions().send().await?;
+//! for account in &accounts {
+//!     let acct = &account.securities_account;
+//!     println!("{} ({} positions)", acct.account_type(), acct.positions().len());
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Read balances off a single account. Balance fields are `Option<Decimal>`;
+//! `None` means Schwab omitted the field, which is distinct from a sent zero.
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::accounts::SecuritiesAccount;
+//!
+//! # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let account = client.accounts().get(account_hash).with_positions().send().await?;
+//! if let SecuritiesAccount::Margin(margin) = &account.securities_account {
+//!     if let Some(balances) = &margin.current_balances {
+//!         println!("buying power: {:?}", balances.buying_power);
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -158,6 +198,29 @@ pub struct Account {
 /// Both `Margin` and `Cash` carry many `Option<Decimal>` balance fields, so
 /// the enum is around 1.5 KB; the response is allocated on the heap by
 /// reqwest's JSON decoder, so the enum-size warning is irrelevant.
+///
+/// # Examples
+///
+/// Route on the account type. The `Unknown` arm should be surfaced for
+/// review rather than acted on, since the typed accessors can only offer
+/// partial data for it.
+///
+/// ```no_run
+/// use schwab_sdk::accounts::{Account, SecuritiesAccount};
+///
+/// # fn handle(account: &Account) {
+/// match &account.securities_account {
+///     SecuritiesAccount::Margin(m) => println!("margin: {} positions", m.positions.len()),
+///     SecuritiesAccount::Cash(c) => println!("cash: {} positions", c.positions.len()),
+///     SecuritiesAccount::Unknown { account_type, .. } => {
+///         // Do not guess. Flag for manual review.
+///         eprintln!("unrecognized account type: {account_type}");
+///     }
+///     // `SecuritiesAccount` is non-exhaustive; treat anything new like Unknown.
+///     _ => eprintln!("unrecognized account type"),
+/// }
+/// # }
+/// ```
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 #[non_exhaustive]
