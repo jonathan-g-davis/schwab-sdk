@@ -75,6 +75,7 @@ impl<'a> ListMarketHoursBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<MarketHoursResponse> {
         let md = self.client.market_data_http();
         let mut request = md
@@ -97,11 +98,13 @@ pub struct GetMarketHoursBuilder<'a> {
 }
 
 impl<'a> GetMarketHoursBuilder<'a> {
+    /// Restrict the response to a specific date. Defaults to today.
     pub fn date(mut self, date: NaiveDate) -> Self {
         self.date = Some(date);
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<MarketHoursResponse> {
         let md = self.client.market_data_http();
         let path = format!("/markets/{}", self.market);
@@ -122,22 +125,29 @@ impl<'a> GetMarketHoursBuilder<'a> {
 /// `"BOND"`); value is the [`Hours`] block.
 pub type MarketHoursResponse = HashMap<String, HashMap<String, Hours>>;
 
+/// Market-hours detail for one product within one market.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Hours {
     /// `yyyy-MM-dd` date the hours apply to.
     #[serde(default)]
     pub date: Option<String>,
+    /// Broader market-type classification.
     #[serde(rename = "marketType", default)]
     pub market_type: Option<MarketType>,
+    /// Exchange the product trades on, when applicable.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Product category (Schwab-specific subdivision).
     #[serde(default)]
     pub category: Option<String>,
+    /// Product code Schwab uses for this entry (e.g. `"EQ"`, `"BOND"`).
     #[serde(default)]
     pub product: Option<String>,
+    /// Human-readable product name.
     #[serde(rename = "productName", default)]
     pub product_name: Option<String>,
+    /// `true` if any session is scheduled to open on the requested date.
     #[serde(rename = "isOpen", default)]
     pub is_open: Option<bool>,
     /// Session windows keyed by session name (e.g. `"preMarket"`,
@@ -155,8 +165,10 @@ pub struct Hours {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Interval {
+    /// Session start timestamp.
     #[serde(default)]
     pub start: Option<String>,
+    /// Session end timestamp.
     #[serde(default)]
     pub end: Option<String>,
 }
@@ -166,10 +178,15 @@ pub struct Interval {
 string_enum! {
     /// Market-id query/path value. Lowercase per Schwab's spec.
     Market {
+        /// Equity market.
         Equity = "equity",
+        /// Listed-options market.
         Option_ = "option",
+        /// Fixed-income market.
         Bond = "bond",
+        /// Futures market.
         Future = "future",
+        /// Foreign-exchange market.
         Forex = "forex",
     }
 }
@@ -177,18 +194,31 @@ string_enum! {
 string_enum! {
     /// Broader market-type discriminator on the [`Hours`] response.
     MarketType {
+        /// Bond market.
         Bond = "BOND",
+        /// Equity market.
         Equity = "EQUITY",
+        /// Exchange-traded fund.
         Etf = "ETF",
+        /// Extended-hours classification.
         Extended = "EXTENDED",
+        /// Forex market.
         Forex = "FOREX",
+        /// Futures market.
         Future = "FUTURE",
+        /// Futures-option market.
         FutureOption = "FUTURE_OPTION",
+        /// Fundamental-data feed.
         Fundamental = "FUNDAMENTAL",
+        /// Index.
         Index = "INDEX",
+        /// Technical indicator.
         Indicator = "INDICATOR",
+        /// Mutual-fund market.
         MutualFund = "MUTUAL_FUND",
+        /// Listed-options market.
         Option_ = "OPTION",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }

@@ -61,6 +61,7 @@ impl<'a> GetMoversBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<MoversResponse> {
         let md = self.client.market_data_http();
         let path = format!("/movers/{}", self.index);
@@ -83,6 +84,7 @@ impl<'a> GetMoversBuilder<'a> {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct MoversResponse {
+    /// One entry per top-moving security in the index.
     #[serde(default)]
     pub screeners: Vec<Screener>,
 }
@@ -98,13 +100,16 @@ pub struct Screener {
     /// Name of the security.
     #[serde(default)]
     pub description: Option<String>,
+    /// Up/down direction of the move.
     #[serde(default)]
     pub direction: Option<MoverDirection>,
     /// Last quoted price.
     #[serde(default, with = "decimal_opt")]
     pub last: Option<Decimal>,
+    /// Wire symbol.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Cumulative session volume (shares/contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
 }
@@ -114,16 +119,27 @@ pub struct Screener {
 string_enum! {
     /// Index symbol path value for the movers endpoint.
     MoverIndex {
+        /// Dow Jones Industrial Average.
         Dji = "$DJI",
+        /// Nasdaq Composite.
         Compx = "$COMPX",
+        /// S&P 500.
         Spx = "$SPX",
+        /// NYSE-listed.
         Nyse = "NYSE",
+        /// Nasdaq-listed.
         Nasdaq = "NASDAQ",
+        /// OTC Bulletin Board.
         Otcbb = "OTCBB",
+        /// All indices.
         IndexAll = "INDEX_ALL",
+        /// All equities.
         EquityAll = "EQUITY_ALL",
+        /// All options.
         OptionAll = "OPTION_ALL",
+        /// All puts.
         OptionPut = "OPTION_PUT",
+        /// All calls.
         OptionCall = "OPTION_CALL",
     }
 }
@@ -131,9 +147,13 @@ string_enum! {
 string_enum! {
     /// `sort` query value for the movers endpoint.
     MoverSort {
+        /// Sort by cumulative volume.
         Volume = "VOLUME",
+        /// Sort by trade count.
         Trades = "TRADES",
+        /// Sort by upward percent change.
         PercentChangeUp = "PERCENT_CHANGE_UP",
+        /// Sort by downward percent change.
         PercentChangeDown = "PERCENT_CHANGE_DOWN",
     }
 }
@@ -141,7 +161,9 @@ string_enum! {
 string_enum! {
     /// Direction of a mover's price change.
     MoverDirection {
+        /// Price moved up.
         Up = "up",
+        /// Price moved down.
         Down = "down",
     }
 }
