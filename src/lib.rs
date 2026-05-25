@@ -47,6 +47,48 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! End to end: resolve an account, read a quote, and act on it.
+//!
+//! ```no_run
+//! use rust_decimal_macros::dec;
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::QuoteEntry;
+//! use schwab_sdk::orders::OrderRequest;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! // 1. Resolve the encrypted account hash. Every per-account endpoint
+//! //    takes this hash in its `{accountNumber}` path segment, never the
+//! //    plain account number.
+//! let accounts = client.accounts().numbers().await?;
+//! let account = accounts.first().expect("at least one linked account");
+//! let account_hash = &account.hash_value;
+//!
+//! // 2. Read a quote and pull the last price out of the typed entry. An
+//! //    unknown symbol comes back as `QuoteEntry::Error`, not an `Err`.
+//! let quotes = client.market_data().quotes().list(["AAPL"]).send().await?;
+//! let last_price = match quotes.get("AAPL") {
+//!     Some(QuoteEntry::Equity(q)) => q.quote.as_ref().and_then(|inner| inner.last_price),
+//!     _ => None,
+//! };
+//! let Some(last_price) = last_price else {
+//!     println!("no quote for AAPL");
+//!     return Ok(());
+//! };
+//!
+//! // 3. Place a limit buy just under the last trade; keep the order id
+//! //    Schwab returns so the fill can be polled later.
+//! let limit = last_price - dec!(0.50);
+//! let order_id = client
+//!     .orders(account_hash)
+//!     .place(OrderRequest::buy_limit("AAPL", dec!(10), limit))
+//!     .await?;
+//! println!("placed order {order_id} at {limit}");
+//! # Ok(())
+//! # }
+//! ```
 
 // Panic-family lints are denied in production code. If a future change
 // genuinely needs one of these in non-test code, add `#[allow(...)]` with
