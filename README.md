@@ -25,6 +25,89 @@ What this crate does **not** do:
 
 API documentation lives at [docs.rs/schwab-sdk][docs].
 
+## Usage
+
+Resolve an account, read a quote, and place an order against it:
+
+```rust
+use rust_decimal_macros::dec;
+use schwab_sdk::{AuthToken, SchwabClient};
+use schwab_sdk::market_data::QuoteEntry;
+use schwab_sdk::orders::OrderRequest;
+
+#[tokio::main]
+async fn main() -> schwab_sdk::Result<()> {
+    let client = SchwabClient::new(AuthToken::new("your access token"));
+
+    // Every per-account endpoint takes the encrypted account hash, never
+    // the plain account number. Resolve it once from /accounts/accountNumbers.
+    let accounts = client.accounts().numbers().await?;
+    let account_hash = &accounts.first().expect("a linked account").hash_value;
+
+    // Read a quote. The response is keyed by symbol; an invalid symbol comes
+    // back as QuoteEntry::Error rather than failing the whole request.
+    let quotes = client.market_data().quotes().list(["AAPL"]).send().await?;
+    let last_price = match quotes.get("AAPL") {
+        Some(QuoteEntry::Equity(q)) => q.quote.as_ref().and_then(|inner| inner.last_price),
+        _ => None,
+    };
+    let Some(last_price) = last_price else {
+        return Ok(());
+    };
+
+    // Place a limit buy just under the last trade. Schwab returns the new
+    // order id; fetch it back to watch the fill.
+    let order_id = client
+        .orders(account_hash)
+        .place(OrderRequest::buy_limit("AAPL", dec!(10), last_price - dec!(0.50)))
+        .await?;
+    let order = client.orders(account_hash).get(order_id).await?;
+    println!("order {order_id}: {:?}", order.status);
+
+    Ok(())
+}
+```
+
+Stream live level-one quotes. The write half sends commands (log in first);
+the read half yields one typed frame per `recv`:
+
+```rust
+use schwab_sdk::{AuthToken, SchwabClient, StreamerResponse};
+use schwab_sdk::streamer::DataContent;
+use schwab_sdk::streamer::level_one::equities::Field;
+
+#[tokio::main]
+async fn main() -> schwab_sdk::Result<()> {
+    let client = SchwabClient::new(AuthToken::new("your access token"));
+
+    let (mut read, write) = client.streamer().await?;
+    write.login().await?;
+
+    write
+        .equities()
+        .subscribe(["AAPL", "MSFT"])
+        .fields([Field::Symbol, Field::BidPrice, Field::AskPrice, Field::LastPrice])
+        .send()
+        .await?;
+
+    loop {
+        match read.recv().await? {
+            StreamerResponse::Data(payloads) => {
+                for payload in payloads {
+                    if let DataContent::LevelOneEquities(ticks) = payload.content {
+                        for tick in ticks {
+                            println!("{}: {:?}", tick.key, tick.last_price);
+                        }
+                    }
+                }
+            }
+            // Heartbeats and subscription acknowledgements.
+            _ => {}
+        }
+    }
+}
+```
+
 ## Authentication and token rotation
 
 `SchwabClient` reads its bearer through a `TokenProvider` trait. The SDK
