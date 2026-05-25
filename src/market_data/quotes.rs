@@ -98,6 +98,7 @@ impl<'a> ListQuotesBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<QuoteResponse> {
         let md = self.client.market_data_http();
         let mut request = md
@@ -123,6 +124,8 @@ pub struct GetQuoteBuilder<'a> {
 }
 
 impl<'a> GetQuoteBuilder<'a> {
+    /// Restrict the response to a subset of root nodes. Defaults to
+    /// returning every node (`fields=all`).
     pub fn fields<I>(mut self, fields: I) -> Self
     where
         I: IntoIterator<Item = QuoteField>,
@@ -136,6 +139,7 @@ impl<'a> GetQuoteBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<QuoteResponse> {
         let path = format!("/{}/quotes", self.symbol);
         let md = self.client.market_data_http();
@@ -167,13 +171,21 @@ pub type QuoteResponse = HashMap<String, QuoteEntry>;
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum QuoteEntry {
+    /// Equity (`assetMainType` = `EQUITY`).
     Equity(Box<EquityQuote>),
+    /// Listed option (`assetMainType` = `OPTION`).
     Option(Box<OptionQuote>),
+    /// Forex pair (`assetMainType` = `FOREX`).
     Forex(Box<ForexQuote>),
+    /// Futures contract (`assetMainType` = `FUTURE`).
     Future(Box<FutureQuote>),
+    /// Futures option (`assetMainType` = `FUTURE_OPTION`).
     FutureOption(Box<FutureOptionQuote>),
+    /// Index (`assetMainType` = `INDEX`).
     Index(Box<IndexQuote>),
+    /// Mutual fund (`assetMainType` = `MUTUAL_FUND`).
     MutualFund(Box<MutualFundQuote>),
+    /// Lookup failure (the entry's symbol / CUSIP / SSID was invalid).
     Error(QuoteError),
     /// An `assetMainType` with no response schema (`BOND`) or one Schwab
     /// adds after this crate was published. The consumer can inspect
@@ -220,26 +232,37 @@ impl<'de> serde::Deserialize<'de> for QuoteEntry {
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct EquityQuote {
+    /// Asset class discriminator (always [`AssetMainType::Equity`]).
     #[serde(rename = "assetMainType")]
     pub asset_main_type: AssetMainType,
+    /// Sub-type (e.g. ETF, ADR, common equity).
     #[serde(rename = "assetSubType", default)]
     pub asset_sub_type: Option<AssetSubType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time, `false` for delayed.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Quote source / freshness classification.
     #[serde(rename = "quoteType", default)]
     pub quote_type: Option<QuoteType>,
+    /// Pre- / post-market quote block.
     #[serde(default)]
     pub extended: Option<ExtendedMarket>,
+    /// Fundamental data (dividends, P/E, volume averages, etc.).
     #[serde(default)]
     pub fundamental: Option<Fundamental>,
+    /// Live bid/ask/last quote block.
     #[serde(default)]
     pub quote: Option<QuoteEquity>,
+    /// Static reference data (CUSIP, exchange, shortability).
     #[serde(default)]
     pub reference: Option<ReferenceEquity>,
+    /// Last regular-session trade summary.
     #[serde(default)]
     pub regular: Option<RegularMarket>,
 }
@@ -248,167 +271,230 @@ pub struct EquityQuote {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteEquity {
+    /// 52-week high price, USD.
     #[serde(rename = "52WeekHigh", default, with = "decimal_opt")]
     pub week_52_high: Option<Decimal>,
+    /// 52-week low price, USD.
     #[serde(rename = "52WeekLow", default, with = "decimal_opt")]
     pub week_52_low: Option<Decimal>,
+    /// MIC venue id for the best ask.
     #[serde(rename = "askMICId", default)]
     pub ask_mic_id: Option<String>,
+    /// Best ask price, USD.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Best ask size (shares).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
     /// Last ask time in epoch milliseconds.
     #[serde(rename = "askTime", default)]
     pub ask_time: Option<i64>,
+    /// MIC venue id for the best bid.
     #[serde(rename = "bidMICId", default)]
     pub bid_mic_id: Option<String>,
+    /// Best bid price, USD.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Best bid size (shares).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
     /// Last bid time in epoch milliseconds.
     #[serde(rename = "bidTime", default)]
     pub bid_time: Option<i64>,
+    /// Prior session close price, USD.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Day high, USD.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// MIC venue id for the last trade.
     #[serde(rename = "lastMICId", default)]
     pub last_mic_id: Option<String>,
+    /// Last trade price, USD.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Last trade size (shares).
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i32>,
+    /// Day low, USD.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Mark price (mid / Schwab-computed reference), USD.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
+    /// Mark change since prior close, USD.
     #[serde(rename = "markChange", default, with = "decimal_opt")]
     pub mark_change: Option<Decimal>,
+    /// Mark change since prior close as a fraction.
     #[serde(rename = "markPercentChange", default, with = "decimal_opt")]
     pub mark_percent_change: Option<Decimal>,
+    /// Net change since prior close (last - close), USD.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "netPercentChange", default, with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Day open, USD.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
     /// Last quote time in epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// Security status (e.g. `"Normal"`, `"Halted"`).
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
+    /// Cumulative session volume (shares).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
     #[serde(rename = "tradeTime", default)]
     pub trade_time: Option<i64>,
+    /// Implied volatility (where Schwab supplies one for the equity).
     #[serde(default, with = "decimal_opt")]
     pub volatility: Option<Decimal>,
 }
 
+/// Static reference data for an equity quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceEquity {
+    /// CUSIP.
     #[serde(default)]
     pub cusip: Option<String>,
+    /// Issuer description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code (single letter, e.g. `"q"` for NASDAQ).
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
+    /// Financial Status Indicator description.
     #[serde(rename = "fsiDesc", default)]
     pub fsi_desc: Option<String>,
+    /// Hard-to-borrow quantity (shares available to short).
     #[serde(rename = "htbQuantity", default)]
     pub htb_quantity: Option<i32>,
+    /// Hard-to-borrow rate (annualized).
     #[serde(rename = "htbRate", default, with = "decimal_opt")]
     pub htb_rate: Option<Decimal>,
+    /// `true` if the equity is hard-to-borrow.
     #[serde(rename = "isHardToBorrow", default)]
     pub is_hard_to_borrow: Option<bool>,
+    /// `true` if the equity is shortable.
     #[serde(rename = "isShortable", default)]
     pub is_shortable: Option<bool>,
+    /// OTC market tier classification (when applicable).
     #[serde(rename = "otcMarketTier", default)]
     pub otc_market_tier: Option<String>,
 }
 
+/// Last regular-session trade summary.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct RegularMarket {
+    /// Last regular-session trade price, USD.
     #[serde(rename = "regularMarketLastPrice", default, with = "decimal_opt")]
     pub regular_market_last_price: Option<Decimal>,
+    /// Last regular-session trade size (shares).
     #[serde(rename = "regularMarketLastSize", default)]
     pub regular_market_last_size: Option<i32>,
+    /// Net change since prior close, USD.
     #[serde(rename = "regularMarketNetChange", default, with = "decimal_opt")]
     pub regular_market_net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "regularMarketPercentChange", default, with = "decimal_opt")]
     pub regular_market_percent_change: Option<Decimal>,
-    /// Epoch milliseconds.
+    /// Last regular-session trade time, epoch milliseconds.
     #[serde(rename = "regularMarketTradeTime", default)]
     pub regular_market_trade_time: Option<i64>,
 }
 
+/// Pre-/post-market quote block.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ExtendedMarket {
+    /// Extended-hours best ask, USD.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Extended-hours best ask size.
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
+    /// Extended-hours best bid, USD.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Extended-hours best bid size.
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
+    /// Extended-hours last trade price, USD.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Extended-hours last trade size.
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i32>,
+    /// Extended-hours mark price, USD.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
-    /// Epoch milliseconds.
+    /// Extended-hours last quote time, epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// Extended-hours cumulative volume.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Epoch milliseconds.
+    /// Extended-hours last trade time, epoch milliseconds.
     #[serde(rename = "tradeTime", default)]
     pub trade_time: Option<i64>,
 }
 
+/// Fundamental data block returned with equity and mutual-fund quotes.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Fundamental {
+    /// Trailing 10-day average daily volume (shares).
     #[serde(rename = "avg10DaysVolume", default, with = "decimal_opt")]
     pub avg_10_days_volume: Option<Decimal>,
+    /// Trailing 1-year average daily volume (shares).
     #[serde(rename = "avg1YearVolume", default, with = "decimal_opt")]
     pub avg_1_year_volume: Option<Decimal>,
-    /// Schwab ships these dates as ISO-8601 strings (`yyyy-MM-ddTHH:mm:ssZ`).
+    /// Dividend declaration date. Schwab ships these dates as ISO-8601
+    /// strings (`yyyy-MM-ddTHH:mm:ssZ`).
     #[serde(rename = "declarationDate", default)]
     pub declaration_date: Option<String>,
+    /// Most recent dividend amount, USD per share.
     #[serde(rename = "divAmount", default, with = "decimal_opt")]
     pub div_amount: Option<Decimal>,
+    /// Most recent dividend ex-date (ISO-8601 string).
     #[serde(rename = "divExDate", default)]
     pub div_ex_date: Option<String>,
     /// Number of dividends per year (1 = annual, 4 = quarterly, etc.).
     #[serde(rename = "divFreq", default)]
     pub div_freq: Option<i32>,
+    /// Most recent dividend pay amount, USD per share.
     #[serde(rename = "divPayAmount", default, with = "decimal_opt")]
     pub div_pay_amount: Option<Decimal>,
+    /// Most recent dividend pay date (ISO-8601 string).
     #[serde(rename = "divPayDate", default)]
     pub div_pay_date: Option<String>,
+    /// Trailing dividend yield as a fraction.
     #[serde(rename = "divYield", default, with = "decimal_opt")]
     pub div_yield: Option<Decimal>,
+    /// Trailing earnings per share, USD.
     #[serde(default, with = "decimal_opt")]
     pub eps: Option<Decimal>,
+    /// Leverage factor for leveraged funds (e.g. 3.0 for a 3x fund).
     #[serde(rename = "fundLeverageFactor", default, with = "decimal_opt")]
     pub fund_leverage_factor: Option<Decimal>,
+    /// Fund strategy classification (active/leveraged/passive/...).
     #[serde(rename = "fundStrategy", default)]
     pub fund_strategy: Option<FundStrategy>,
+    /// Next projected dividend ex-date (ISO-8601 string).
     #[serde(rename = "nextDivExDate", default)]
     pub next_div_ex_date: Option<String>,
+    /// Next projected dividend pay date (ISO-8601 string).
     #[serde(rename = "nextDivPayDate", default)]
     pub next_div_pay_date: Option<String>,
+    /// Trailing price-to-earnings ratio.
     #[serde(rename = "peRatio", default, with = "decimal_opt")]
     pub pe_ratio: Option<Decimal>,
 }
@@ -418,31 +504,40 @@ pub struct Fundamental {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteError {
+    /// CUSIPs Schwab could not resolve.
     #[serde(rename = "invalidCusips", default)]
     pub invalid_cusips: Vec<String>,
+    /// SSIDs Schwab could not resolve.
     #[serde(rename = "invalidSSIDs", default)]
     pub invalid_ssids: Vec<i64>,
+    /// Symbols Schwab could not resolve.
     #[serde(rename = "invalidSymbols", default)]
     pub invalid_symbols: Vec<String>,
 }
 
 // --- Option ---
 
-/// Option-asset response: the `quote` / `reference` sub-objects with the
+/// Option-asset response: the `quote`/`reference` sub-objects with the
 /// asset metadata.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OptionQuote {
+    /// Asset class discriminator.
     #[serde(rename = "assetMainType", default)]
     pub asset_main_type: Option<AssetMainType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol (Schwab OSI format, e.g. `"AAPL  240315C00200000"`).
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Live quote block (bid/ask/last + Greeks).
     #[serde(default)]
     pub quote: Option<QuoteOption>,
+    /// Static reference data (strike, expiration, deliverables).
     #[serde(default)]
     pub reference: Option<ReferenceOption>,
 }
@@ -452,24 +547,34 @@ pub struct OptionQuote {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteOption {
+    /// 52-week high price, USD.
     #[serde(rename = "52WeekHigh", default, with = "decimal_opt")]
     pub week_52_high: Option<Decimal>,
+    /// 52-week low price, USD.
     #[serde(rename = "52WeekLow", default, with = "decimal_opt")]
     pub week_52_low: Option<Decimal>,
+    /// Best ask premium, USD.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Best ask size (contracts).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
+    /// Best bid premium, USD.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Best bid size (contracts).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
+    /// Prior session close premium, USD.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Delta (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub delta: Option<Decimal>,
+    /// Gamma (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub gamma: Option<Decimal>,
+    /// Day high premium, USD.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
     /// Indicative ask price; only on indicative option symbols.
@@ -482,95 +587,133 @@ pub struct QuoteOption {
     /// option symbols.
     #[serde(rename = "indQuoteTime", default)]
     pub ind_quote_time: Option<i64>,
+    /// Implied yield (where Schwab supplies one).
     #[serde(rename = "impliedYield", default, with = "decimal_opt")]
     pub implied_yield: Option<Decimal>,
+    /// Last trade premium, USD.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Last trade size (contracts).
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i32>,
+    /// Day low premium, USD.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Mark price (mid/Schwab-computed reference), USD.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
+    /// Mark change since prior close, USD.
     #[serde(rename = "markChange", default, with = "decimal_opt")]
     pub mark_change: Option<Decimal>,
+    /// Mark change since prior close as a fraction.
     #[serde(rename = "markPercentChange", default, with = "decimal_opt")]
     pub mark_percent_change: Option<Decimal>,
+    /// In-the-money portion of the premium, USD.
     #[serde(rename = "moneyIntrinsicValue", default, with = "decimal_opt")]
     pub money_intrinsic_value: Option<Decimal>,
+    /// Net change since prior close, USD.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "netPercentChange", default, with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Open interest (contracts).
     #[serde(rename = "openInterest", default, with = "decimal_opt")]
     pub open_interest: Option<Decimal>,
+    /// Day open premium, USD.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
     /// Last quote time in epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// Rho (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub rho: Option<Decimal>,
+    /// Security status (e.g. `"Normal"`, `"Halted"`).
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
+    /// Theoretical fair value from Schwab's pricing model, USD.
     #[serde(rename = "theoreticalOptionValue", default, with = "decimal_opt")]
     pub theoretical_option_value: Option<Decimal>,
+    /// Theta (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub theta: Option<Decimal>,
+    /// Extrinsic (time) value, USD.
     #[serde(rename = "timeValue", default, with = "decimal_opt")]
     pub time_value: Option<Decimal>,
+    /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
     #[serde(rename = "tradeTime", default)]
     pub trade_time: Option<i64>,
+    /// Underlying price used by Schwab's pricing model, USD.
     #[serde(rename = "underlyingPrice", default, with = "decimal_opt")]
     pub underlying_price: Option<Decimal>,
+    /// Vega (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub vega: Option<Decimal>,
+    /// Implied volatility as a percentage.
     #[serde(default, with = "decimal_opt")]
     pub volatility: Option<Decimal>,
 }
 
+/// Static reference data for an option quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceOption {
+    /// Put/call discriminator.
     #[serde(rename = "contractType", default)]
     pub contract_type: Option<OptionContractType>,
+    /// CUSIP of the option contract.
     #[serde(default)]
     pub cusip: Option<String>,
+    /// Calendar days until expiration.
     #[serde(rename = "daysToExpiration", default)]
     pub days_to_expiration: Option<i32>,
     /// Unit of trade description.
     #[serde(default)]
     pub deliverables: Option<String>,
+    /// Human-readable contract description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
+    /// American/European exercise style.
     #[serde(rename = "exerciseType", default)]
     pub exercise_type: Option<ExerciseType>,
+    /// Day-of-month of expiration.
     #[serde(rename = "expirationDay", default)]
     pub expiration_day: Option<i32>,
+    /// Month of expiration (1-12).
     #[serde(rename = "expirationMonth", default)]
     pub expiration_month: Option<i32>,
+    /// Expiration classification (standard/weekly/quarterly/...).
     #[serde(rename = "expirationType", default)]
     pub expiration_type: Option<ExpirationType>,
+    /// Year of expiration.
     #[serde(rename = "expirationYear", default)]
     pub expiration_year: Option<i32>,
+    /// `true` if the contract is in the SEC Penny Pilot program.
     #[serde(rename = "isPennyPilot", default)]
     pub is_penny_pilot: Option<bool>,
-    /// Epoch milliseconds.
+    /// Last trading day, epoch milliseconds.
     #[serde(rename = "lastTradingDay", default)]
     pub last_trading_day: Option<i64>,
+    /// Shares-per-contract multiplier (typically 100).
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
+    /// Settlement classification (AM/PM).
     #[serde(rename = "settlementType", default)]
     pub settlement_type: Option<SettlementType>,
+    /// Strike price, USD.
     #[serde(rename = "strikePrice", default, with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
+    /// Symbol of the underlying instrument.
     #[serde(default)]
     pub underlying: Option<String>,
 }
@@ -581,62 +724,88 @@ pub struct ReferenceOption {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ForexQuote {
+    /// Asset class discriminator.
     #[serde(rename = "assetMainType", default)]
     pub asset_main_type: Option<AssetMainType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol (e.g. `"EUR/USD"`).
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Live quote block.
     #[serde(default)]
     pub quote: Option<QuoteForex>,
+    /// Static reference data for the pair.
     #[serde(default)]
     pub reference: Option<ReferenceForex>,
 }
 
+/// Live forex quote block.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteForex {
+    /// 52-week high (counter-currency units per base unit).
     #[serde(rename = "52WeekHigh", default, with = "decimal_opt")]
     pub week_52_high: Option<Decimal>,
+    /// 52-week low.
     #[serde(rename = "52WeekLow", default, with = "decimal_opt")]
     pub week_52_low: Option<Decimal>,
+    /// Best ask price.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Best ask size.
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
+    /// Best bid price.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Best bid size.
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
+    /// Prior session close.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Day high.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// Last trade price.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Last trade size.
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i32>,
+    /// Day low.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Mark price.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
+    /// Net change since prior close.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "netPercentChange", default, with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Day open.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
     /// Last quote time in epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
+    /// Minimum tick size.
     #[serde(default, with = "decimal_opt")]
     pub tick: Option<Decimal>,
+    /// Notional value of one tick.
     #[serde(rename = "tickAmount", default, with = "decimal_opt")]
     pub tick_amount: Option<Decimal>,
+    /// Cumulative session volume.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
@@ -644,21 +813,29 @@ pub struct QuoteForex {
     pub trade_time: Option<i64>,
 }
 
+/// Static reference data for a forex quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceForex {
+    /// Pair description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
+    /// `true` if the pair is tradable through Schwab.
     #[serde(rename = "isTradable", default)]
     pub is_tradable: Option<bool>,
+    /// Market maker name (when applicable).
     #[serde(rename = "marketMaker", default)]
     pub market_maker: Option<String>,
+    /// Product/instrument category.
     #[serde(default)]
     pub product: Option<String>,
+    /// Trading-hours description.
     #[serde(rename = "tradingHours", default)]
     pub trading_hours: Option<String>,
 }
@@ -669,77 +846,106 @@ pub struct ReferenceForex {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct FutureQuote {
+    /// Asset class discriminator.
     #[serde(rename = "assetMainType", default)]
     pub asset_main_type: Option<AssetMainType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol (Schwab CME format, e.g. `"/ESH24"`).
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Live quote block.
     #[serde(default)]
     pub quote: Option<QuoteFuture>,
+    /// Static reference data for the contract.
     #[serde(default)]
     pub reference: Option<ReferenceFuture>,
 }
 
+/// Live futures quote block.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteFuture {
+    /// MIC venue id for the best ask.
     #[serde(rename = "askMICId", default)]
     pub ask_mic_id: Option<String>,
+    /// Best ask price.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Best ask size (contracts).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
     /// Last ask time in epoch milliseconds.
     #[serde(rename = "askTime", default)]
     pub ask_time: Option<i64>,
+    /// MIC venue id for the best bid.
     #[serde(rename = "bidMICId", default)]
     pub bid_mic_id: Option<String>,
+    /// Best bid price.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Best bid size (contracts).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
     /// Last bid time in epoch milliseconds.
     #[serde(rename = "bidTime", default)]
     pub bid_time: Option<i64>,
+    /// Prior session settlement/close price.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Session price change as a fraction (futures-specific).
     #[serde(rename = "futurePercentChange", default, with = "decimal_opt")]
     pub future_percent_change: Option<Decimal>,
+    /// Day high price.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// MIC venue id for the last trade.
     #[serde(rename = "lastMICId", default)]
     pub last_mic_id: Option<String>,
+    /// Last trade price.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Last trade size (contracts).
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i32>,
+    /// Day low price.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Mark price.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
+    /// Net change since prior close.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Open interest (contracts).
     #[serde(rename = "openInterest", default)]
     pub open_interest: Option<i64>,
+    /// Day open price.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
     /// Last quote time in epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// `true` if the quote was sampled during a regular session.
     #[serde(rename = "quotedInSession", default)]
     pub quoted_in_session: Option<bool>,
+    /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
     /// Settlement time in epoch milliseconds.
     #[serde(rename = "settleTime", default)]
     pub settle_time: Option<i64>,
+    /// Minimum tick size.
     #[serde(default, with = "decimal_opt")]
     pub tick: Option<Decimal>,
+    /// Notional value of one tick, USD.
     #[serde(rename = "tickAmount", default, with = "decimal_opt")]
     pub tick_amount: Option<Decimal>,
+    /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
@@ -747,30 +953,41 @@ pub struct QuoteFuture {
     pub trade_time: Option<i64>,
 }
 
+/// Static reference data for a futures quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceFuture {
+    /// Contract description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
+    /// Active (front-month) symbol for this product.
     #[serde(rename = "futureActiveSymbol", default)]
     pub future_active_symbol: Option<String>,
-    /// Epoch milliseconds.
+    /// Expiration date in epoch milliseconds.
     #[serde(rename = "futureExpirationDate", default)]
     pub future_expiration_date: Option<i64>,
+    /// `true` if this contract is the front month.
     #[serde(rename = "futureIsActive", default)]
     pub future_is_active: Option<bool>,
+    /// Contract multiplier (USD per point).
     #[serde(rename = "futureMultiplier", default, with = "decimal_opt")]
     pub future_multiplier: Option<Decimal>,
+    /// Schwab price-format string.
     #[serde(rename = "futurePriceFormat", default)]
     pub future_price_format: Option<String>,
+    /// Settlement price, USD.
     #[serde(rename = "futureSettlementPrice", default, with = "decimal_opt")]
     pub future_settlement_price: Option<Decimal>,
+    /// Trading-hours description.
     #[serde(rename = "futureTradingHours", default)]
     pub future_trading_hours: Option<String>,
+    /// Product/root description.
     #[serde(default)]
     pub product: Option<String>,
 }
@@ -781,62 +998,88 @@ pub struct ReferenceFuture {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct FutureOptionQuote {
+    /// Asset class discriminator.
     #[serde(rename = "assetMainType", default)]
     pub asset_main_type: Option<AssetMainType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Live quote block.
     #[serde(default)]
     pub quote: Option<QuoteFutureOption>,
+    /// Static reference data for the contract.
     #[serde(default)]
     pub reference: Option<ReferenceFutureOption>,
 }
 
+/// Live futures-option quote block.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteFutureOption {
+    /// MIC venue id for the best ask.
     #[serde(rename = "askMICId", default)]
     pub ask_mic_id: Option<String>,
+    /// Best ask premium.
     #[serde(rename = "askPrice", default, with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
+    /// Best ask size (contracts).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
+    /// MIC venue id for the best bid.
     #[serde(rename = "bidMICId", default)]
     pub bid_mic_id: Option<String>,
+    /// Best bid premium.
     #[serde(rename = "bidPrice", default, with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
+    /// Best bid size (contracts).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
+    /// Prior session close premium.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Day high premium.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// MIC venue id for the last trade.
     #[serde(rename = "lastMICId", default)]
     pub last_mic_id: Option<String>,
+    /// Last trade premium.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Last trade size (contracts).
     #[serde(rename = "lastSize", default)]
     pub last_size: Option<i32>,
+    /// Day low premium.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Mark price.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
+    /// Mark change since prior close.
     #[serde(rename = "markChange", default, with = "decimal_opt")]
     pub mark_change: Option<Decimal>,
+    /// Net change since prior close.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "netPercentChange", default, with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Open interest (contracts).
     #[serde(rename = "openInterest", default)]
     pub open_interest: Option<i64>,
+    /// Day open premium.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
     /// Last quote time in epoch milliseconds.
     #[serde(rename = "quoteTime", default)]
     pub quote_time: Option<i64>,
+    /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
     /// Settlement price. Schwab's published schema misspells the wire key
@@ -848,10 +1091,13 @@ pub struct QuoteFutureOption {
         with = "decimal_opt"
     )]
     pub settlement_price: Option<Decimal>,
+    /// Minimum tick size.
     #[serde(default, with = "decimal_opt")]
     pub tick: Option<Decimal>,
+    /// Notional value of one tick, USD.
     #[serde(rename = "tickAmount", default, with = "decimal_opt")]
     pub tick_amount: Option<Decimal>,
+    /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
@@ -859,26 +1105,35 @@ pub struct QuoteFutureOption {
     pub trade_time: Option<i64>,
 }
 
+/// Static reference data for a futures-option quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceFutureOption {
+    /// Put/call discriminator.
     #[serde(rename = "contractType", default)]
     pub contract_type: Option<OptionContractType>,
+    /// Contract description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
+    /// Shares/units per contract multiplier.
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
-    /// Epoch milliseconds.
+    /// Expiration date in epoch milliseconds.
     #[serde(rename = "expirationDate", default)]
     pub expiration_date: Option<i64>,
+    /// Expiration style description (American/European/...).
     #[serde(rename = "expirationStyle", default)]
     pub expiration_style: Option<String>,
+    /// Strike price.
     #[serde(rename = "strikePrice", default, with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
+    /// Symbol of the underlying futures contract.
     #[serde(default)]
     pub underlying: Option<String>,
 }
@@ -889,43 +1144,62 @@ pub struct ReferenceFutureOption {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct IndexQuote {
+    /// Asset class discriminator.
     #[serde(rename = "assetMainType", default)]
     pub asset_main_type: Option<AssetMainType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol (e.g. `"$SPX"`).
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Live quote block (no bid/ask; indices are non-tradeable).
     #[serde(default)]
     pub quote: Option<QuoteIndex>,
+    /// Static reference data.
     #[serde(default)]
     pub reference: Option<ReferenceIndex>,
 }
 
+/// Live index quote block. Indices have no bid/ask; only last-price-style
+/// fields.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteIndex {
+    /// 52-week high.
     #[serde(rename = "52WeekHigh", default, with = "decimal_opt")]
     pub week_52_high: Option<Decimal>,
+    /// 52-week low.
     #[serde(rename = "52WeekLow", default, with = "decimal_opt")]
     pub week_52_low: Option<Decimal>,
+    /// Prior session close.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
+    /// Day high.
     #[serde(rename = "highPrice", default, with = "decimal_opt")]
     pub high_price: Option<Decimal>,
+    /// Last value.
     #[serde(rename = "lastPrice", default, with = "decimal_opt")]
     pub last_price: Option<Decimal>,
+    /// Day low.
     #[serde(rename = "lowPrice", default, with = "decimal_opt")]
     pub low_price: Option<Decimal>,
+    /// Net change since prior close.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(rename = "netPercentChange", default, with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Day open.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
+    /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
+    /// Cumulative session volume of constituent trades.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
@@ -933,13 +1207,17 @@ pub struct QuoteIndex {
     pub trade_time: Option<i64>,
 }
 
+/// Static reference data for an index quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceIndex {
+    /// Index description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
 }
@@ -950,42 +1228,58 @@ pub struct ReferenceIndex {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct MutualFundQuote {
+    /// Asset class discriminator.
     #[serde(rename = "assetMainType", default)]
     pub asset_main_type: Option<AssetMainType>,
+    /// Fund sub-type (open-end/closed-end/money-market).
     #[serde(rename = "assetSubType", default)]
     pub asset_sub_type: Option<MutualFundAssetSubType>,
+    /// Schwab security id.
     #[serde(default)]
     pub ssid: Option<i64>,
+    /// Wire symbol.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// `true` if the quote is real-time.
     #[serde(default)]
     pub realtime: Option<bool>,
+    /// Fundamental data (yields, expense ratio, etc.).
     #[serde(default)]
     pub fundamental: Option<Fundamental>,
+    /// Live quote block.
     #[serde(default)]
     pub quote: Option<QuoteMutualFund>,
+    /// Static reference data.
     #[serde(default)]
     pub reference: Option<ReferenceMutualFund>,
 }
 
+/// Live mutual-fund quote block. Mutual funds price once per day.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct QuoteMutualFund {
+    /// 52-week high NAV, USD.
     #[serde(rename = "52WeekHigh", default, with = "decimal_opt")]
     pub week_52_high: Option<Decimal>,
+    /// 52-week low NAV, USD.
     #[serde(rename = "52WeekLow", default, with = "decimal_opt")]
     pub week_52_low: Option<Decimal>,
+    /// Prior session close NAV, USD.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
-    /// Net asset value.
+    /// Net asset value, USD.
     #[serde(rename = "nAV", default, with = "decimal_opt")]
     pub nav: Option<Decimal>,
+    /// NAV change since prior close, USD.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// NAV change since prior close as a fraction.
     #[serde(rename = "netPercentChange", default, with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
+    /// Cumulative session volume (shares).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
     /// Last trade time in epoch milliseconds.
@@ -993,15 +1287,20 @@ pub struct QuoteMutualFund {
     pub trade_time: Option<i64>,
 }
 
+/// Static reference data for a mutual-fund quote.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ReferenceMutualFund {
+    /// CUSIP.
     #[serde(default)]
     pub cusip: Option<String>,
+    /// Fund description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab exchange code.
     #[serde(default)]
     pub exchange: Option<String>,
+    /// Exchange display name.
     #[serde(rename = "exchangeName", default)]
     pub exchange_name: Option<String>,
 }
@@ -1011,13 +1310,21 @@ pub struct ReferenceMutualFund {
 string_enum! {
     /// Asset class discriminator on a quote response.
     AssetMainType {
+        /// Bond. Schwab returns no typed schema for bond quotes.
         Bond = "BOND",
+        /// Equity.
         Equity = "EQUITY",
+        /// Forex pair.
         Forex = "FOREX",
+        /// Futures contract.
         Future = "FUTURE",
+        /// Futures option.
         FutureOption = "FUTURE_OPTION",
+        /// Index.
         Index = "INDEX",
+        /// Mutual fund.
         MutualFund = "MUTUAL_FUND",
+        /// Listed option.
         Option = "OPTION",
     }
 }
@@ -1025,15 +1332,25 @@ string_enum! {
 string_enum! {
     /// Asset sub-type (only applicable to some asset classes).
     AssetSubType {
+        /// Common stock.
         Coe = "COE",
+        /// Preferred stock.
         Prf = "PRF",
+        /// American Depositary Receipt.
         Adr = "ADR",
+        /// Global Depositary Receipt.
         Gdr = "GDR",
+        /// Closed-end fund.
         Cef = "CEF",
+        /// Exchange-traded fund.
         Etf = "ETF",
+        /// Exchange-traded note.
         Etn = "ETN",
+        /// Unit investment trust.
         Uit = "UIT",
+        /// Warrant.
         War = "WAR",
+        /// Right.
         Rgt = "RGT",
     }
 }
@@ -1052,10 +1369,15 @@ string_enum! {
     /// Fund-strategy code: A=Active, L=Leveraged, P=Passive,
     /// Q=Quantitative, S=Short.
     FundStrategy {
+        /// Actively managed.
         Active = "A",
+        /// Leveraged.
         Leveraged = "L",
+        /// Passive/index-tracking.
         Passive = "P",
+        /// Quantitative/rules-based.
         Quantitative = "Q",
+        /// Inverse/short.
         Short = "S",
     }
 }
@@ -1075,7 +1397,9 @@ string_enum! {
 string_enum! {
     /// Call/put discriminator on an option or future-option reference.
     OptionContractType {
+        /// Put.
         Put = "P",
+        /// Call.
         Call = "C",
     }
 }
@@ -1095,11 +1419,17 @@ string_enum! {
     /// combination via [`ListQuotesBuilder::fields`] /
     /// [`GetQuoteBuilder::fields`]; omitting the call defaults to `all`.
     QuoteField {
+        /// `quote` sub-object (live bid/ask/last).
         Quote = "quote",
+        /// `fundamental` sub-object (dividends, P/E, volumes).
         Fundamental = "fundamental",
+        /// `extended` sub-object (pre-/post-market data).
         Extended = "extended",
+        /// `reference` sub-object (CUSIP, exchange, classification).
         Reference = "reference",
+        /// `regular` sub-object (last regular-session trade).
         Regular = "regular",
+        /// All sub-objects (default).
         All = "all",
     }
 }
