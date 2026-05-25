@@ -136,9 +136,6 @@ impl TryFrom<u8> for Field {
 
 /// Typed payload for a single LEVELONE_FUTURES update.
 ///
-/// **Decimal precision**: prices deserialize via `rust_decimal::serde::float_option`,
-/// which routes through `f64` (~15-digit precision).
-///
 /// **Timestamps** are milliseconds since the Unix epoch (`u64`).
 ///
 /// **`future_price_format`** is documented by Schwab as `numerator,denominator`
