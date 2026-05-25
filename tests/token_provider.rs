@@ -72,9 +72,13 @@ async fn custom_provider_is_called_once_per_request() {
         .mount(&trader)
         .await;
 
+    // wiremock yields `http://` URIs; accepted in debug builds (where
+    // `cargo test` runs) and rejected otherwise.
     let client = SchwabClient::with_token_provider(provider.clone())
         .with_trader_base_url(trader.uri())
-        .with_market_data_base_url(market.uri());
+        .expect("wiremock URI is http:// which is permitted in debug builds")
+        .with_market_data_base_url(market.uri())
+        .expect("wiremock URI is http:// which is permitted in debug builds");
 
     // Three independent REST calls; the provider must be consulted on
     // each one.
@@ -96,7 +100,9 @@ async fn provider_failure_surfaces_without_network_io() {
     // error variant.
     let client = SchwabClient::with_token_provider(provider.clone())
         .with_trader_base_url(trader.uri())
-        .with_market_data_base_url(market.uri());
+        .expect("wiremock URI is http:// which is permitted in debug builds")
+        .with_market_data_base_url(market.uri())
+        .expect("wiremock URI is http:// which is permitted in debug builds");
 
     // Assert that the TokenProvider error is surfaced without network I/O.
     let err = client.accounts().numbers().await.unwrap_err();
@@ -130,7 +136,9 @@ async fn schwab_client_new_uses_static_provider_under_the_hood() {
 
     let client = SchwabClient::new(AuthToken::new("static-token"))
         .with_trader_base_url(trader.uri())
-        .with_market_data_base_url(market.uri());
+        .expect("wiremock URI is http:// which is permitted in debug builds")
+        .with_market_data_base_url(market.uri())
+        .expect("wiremock URI is http:// which is permitted in debug builds");
 
     client.accounts().numbers().await.unwrap();
     client.accounts().numbers().await.unwrap();
