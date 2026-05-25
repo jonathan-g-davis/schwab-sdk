@@ -78,21 +78,27 @@ pub struct GetPriceHistoryBuilder<'a> {
 }
 
 impl<'a> GetPriceHistoryBuilder<'a> {
+    /// Period unit (day/month/year/ytd). See this module's docs for
+    /// the legal combinations with [`Self::period`] / [`Self::frequency`].
     pub fn period_type(mut self, value: PeriodType) -> Self {
         self.period_type = Some(value);
         self
     }
 
+    /// Number of periods of [`Self::period_type`] to cover.
     pub fn period(mut self, value: i32) -> Self {
         self.period = Some(value);
         self
     }
 
+    /// Candle aggregation unit (minute/daily/weekly/monthly).
     pub fn frequency_type(mut self, value: FrequencyType) -> Self {
         self.frequency_type = Some(value);
         self
     }
 
+    /// Multiplier on [`Self::frequency_type`]. For minute candles, the
+    /// allowed values are `{1, 5, 10, 15, 30}`.
     pub fn frequency(mut self, value: i32) -> Self {
         self.frequency = Some(value);
         self
@@ -137,6 +143,7 @@ impl<'a> GetPriceHistoryBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<CandleList> {
         let md = self.client.market_data_http();
         let mut request = md
@@ -184,6 +191,7 @@ impl<'a> GetPriceHistoryBuilder<'a> {
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct CandleList {
+    /// OHLCV candles, in chronological order.
     #[serde(default)]
     pub candles: Vec<Candle>,
     /// `true` when Schwab returned zero candles for the request window.
@@ -192,12 +200,13 @@ pub struct CandleList {
     /// Populated only when the request set `need_previous_close=true`.
     #[serde(default, with = "decimal_opt", rename = "previousClose")]
     pub previous_close: Option<Decimal>,
-    /// Epoch milliseconds.
+    /// Previous-close date in epoch milliseconds.
     #[serde(default, rename = "previousCloseDate")]
     pub previous_close_date: Option<i64>,
     /// `yyyy-MM-dd` string companion to [`Self::previous_close_date`].
     #[serde(default, rename = "previousCloseDateISO8601")]
     pub previous_close_date_iso8601: Option<String>,
+    /// Symbol the candles belong to.
     #[serde(default)]
     pub symbol: Option<String>,
 }
@@ -206,21 +215,26 @@ pub struct CandleList {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Candle {
+    /// Candle open, USD.
     #[serde(default, with = "decimal_opt")]
     pub open: Option<Decimal>,
+    /// Candle high, USD.
     #[serde(default, with = "decimal_opt")]
     pub high: Option<Decimal>,
+    /// Candle low, USD.
     #[serde(default, with = "decimal_opt")]
     pub low: Option<Decimal>,
+    /// Candle close, USD.
     #[serde(default, with = "decimal_opt")]
     pub close: Option<Decimal>,
     /// Candle-open timestamp in epoch milliseconds.
     #[serde(default)]
     pub datetime: Option<i64>,
     /// `yyyy-MM-dd` string companion to [`Self::datetime`]; Schwab
-    /// includes this on daily / weekly / monthly aggregations.
+    /// includes this on daily/weekly/monthly aggregations.
     #[serde(default, rename = "datetimeISO8601")]
     pub datetime_iso8601: Option<String>,
+    /// Cumulative volume traded during the candle.
     #[serde(default)]
     pub volume: Option<i64>,
 }
@@ -230,9 +244,13 @@ pub struct Candle {
 string_enum! {
     /// `periodType` query parameter.
     PeriodType {
+        /// Day-period aggregation.
         Day = "day",
+        /// Month-period aggregation.
         Month = "month",
+        /// Year-period aggregation.
         Year = "year",
+        /// Year-to-date aggregation.
         Ytd = "ytd",
     }
 }
@@ -240,9 +258,13 @@ string_enum! {
 string_enum! {
     /// `frequencyType` query parameter (the candle aggregation).
     FrequencyType {
+        /// Intraday minute bars.
         Minute = "minute",
+        /// One candle per trading day.
         Daily = "daily",
+        /// One candle per trading week.
         Weekly = "weekly",
+        /// One candle per calendar month.
         Monthly = "monthly",
     }
 }
