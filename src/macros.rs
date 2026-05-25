@@ -37,6 +37,8 @@ macro_rules! string_enum {
                 #[strum(serialize = $wire)]
                 $variant,
             )*
+            /// A wire value Schwab sent that this crate does not recognize.
+            /// The raw string is preserved so callers can still route on it.
             #[strum(default)]
             Unknown(String),
         }

@@ -1,4 +1,4 @@
-//! `GET /accounts` family - Schwab Trader API.
+//! `GET /accounts` family
 //!
 //! Endpoints:
 //!
@@ -80,6 +80,7 @@ impl<'a> ListAccountsBuilder<'a> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<Vec<Account>> {
         let path = if self.include_positions {
             "/accounts?fields=positions"
@@ -107,6 +108,7 @@ impl<'a, 'b> GetAccountBuilder<'a, 'b> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<Account> {
         let hash = self.account_hash.expose_secret();
         let path = if self.include_positions {
@@ -126,8 +128,11 @@ impl<'a, 'b> GetAccountBuilder<'a, 'b> {
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct AccountNumberHash {
+    /// Plain account number (PII).
     #[serde(rename = "accountNumber")]
     pub account_number: AccountNumber,
+    /// Encrypted hash used as the `{accountNumber}` path segment on every
+    /// other Trader API endpoint.
     #[serde(rename = "hashValue")]
     pub hash_value: AccountHash,
 }
@@ -136,6 +141,7 @@ pub struct AccountNumberHash {
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Account {
+    /// Account-specific balances, positions, and identifiers.
     #[serde(rename = "securitiesAccount")]
     pub securities_account: SecuritiesAccount,
 }
@@ -156,13 +162,17 @@ pub struct Account {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum SecuritiesAccount {
+    /// Margin account (`type: "MARGIN"`).
     Margin(MarginAccount),
+    /// Cash account (`type: "CASH"`).
     Cash(CashAccount),
     /// Account `type` Schwab returned that this crate does not recognize.
     /// `account_type` is the raw discriminator string; `raw` is the full
     /// `securitiesAccount` object as Schwab sent it, for diagnostics.
     Unknown {
+        /// Raw `type` discriminator Schwab sent.
         account_type: String,
+        /// Full `securitiesAccount` object as JSON for diagnostics.
         raw: serde_json::Value,
     },
 }
@@ -207,8 +217,9 @@ impl SecuritiesAccount {
         }
     }
 
-    /// `None` if the account type is unrecognized (the typed account number
-    /// is not extracted from the raw JSON).
+    /// The account number.
+    /// 
+    /// Unrecognized account types return `None`.
     pub fn account_number(&self) -> Option<&AccountNumber> {
         match self {
             SecuritiesAccount::Margin(a) => Some(&a.account_number),
@@ -217,9 +228,9 @@ impl SecuritiesAccount {
         }
     }
 
-    /// Empty slice for an unrecognized account type. Iteration and
-    /// emptiness checks still work; callers that need to distinguish "no
-    /// positions" from "unknown account" should match on the variant.
+    /// The positions for the account.
+    /// 
+    /// Unrecognized account types return an empty slice.
     pub fn positions(&self) -> &[Position] {
         match self {
             SecuritiesAccount::Margin(a) => &a.positions,
@@ -228,7 +239,9 @@ impl SecuritiesAccount {
         }
     }
 
-    /// `None` if the account type is unrecognized. Silent `false` would be
+    /// Whether the account is a pattern day trader.
+    /// 
+    /// Unrecognized account types return `None`. Silent `false` would be
     /// dangerous in a trading context (it would let PDT-sensitive logic
     /// run against an account whose status is genuinely not known), so the
     /// caller is forced to decide.
@@ -241,6 +254,7 @@ impl SecuritiesAccount {
     }
 }
 
+/// Margin account body inside a [`SecuritiesAccount::Margin`].
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct MarginAccount {
@@ -248,25 +262,33 @@ pub struct MarginAccount {
     /// encrypted [`AccountHash`] instead.
     #[serde(rename = "accountNumber")]
     pub account_number: AccountNumber,
+    /// Round-trip count used for PDT classification.
     #[serde(rename = "roundTrips", default)]
     pub round_trips: i32,
+    /// `true` if Schwab has flagged this account as a pattern day trader.
     #[serde(rename = "isDayTrader", default)]
     pub is_day_trader: bool,
+    /// `true` if Schwab has restricted the account to closing-only trades.
     #[serde(rename = "isClosingOnlyRestricted", default)]
     pub is_closing_only_restricted: bool,
+    /// Schwab `pfcbFlag` (post free credit balance) indicator.
     #[serde(rename = "pfcbFlag", default)]
     pub pfcb_flag: bool,
     /// Empty unless the request included `fields=positions`.
     #[serde(default)]
     pub positions: Vec<Position>,
+    /// Balances at the start of the trading day, before any session activity.
     #[serde(rename = "initialBalances", default)]
     pub initial_balances: Option<MarginInitialBalance>,
+    /// Balances reflecting all settled activity to date.
     #[serde(rename = "currentBalances", default)]
     pub current_balances: Option<MarginBalance>,
+    /// Balances Schwab projects after pending (unsettled) activity clears.
     #[serde(rename = "projectedBalances", default)]
     pub projected_balances: Option<MarginBalance>,
 }
 
+/// Cash account body inside a [`SecuritiesAccount::Cash`].
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct CashAccount {
@@ -274,256 +296,377 @@ pub struct CashAccount {
     /// encrypted [`AccountHash`] instead.
     #[serde(rename = "accountNumber")]
     pub account_number: AccountNumber,
+    /// Round-trip count used for PDT classification.
     #[serde(rename = "roundTrips", default)]
     pub round_trips: i32,
+    /// `true` if Schwab has flagged this account as a pattern day trader.
     #[serde(rename = "isDayTrader", default)]
     pub is_day_trader: bool,
+    /// `true` if Schwab has restricted the account to closing-only trades.
     #[serde(rename = "isClosingOnlyRestricted", default)]
     pub is_closing_only_restricted: bool,
+    /// Schwab `pfcbFlag` (post free credit balance) indicator.
     #[serde(rename = "pfcbFlag", default)]
     pub pfcb_flag: bool,
     /// Empty unless the request included `fields=positions`.
     #[serde(default)]
     pub positions: Vec<Position>,
+    /// Balances at the start of the trading day, before any session activity.
     #[serde(rename = "initialBalances", default)]
     pub initial_balances: Option<CashInitialBalance>,
+    /// Balances reflecting all settled activity to date.
     #[serde(rename = "currentBalances", default)]
     pub current_balances: Option<CashBalance>,
+    /// Balances Schwab projects after pending (unsettled) activity clears.
     #[serde(rename = "projectedBalances", default)]
     pub projected_balances: Option<CashBalance>,
 }
 
+/// Margin-account `initialBalances` block: snapshot at session start.
+///
+/// Every field is `Option<Decimal>`; `None` distinguishes "Schwab omitted the
+/// field" from "Schwab sent zero." All money values are USD.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct MarginInitialBalance {
+    /// Interest accrued but not yet posted.
     #[serde(default, with = "decimal_opt", rename = "accruedInterest")]
     pub accrued_interest: Option<Decimal>,
+    /// Funds available to trade non-marginable securities.
     #[serde(
         default,
         with = "decimal_opt",
         rename = "availableFundsNonMarginableTrade"
     )]
     pub available_funds_non_marginable_trade: Option<Decimal>,
+    /// Market value of bond holdings.
     #[serde(default, with = "decimal_opt", rename = "bondValue")]
     pub bond_value: Option<Decimal>,
+    /// Total buying power.
     #[serde(default, with = "decimal_opt", rename = "buyingPower")]
     pub buying_power: Option<Decimal>,
+    /// Cash on hand (settled + unsettled).
     #[serde(default, with = "decimal_opt", rename = "cashBalance")]
     pub cash_balance: Option<Decimal>,
+    /// Cash available for new trades after pending activity.
     #[serde(default, with = "decimal_opt", rename = "cashAvailableForTrading")]
     pub cash_available_for_trading: Option<Decimal>,
+    /// Pending cash receipts not yet settled.
     #[serde(default, with = "decimal_opt", rename = "cashReceipts")]
     pub cash_receipts: Option<Decimal>,
+    /// Day-trading buying power (4x rule for PDT accounts).
     #[serde(default, with = "decimal_opt", rename = "dayTradingBuyingPower")]
     pub day_trading_buying_power: Option<Decimal>,
+    /// Outstanding day-trading buying-power call, if any.
     #[serde(default, with = "decimal_opt", rename = "dayTradingBuyingPowerCall")]
     pub day_trading_buying_power_call: Option<Decimal>,
+    /// Outstanding day-trading equity call, if any.
     #[serde(default, with = "decimal_opt", rename = "dayTradingEquityCall")]
     pub day_trading_equity_call: Option<Decimal>,
+    /// Account equity (assets minus margin debt).
     #[serde(default, with = "decimal_opt")]
     pub equity: Option<Decimal>,
+    /// Equity as a percentage of total account value.
     #[serde(default, with = "decimal_opt", rename = "equityPercentage")]
     pub equity_percentage: Option<Decimal>,
+    /// Liquidation value if every position were closed at the mark.
     #[serde(default, with = "decimal_opt", rename = "liquidationValue")]
     pub liquidation_value: Option<Decimal>,
+    /// Long margin value (loanable portion of long positions).
     #[serde(default, with = "decimal_opt", rename = "longMarginValue")]
     pub long_margin_value: Option<Decimal>,
+    /// Market value of long option positions.
     #[serde(default, with = "decimal_opt", rename = "longOptionMarketValue")]
     pub long_option_market_value: Option<Decimal>,
+    /// Market value of long stock positions.
     #[serde(default, with = "decimal_opt", rename = "longStockValue")]
     pub long_stock_value: Option<Decimal>,
+    /// Outstanding maintenance call, if any.
     #[serde(default, with = "decimal_opt", rename = "maintenanceCall")]
     pub maintenance_call: Option<Decimal>,
+    /// Maintenance margin requirement.
     #[serde(default, with = "decimal_opt", rename = "maintenanceRequirement")]
     pub maintenance_requirement: Option<Decimal>,
+    /// Margin loan balance.
     #[serde(default, with = "decimal_opt")]
     pub margin: Option<Decimal>,
+    /// Equity in the margin account.
     #[serde(default, with = "decimal_opt", rename = "marginEquity")]
     pub margin_equity: Option<Decimal>,
+    /// Money-market fund holdings.
     #[serde(default, with = "decimal_opt", rename = "moneyMarketFund")]
     pub money_market_fund: Option<Decimal>,
+    /// Market value of mutual-fund holdings.
     #[serde(default, with = "decimal_opt", rename = "mutualFundValue")]
     pub mutual_fund_value: Option<Decimal>,
+    /// Outstanding Reg-T call, if any.
     #[serde(default, with = "decimal_opt", rename = "regTCall")]
     pub reg_t_call: Option<Decimal>,
+    /// Short margin value.
     #[serde(default, with = "decimal_opt", rename = "shortMarginValue")]
     pub short_margin_value: Option<Decimal>,
+    /// Market value of short option positions.
     #[serde(default, with = "decimal_opt", rename = "shortOptionMarketValue")]
     pub short_option_market_value: Option<Decimal>,
+    /// Market value of short stock positions.
     #[serde(default, with = "decimal_opt", rename = "shortStockValue")]
     pub short_stock_value: Option<Decimal>,
+    /// Total cash across settlement classes.
     #[serde(default, with = "decimal_opt", rename = "totalCash")]
     pub total_cash: Option<Decimal>,
+    /// Non-zero if the account is in a call.
     #[serde(default, with = "decimal_opt", rename = "isInCall")]
     pub is_in_call: Option<Decimal>,
+    /// Cash from pending trades not yet settled.
     #[serde(default, with = "decimal_opt", rename = "unsettledCash")]
     pub unsettled_cash: Option<Decimal>,
+    /// Deposits in transit, not yet available to trade.
     #[serde(default, with = "decimal_opt", rename = "pendingDeposits")]
     pub pending_deposits: Option<Decimal>,
+    /// Net margin balance (debit if borrowed, credit if not).
     #[serde(default, with = "decimal_opt", rename = "marginBalance")]
     pub margin_balance: Option<Decimal>,
+    /// Net short balance.
     #[serde(default, with = "decimal_opt", rename = "shortBalance")]
     pub short_balance: Option<Decimal>,
+    /// Total account value.
     #[serde(default, with = "decimal_opt", rename = "accountValue")]
     pub account_value: Option<Decimal>,
 }
 
+/// Margin-account current / projected balances. Same units as
+/// [`MarginInitialBalance`] (USD, `None` means Schwab omitted the field).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct MarginBalance {
+    /// Funds available to enter new trades.
     #[serde(default, with = "decimal_opt", rename = "availableFunds")]
     pub available_funds: Option<Decimal>,
+    /// Funds available to trade non-marginable securities.
     #[serde(
         default,
         with = "decimal_opt",
         rename = "availableFundsNonMarginableTrade"
     )]
     pub available_funds_non_marginable_trade: Option<Decimal>,
+    /// Total buying power.
     #[serde(default, with = "decimal_opt", rename = "buyingPower")]
     pub buying_power: Option<Decimal>,
+    /// Buying power for non-marginable securities.
     #[serde(
         default,
         with = "decimal_opt",
         rename = "buyingPowerNonMarginableTrade"
     )]
     pub buying_power_non_marginable_trade: Option<Decimal>,
+    /// Day-trading buying power.
     #[serde(default, with = "decimal_opt", rename = "dayTradingBuyingPower")]
     pub day_trading_buying_power: Option<Decimal>,
+    /// Outstanding day-trading buying-power call.
     #[serde(default, with = "decimal_opt", rename = "dayTradingBuyingPowerCall")]
     pub day_trading_buying_power_call: Option<Decimal>,
+    /// Account equity.
     #[serde(default, with = "decimal_opt")]
     pub equity: Option<Decimal>,
+    /// Equity as a percentage of total account value.
     #[serde(default, with = "decimal_opt", rename = "equityPercentage")]
     pub equity_percentage: Option<Decimal>,
+    /// Long margin value.
     #[serde(default, with = "decimal_opt", rename = "longMarginValue")]
     pub long_margin_value: Option<Decimal>,
+    /// Outstanding maintenance call.
     #[serde(default, with = "decimal_opt", rename = "maintenanceCall")]
     pub maintenance_call: Option<Decimal>,
+    /// Maintenance margin requirement.
     #[serde(default, with = "decimal_opt", rename = "maintenanceRequirement")]
     pub maintenance_requirement: Option<Decimal>,
+    /// Net margin balance.
     #[serde(default, with = "decimal_opt", rename = "marginBalance")]
     pub margin_balance: Option<Decimal>,
+    /// Outstanding Reg-T call.
     #[serde(default, with = "decimal_opt", rename = "regTCall")]
     pub reg_t_call: Option<Decimal>,
+    /// Net short balance.
     #[serde(default, with = "decimal_opt", rename = "shortBalance")]
     pub short_balance: Option<Decimal>,
+    /// Short margin value.
     #[serde(default, with = "decimal_opt", rename = "shortMarginValue")]
     pub short_margin_value: Option<Decimal>,
+    /// Special memorandum account balance.
     #[serde(default, with = "decimal_opt")]
     pub sma: Option<Decimal>,
+    /// Non-zero if the account is in a call.
     #[serde(default, with = "decimal_opt", rename = "isInCall")]
     pub is_in_call: Option<Decimal>,
+    /// Buying power available specifically for stock trades.
     #[serde(default, with = "decimal_opt", rename = "stockBuyingPower")]
     pub stock_buying_power: Option<Decimal>,
+    /// Buying power available specifically for option trades.
     #[serde(default, with = "decimal_opt", rename = "optionBuyingPower")]
     pub option_buying_power: Option<Decimal>,
 }
 
+/// Cash-account `initialBalances` block: snapshot at session start.
+///
+/// Every field is `Option<Decimal>`; `None` means Schwab omitted the field.
+/// USD throughout.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct CashInitialBalance {
+    /// Interest accrued but not yet posted.
     #[serde(default, with = "decimal_opt", rename = "accruedInterest")]
     pub accrued_interest: Option<Decimal>,
+    /// Cash available for new trades.
     #[serde(default, with = "decimal_opt", rename = "cashAvailableForTrading")]
     pub cash_available_for_trading: Option<Decimal>,
+    /// Cash available for withdrawal.
     #[serde(default, with = "decimal_opt", rename = "cashAvailableForWithdrawal")]
     pub cash_available_for_withdrawal: Option<Decimal>,
+    /// Cash on hand (settled + unsettled).
     #[serde(default, with = "decimal_opt", rename = "cashBalance")]
     pub cash_balance: Option<Decimal>,
+    /// Market value of bond holdings.
     #[serde(default, with = "decimal_opt", rename = "bondValue")]
     pub bond_value: Option<Decimal>,
+    /// Pending cash receipts not yet settled.
     #[serde(default, with = "decimal_opt", rename = "cashReceipts")]
     pub cash_receipts: Option<Decimal>,
+    /// Liquidation value if every position were closed at the mark.
     #[serde(default, with = "decimal_opt", rename = "liquidationValue")]
     pub liquidation_value: Option<Decimal>,
+    /// Market value of long option positions.
     #[serde(default, with = "decimal_opt", rename = "longOptionMarketValue")]
     pub long_option_market_value: Option<Decimal>,
+    /// Market value of long stock positions.
     #[serde(default, with = "decimal_opt", rename = "longStockValue")]
     pub long_stock_value: Option<Decimal>,
+    /// Money-market fund holdings.
     #[serde(default, with = "decimal_opt", rename = "moneyMarketFund")]
     pub money_market_fund: Option<Decimal>,
+    /// Market value of mutual-fund holdings.
     #[serde(default, with = "decimal_opt", rename = "mutualFundValue")]
     pub mutual_fund_value: Option<Decimal>,
+    /// Market value of short option positions.
     #[serde(default, with = "decimal_opt", rename = "shortOptionMarketValue")]
     pub short_option_market_value: Option<Decimal>,
+    /// Market value of short stock positions.
     #[serde(default, with = "decimal_opt", rename = "shortStockValue")]
     pub short_stock_value: Option<Decimal>,
+    /// Non-zero if the account is in a call.
     #[serde(default, with = "decimal_opt", rename = "isInCall")]
     pub is_in_call: Option<Decimal>,
+    /// Cash from pending trades not yet settled.
     #[serde(default, with = "decimal_opt", rename = "unsettledCash")]
     pub unsettled_cash: Option<Decimal>,
+    /// Outstanding cash-debit call, if any.
     #[serde(default, with = "decimal_opt", rename = "cashDebitCallValue")]
     pub cash_debit_call_value: Option<Decimal>,
+    /// Deposits in transit, not yet available to trade.
     #[serde(default, with = "decimal_opt", rename = "pendingDeposits")]
     pub pending_deposits: Option<Decimal>,
+    /// Total account value.
     #[serde(default, with = "decimal_opt", rename = "accountValue")]
     pub account_value: Option<Decimal>,
 }
 
+/// Cash-account current / projected balances. Same units as
+/// [`CashInitialBalance`].
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct CashBalance {
+    /// Cash available for new trades.
     #[serde(default, with = "decimal_opt", rename = "cashAvailableForTrading")]
     pub cash_available_for_trading: Option<Decimal>,
+    /// Cash available for withdrawal.
     #[serde(default, with = "decimal_opt", rename = "cashAvailableForWithdrawal")]
     pub cash_available_for_withdrawal: Option<Decimal>,
+    /// Outstanding cash call.
     #[serde(default, with = "decimal_opt", rename = "cashCall")]
     pub cash_call: Option<Decimal>,
+    /// Market value of long non-marginable positions.
     #[serde(default, with = "decimal_opt", rename = "longNonMarginableMarketValue")]
     pub long_non_marginable_market_value: Option<Decimal>,
+    /// Total cash across settlement classes.
     #[serde(default, with = "decimal_opt", rename = "totalCash")]
     pub total_cash: Option<Decimal>,
+    /// Outstanding cash-debit call.
     #[serde(default, with = "decimal_opt", rename = "cashDebitCallValue")]
     pub cash_debit_call_value: Option<Decimal>,
+    /// Cash from pending trades not yet settled.
     #[serde(default, with = "decimal_opt", rename = "unsettledCash")]
     pub unsettled_cash: Option<Decimal>,
 }
 
+/// One open position in an account.
+///
+/// Schwab reports both long and short sides on the same row. Quantities are
+/// signed by side (`long_quantity` for the long leg, `short_quantity` for the
+/// short leg). All monetary values are USD.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Position {
+    /// Short quantity (shares / contracts).
     #[serde(default, with = "decimal_opt", rename = "shortQuantity")]
     pub short_quantity: Option<Decimal>,
+    /// Average open price across all lots on this position.
     #[serde(default, with = "decimal_opt", rename = "averagePrice")]
     pub average_price: Option<Decimal>,
+    /// P/L accrued during the current trading session.
     #[serde(default, with = "decimal_opt", rename = "currentDayProfitLoss")]
     pub current_day_profit_loss: Option<Decimal>,
+    /// Current-session P/L as a percentage of opening basis.
     #[serde(
         default,
         with = "decimal_opt",
         rename = "currentDayProfitLossPercentage"
     )]
     pub current_day_profit_loss_percentage: Option<Decimal>,
+    /// Long quantity (shares / contracts).
     #[serde(default, with = "decimal_opt", rename = "longQuantity")]
     pub long_quantity: Option<Decimal>,
+    /// Long quantity that has settled.
     #[serde(default, with = "decimal_opt", rename = "settledLongQuantity")]
     pub settled_long_quantity: Option<Decimal>,
+    /// Short quantity that has settled.
     #[serde(default, with = "decimal_opt", rename = "settledShortQuantity")]
     pub settled_short_quantity: Option<Decimal>,
+    /// Quantity past its aging threshold (used in some buying-power rules).
     #[serde(default, with = "decimal_opt", rename = "agedQuantity")]
     pub aged_quantity: Option<Decimal>,
+    /// Instrument identifying what the position is in.
     #[serde(default)]
     pub instrument: Option<AccountsInstrument>,
+    /// Mark-to-market value of the position.
     #[serde(default, with = "decimal_opt", rename = "marketValue")]
     pub market_value: Option<Decimal>,
+    /// Maintenance margin requirement for this position.
     #[serde(default, with = "decimal_opt", rename = "maintenanceRequirement")]
     pub maintenance_requirement: Option<Decimal>,
+    /// Average open price of the long leg.
     #[serde(default, with = "decimal_opt", rename = "averageLongPrice")]
     pub average_long_price: Option<Decimal>,
+    /// Average open price of the short leg.
     #[serde(default, with = "decimal_opt", rename = "averageShortPrice")]
     pub average_short_price: Option<Decimal>,
+    /// Tax-lot weighted average price of the long leg.
     #[serde(default, with = "decimal_opt", rename = "taxLotAverageLongPrice")]
     pub tax_lot_average_long_price: Option<Decimal>,
+    /// Tax-lot weighted average price of the short leg.
     #[serde(default, with = "decimal_opt", rename = "taxLotAverageShortPrice")]
     pub tax_lot_average_short_price: Option<Decimal>,
+    /// Open P/L on the long leg.
     #[serde(default, with = "decimal_opt", rename = "longOpenProfitLoss")]
     pub long_open_profit_loss: Option<Decimal>,
+    /// Open P/L on the short leg.
     #[serde(default, with = "decimal_opt", rename = "shortOpenProfitLoss")]
     pub short_open_profit_loss: Option<Decimal>,
+    /// Long quantity carried over from the prior session.
     #[serde(default, with = "decimal_opt", rename = "previousSessionLongQuantity")]
     pub previous_session_long_quantity: Option<Decimal>,
+    /// Short quantity carried over from the prior session.
     #[serde(default, with = "decimal_opt", rename = "previousSessionShortQuantity")]
     pub previous_session_short_quantity: Option<Decimal>,
+    /// Net cost basis of trades executed in the current session.
     #[serde(default, with = "decimal_opt", rename = "currentDayCost")]
     pub current_day_cost: Option<Decimal>,
 }
@@ -535,49 +678,70 @@ pub struct Position {
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct AccountsInstrument {
+    /// Asset-class discriminator. Match on this to interpret the variant-
+    /// specific fields below.
     #[serde(rename = "assetType")]
     pub asset_type: AssetType,
+    /// CUSIP, when Schwab has assigned one.
     #[serde(default)]
     pub cusip: Option<String>,
+    /// Wire symbol (Schwab format - e.g. OCC OSI for options).
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Human-readable description.
     #[serde(default)]
     pub description: Option<String>,
+    /// Schwab-internal instrument id.
     #[serde(default, rename = "instrumentId")]
     pub instrument_id: Option<i64>,
+    /// Net price change since the prior close, USD.
     #[serde(default, with = "decimal_opt", rename = "netChange")]
     pub net_change: Option<Decimal>,
 
     // Option-specific fields. `None` on non-option asset types.
+    /// Option deliverables. Empty on non-option asset types.
     #[serde(default, rename = "optionDeliverables")]
     pub option_deliverables: Vec<AccountApiOptionDeliverable>,
+    /// `Put` / `Call` flag for options.
     #[serde(default, rename = "putCall")]
     pub put_call: Option<PutCall>,
+    /// Shares-per-contract multiplier for options (typically 100).
     #[serde(default, rename = "optionMultiplier")]
     pub option_multiplier: Option<i32>,
+    /// Option style (`VANILLA` / `BINARY` / `BARRIER`).
     #[serde(default, rename = "type")]
     pub option_type: Option<OptionType>,
+    /// Symbol of the underlying instrument for options.
     #[serde(default, rename = "underlyingSymbol")]
     pub underlying_symbol: Option<String>,
 
     // Fixed-income-specific fields. `None` on non-fixed-income asset types.
+    /// Maturity date for fixed-income instruments.
     #[serde(default, rename = "maturityDate")]
     pub maturity_date: Option<DateTime<Utc>>,
+    /// Mortgage-backed pool factor (remaining principal fraction).
     #[serde(default, with = "decimal_opt")]
     pub factor: Option<Decimal>,
+    /// Current coupon rate for floating-rate fixed-income instruments.
     #[serde(default, with = "decimal_opt", rename = "variableRate")]
     pub variable_rate: Option<Decimal>,
 }
 
+/// One deliverable component of an option contract (the security delivered
+/// per contract on assignment / exercise).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct AccountApiOptionDeliverable {
+    /// Symbol of the deliverable security.
     #[serde(default)]
     pub symbol: Option<String>,
+    /// Units delivered per contract.
     #[serde(default, with = "decimal_opt", rename = "deliverableUnits")]
     pub deliverable_units: Option<Decimal>,
+    /// Settlement currency.
     #[serde(default, rename = "apiCurrencyType")]
     pub currency_type: Option<ApiCurrencyType>,
+    /// Asset class of the deliverable.
     #[serde(default, rename = "assetType")]
     pub asset_type: Option<AssetType>,
 }
@@ -585,16 +749,27 @@ pub struct AccountApiOptionDeliverable {
 string_enum! {
     /// Schwab `assetType` discriminator.
     AssetType {
+        /// Listed equity (common / preferred / ADR).
         Equity = "EQUITY",
+        /// Mutual fund.
         MutualFund = "MUTUAL_FUND",
+        /// Listed option contract.
         Option = "OPTION",
+        /// Futures contract.
         Future = "FUTURE",
+        /// Foreign-exchange pair.
         Forex = "FOREX",
+        /// Market index (non-tradeable reference).
         Index = "INDEX",
+        /// Money-market or other cash-equivalent.
         CashEquivalent = "CASH_EQUIVALENT",
+        /// Fixed-income security (bond, note, bill).
         FixedIncome = "FIXED_INCOME",
+        /// Schwab "product" wrapper (structured product, etc.).
         Product = "PRODUCT",
+        /// Currency (cash holding).
         Currency = "CURRENCY",
+        /// Collective investment trust or similar pooled vehicle.
         CollectiveInvestment = "COLLECTIVE_INVESTMENT",
     }
 }
@@ -606,27 +781,41 @@ impl Default for AssetType {
 }
 
 string_enum! {
+    /// Whether an option contract is a put or a call.
     PutCall {
+        /// Put.
         Put = "PUT",
+        /// Call.
         Call = "CALL",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// Option payoff style.
     OptionType {
+        /// Standard listed option.
         Vanilla = "VANILLA",
+        /// Binary (cash-or-nothing) option.
         Binary = "BINARY",
+        /// Barrier option.
         Barrier = "BARRIER",
+        /// Schwab sent the literal string `"UNKNOWN"`.
         UnknownSchwab = "UNKNOWN",
     }
 }
 
 string_enum! {
+    /// Settlement currency for an option deliverable.
     ApiCurrencyType {
+        /// US dollar.
         Usd = "USD",
+        /// Canadian dollar.
         Cad = "CAD",
+        /// Euro.
         Eur = "EUR",
+        /// Japanese yen.
         Jpy = "JPY",
     }
 }

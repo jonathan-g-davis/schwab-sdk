@@ -1,5 +1,5 @@
 //! Typed Rust client for the Charles Schwab Trader API and streamer WebSocket.
-//! 
+//!
 //! All features of the Trader API are exposed through [`SchwabClient`]. From
 //! it, namespace accessors return typed endpoint builders:
 //!
