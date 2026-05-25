@@ -29,50 +29,95 @@ impl SubscriptionField for Field {
     EnumString,
     FromRepr,
 )]
+/// Numbered subscription field for LEVELONE_FUTURES.
+///
+/// Pass any combination to [`SubscribeRequest::fields`](crate::streamer::SubscribeRequest::fields);
+/// each variant corresponds 1:1 with the matching field on [`Content`].
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum Field {
+    /// Wire symbol (field 0).
     Symbol,
+    /// Best bid (field 1).
     BidPrice,
+    /// Best ask (field 2).
     AskPrice,
+    /// Last trade price (field 3).
     LastPrice,
+    /// Best bid size, contracts (field 4).
     BidSize,
+    /// Best ask size, contracts (field 5).
     AskSize,
+    /// MIC venue id for the best bid (field 6).
     BidId,
+    /// MIC venue id for the best ask (field 7).
     AskId,
+    /// Cumulative session volume, contracts (field 8).
     TotalVolume,
+    /// Last trade size, contracts (field 9).
     LastSize,
+    /// Last quote time, epoch milliseconds (field 10).
     QuoteTime,
+    /// Last trade time, epoch milliseconds (field 11).
     TradeTime,
+    /// Day high (field 12).
     HighPrice,
+    /// Day low (field 13).
     LowPrice,
+    /// Prior session close (field 14).
     ClosePrice,
+    /// Schwab exchange code (field 15).
     ExchangeId,
+    /// Contract description (field 16).
     Description,
+    /// MIC venue id for the last trade (field 17).
     LastId,
+    /// Day open (field 18).
     OpenPrice,
+    /// Net change since prior close (field 19).
     NetChange,
+    /// Session price change as a fraction (field 20).
     FuturePercentChange,
+    /// Exchange display name (field 21).
     ExchangeName,
+    /// Security status string (field 22).
     SecurityStatus,
+    /// Open interest, contracts (field 23).
     OpenInterest,
+    /// Mark price (field 24).
     Mark,
+    /// Minimum tick size (field 25).
     Tick,
+    /// Notional value of one tick, USD (field 26).
     TickAmount,
+    /// Product/root description (field 27).
     Product,
+    /// Schwab price-format string (field 28).
     FuturePriceFormat,
+    /// Trading-hours description (field 29).
     FutureTradingHours,
+    /// `true` if the contract is tradable (field 30).
     FutureIsTradable,
+    /// Contract multiplier, USD per point (field 31).
     FutureMultiplier,
+    /// `true` if this contract is the front month (field 32).
     FutureIsActive,
+    /// Settlement price, USD (field 33).
     FutureSettlementPrice,
+    /// Active (front-month) symbol for this product (field 34).
     FutureActiveSymbol,
+    /// Expiration date, epoch milliseconds (field 35).
     FutureExpirationDate,
+    /// Expiration style description (field 36).
     ExpirationStyle,
+    /// Last ask time, epoch milliseconds (field 37).
     AskTime,
+    /// Last bid time, epoch milliseconds (field 38).
     BidTime,
+    /// `true` if the quote was sampled during a regular session (field 39).
     QuotedInSession,
+    /// Settlement date, epoch milliseconds (field 40).
     SettlementDate,
 }
 
@@ -103,113 +148,123 @@ impl TryFrom<u8> for Field {
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {
+    /// Subscription key (the futures symbol).
     pub key: String,
+    /// `true` if the quote is delayed.
     pub delayed: bool,
+    /// Asset class string (`"FUTURE"`).
     #[serde(rename = "assetMainType")]
     pub asset_main_type: Option<String>,
+    /// Asset sub-type string.
     #[serde(rename = "assetSubType")]
     pub asset_sub_type: Option<String>,
+    /// CUSIP, when Schwab supplies one.
     pub cusip: Option<String>,
 
-    // Field 0
+    /// Field 0: wire symbol.
     pub symbol: Option<String>,
-    // Field 1
+    /// Field 1: best bid.
     #[serde(with = "decimal_opt")]
     pub bid_price: Option<Decimal>,
-    // Field 2
+    /// Field 2: best ask.
     #[serde(with = "decimal_opt")]
     pub ask_price: Option<Decimal>,
-    // Field 3
+    /// Field 3: last trade price.
     #[serde(with = "decimal_opt")]
     pub last_price: Option<Decimal>,
-    // Field 4
+    /// Field 4: best bid size, contracts.
     pub bid_size: Option<u64>,
-    // Field 5
+    /// Field 5: best ask size, contracts.
     pub ask_size: Option<u64>,
-    // Field 6 - currently "?" since all quotes are CME.
+    /// Field 6: MIC venue id for the best bid. Typically `"?"` since all
+    /// quotes are CME.
     pub bid_id: Option<String>,
-    // Field 7
+    /// Field 7: MIC venue id for the best ask.
     pub ask_id: Option<String>,
-    // Field 8
+    /// Field 8: cumulative session volume, contracts.
     pub total_volume: Option<u64>,
-    // Field 9
+    /// Field 9: last trade size, contracts.
     pub last_size: Option<u64>,
-    // Field 10
+    /// Field 10: last quote time, epoch milliseconds.
     pub quote_time: Option<u64>,
-    // Field 11
+    /// Field 11: last trade time, epoch milliseconds.
     pub trade_time: Option<u64>,
-    // Field 12
+    /// Field 12: day high.
     #[serde(with = "decimal_opt")]
     pub high_price: Option<Decimal>,
-    // Field 13
+    /// Field 13: day low.
     #[serde(with = "decimal_opt")]
     pub low_price: Option<Decimal>,
-    // Field 14
+    /// Field 14: prior session close.
     #[serde(with = "decimal_opt")]
     pub close_price: Option<Decimal>,
-    // Field 15
+    /// Field 15: Schwab exchange code.
     pub exchange_id: Option<String>,
-    // Field 16
+    /// Field 16: contract description.
     pub description: Option<String>,
-    // Field 17
+    /// Field 17: MIC venue id for the last trade.
     pub last_id: Option<String>,
-    // Field 18
+    /// Field 18: day open.
     #[serde(with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    // Field 19
+    /// Field 19: net change since prior close.
     #[serde(with = "decimal_opt")]
     pub net_change: Option<Decimal>,
-    // Field 20
+    /// Field 20: session price change as a fraction.
     #[serde(with = "decimal_opt")]
     pub future_percent_change: Option<Decimal>,
-    // Field 21
+    /// Field 21: exchange display name.
     pub exchange_name: Option<String>,
-    // Field 22 - Normal / Halted / Closed.
+    /// Field 22: security status string (Normal / Halted / Closed).
     pub security_status: Option<String>,
-    // Field 23
+    /// Field 23: open interest, contracts.
     pub open_interest: Option<i64>,
-    // Field 24 - mark-to-market value: last_price if inside spread, else midpoint.
+    /// Field 24: mark-to-market value (last_price if inside the spread,
+    /// else midpoint).
     #[serde(with = "decimal_opt")]
     pub mark: Option<Decimal>,
-    // Field 25 - minimum price increment.
+    /// Field 25: minimum price increment.
     #[serde(with = "decimal_opt")]
     pub tick: Option<Decimal>,
-    // Field 26 - tick * multiplier.
+    /// Field 26: notional value of one tick (`tick * multiplier`), USD.
     #[serde(with = "decimal_opt")]
     pub tick_amount: Option<Decimal>,
-    // Field 27
+    /// Field 27: product/root description.
     pub product: Option<String>,
-    // Field 28 - see struct-level docs.
+    /// Field 28: price-format string (see struct-level docs).
     pub future_price_format: Option<String>,
-    // Field 29 - Schwab packs day-of-week and open/close into a string; parse on demand.
+    /// Field 29: trading-hours description. Schwab packs day-of-week and
+    /// open/close into a single string; parse on demand.
     pub future_trading_hours: Option<String>,
-    // Field 30
+    /// Field 30: `true` if the contract is tradable.
     pub future_is_tradable: Option<bool>,
-    // Field 31 - point value (e.g. 50.0 for ES).
+    /// Field 31: contract multiplier - point value, e.g. 50.0 for ES.
     #[serde(with = "decimal_opt")]
     pub future_multiplier: Option<Decimal>,
-    // Field 32
+    /// Field 32: `true` if this contract is the front month.
     pub future_is_active: Option<bool>,
-    // Field 33
+    /// Field 33: settlement price, USD.
     #[serde(with = "decimal_opt")]
     pub future_settlement_price: Option<Decimal>,
-    // Field 34
+    /// Field 34: active (front-month) symbol for this product.
     pub future_active_symbol: Option<String>,
-    // Field 35 - ms since Unix epoch.
+    /// Field 35: expiration date, epoch milliseconds.
     pub future_expiration_date: Option<i64>,
-    // Field 36
+    /// Field 36: expiration style description.
     pub expiration_style: Option<String>,
-    // Field 37
+    /// Field 37: last ask time, epoch milliseconds.
     pub ask_time: Option<u64>,
-    // Field 38
+    /// Field 38: last bid time, epoch milliseconds.
     pub bid_time: Option<u64>,
-    // Field 39
+    /// Field 39: `true` if the quote was sampled during a regular session.
     pub quoted_in_session: Option<bool>,
-    // Field 40 - ms since Unix epoch.
+    /// Field 40: settlement date, epoch milliseconds.
     pub settlement_date: Option<i64>,
 }
 
 impl Content {
+    /// Decode a remapped JSON object (numeric keys already resolved to
+    /// snake_case names by the streamer frame parser) into a typed batch.
     pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<Self>> {
         serde_json::from_value(remapped).map_err(|e| Error::Codec {
             context: "LEVELONE_FUTURES content".to_string(),
