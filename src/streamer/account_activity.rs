@@ -37,11 +37,16 @@ impl SubscriptionField for Field {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+/// Numbered subscription field for ACCT_ACTIVITY.
 #[non_exhaustive]
 pub enum Field {
+    /// Subscription key Schwab echoes back (field 0).
     SubscriptionKey,
+    /// Schwab account number (field 1).
     Account,
+    /// Identifier for the shape of [`Content::message_data`] (field 2).
     MessageType,
+    /// JSON-formatted payload, `null`, or plain text on error (field 3).
     MessageData,
 }
 
@@ -68,7 +73,9 @@ impl TryFrom<u8> for Field {
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {
+    /// Subscription key.
     pub key: String,
+    /// `true` if the message is delayed.
     pub delayed: bool,
     /// Sequence number. Reconnect-resend may repeat a value; consumers may
     /// de-duplicate.
