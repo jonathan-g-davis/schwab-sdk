@@ -4,6 +4,26 @@
 //! `chart_equity`) return a typestate [`SubscribeRequest`] that walks the
 //! caller through picking a verb, supplying keys and a field selection,
 //! and writing the frame.
+//!
+//! # Examples
+//!
+//! Adjust a live subscription. `SUBS` replaces the prior subscription for
+//! the service, `ADD` extends it, `VIEW` changes the field selection
+//! without re-subscribing, and `UNSUBS` drops keys (fields are unused).
+//!
+//! ```no_run
+//! use schwab_sdk::streamer::WriteHalf;
+//! use schwab_sdk::streamer::level_one::equities::Field;
+//!
+//! # async fn run(write: &WriteHalf) -> schwab_sdk::Result<()> {
+//! // Extend the existing equities subscription with another symbol.
+//! write.equities().add(["SPY"]).fields([Field::Symbol, Field::LastPrice]).send().await?;
+//!
+//! // Stop receiving one symbol.
+//! write.equities().unsubscribe(["MSFT"]).send().await?;
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::error::Result;
 use crate::streamer::Service;
@@ -59,7 +79,6 @@ impl TryFrom<StreamerCommand> for Command {
 }
 
 /// Fully assembled subscription frame: verb, keys, and the typed field set.
-/// Convert into a [`StreamerRequest`] via `From`.
 #[derive(Debug, Clone)]
 pub struct Subscription<T> {
     pub(super) command: Command,

@@ -99,6 +99,20 @@ impl SchwabClient {
     }
 
     /// Override the trader base URL (default: [`TRADER_BASE_URL`]).
+    ///
+    /// # Examples
+    ///
+    /// Point both API families at a local fixture server, e.g. for
+    /// replaying captured responses:
+    ///
+    /// ```no_run
+    /// use schwab_sdk::{AuthToken, SchwabClient};
+    ///
+    /// let client = SchwabClient::new(AuthToken::new("token"))
+    ///     .with_trader_base_url("https://127.0.0.1:8443/trader/v1")
+    ///     .with_market_data_base_url("https://127.0.0.1:8443/marketdata/v1");
+    /// # let _ = client;
+    /// ```
     pub fn with_trader_base_url(mut self, url: impl Into<String>) -> Self {
         self.trader_base_url = url.into();
         self

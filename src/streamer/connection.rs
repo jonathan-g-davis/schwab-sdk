@@ -311,6 +311,29 @@ impl ReadHalf {
     /// Subscribe to connection-state updates for this session. Receivers
     /// initially observe the current state (typically `Connected` or, after
     /// the first login response, `LoggedIn`).
+    ///
+    /// # Examples
+    ///
+    /// Drive a reconnect decision off the state stream. The reconnect loop
+    /// itself lives in consumer code; this side only surfaces the signal.
+    ///
+    /// ```no_run
+    /// use schwab_sdk::streamer::{ConnectionEvent, ReadHalf};
+    ///
+    /// # async fn run(read: &ReadHalf) {
+    /// let mut events = read.events();
+    /// while events.changed().await.is_ok() {
+    ///     match &*events.borrow_and_update() {
+    ///         ConnectionEvent::LoggedIn => println!("session ready"),
+    ///         ConnectionEvent::Disconnected(reason) => {
+    ///             println!("disconnected: {reason:?}");
+    ///             break;
+    ///         }
+    ///         other => println!("state: {other:?}"),
+    ///     }
+    /// }
+    /// # }
+    /// ```
     pub fn events(&self) -> watch::Receiver<ConnectionEvent> {
         self.events_tx.subscribe()
     }
