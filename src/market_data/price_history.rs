@@ -145,8 +145,9 @@ impl<'a> GetPriceHistoryBuilder<'a> {
 
     /// Execute the request.
     pub async fn send(self) -> Result<CandleList> {
-        let md = self.client.market_data_http();
-        let mut request = md
+        let mut request = self
+            .client
+            .market_data_http()
             .get("/pricehistory")
             .query(&[("symbol", self.symbol.as_str())]);
         if let Some(pt) = &self.period_type {
@@ -181,7 +182,7 @@ impl<'a> GetPriceHistoryBuilder<'a> {
             let s = if b { "true" } else { "false" };
             request = request.query(&[("needPreviousClose", s)]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 

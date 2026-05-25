@@ -12,6 +12,7 @@ keywords = ["schwab", "trading", "brokerage", "finance", "websocket"]
 categories = ["api-bindings", "finance"]
 
 [dependencies]
+async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
 derive_builder = "0.20.2"
 fastwebsockets = { version = "0.10.0", features = ["unstable-split", "upgrade"] }

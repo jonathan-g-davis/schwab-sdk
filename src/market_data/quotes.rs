@@ -100,8 +100,9 @@ impl<'a> ListQuotesBuilder<'a> {
 
     /// Execute the request.
     pub async fn send(self) -> Result<QuoteResponse> {
-        let md = self.client.market_data_http();
-        let mut request = md
+        let mut request = self
+            .client
+            .market_data_http()
             .get("/quotes")
             .query(&[("symbols", self.symbols.as_str())]);
         if let Some(fields) = &self.fields {
@@ -111,7 +112,7 @@ impl<'a> ListQuotesBuilder<'a> {
             let v = if indicative { "true" } else { "false" };
             request = request.query(&[("indicative", v)]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 
@@ -142,12 +143,11 @@ impl<'a> GetQuoteBuilder<'a> {
     /// Execute the request.
     pub async fn send(self) -> Result<QuoteResponse> {
         let path = format!("/{}/quotes", self.symbol);
-        let md = self.client.market_data_http();
-        let mut request = md.get(&path);
+        let mut request = self.client.market_data_http().get(&path);
         if let Some(fields) = &self.fields {
             request = request.query(&[("fields", fields.as_str())]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 

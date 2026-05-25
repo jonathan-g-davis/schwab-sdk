@@ -1,7 +1,8 @@
 //! REST client core.
 //!
-//! [`SchwabClient`] owns the bearer credential, a shared [`reqwest::Client`],
-//! and the two Schwab base URLs (trader and market-data). It exposes:
+//! [`SchwabClient`] owns a bearer-credential source ([`TokenProvider`]),
+//! a shared [`reqwest::Client`], and the two Schwab base URLs (trader
+//! and market-data). It exposes:
 //!
 //! - public namespace accessors (e.g. [`SchwabClient::accounts`],
 //!   [`SchwabClient::market_data`]) into the typed endpoint builders, and
@@ -13,9 +14,15 @@
 //! Endpoint modules own URL paths, request and response shapes, and any
 //! optional parameters; the `Transport` handle is the only piece that
 //! knows how to combine a verb, a base URL, the bearer header, and the
-//! response decoder.
+//! response decoder. Verb methods return an [`AuthedRequest`] that
+//! defers the bearer fetch to its own `.send()` / `.send_json()`, so
+//! the [`TokenProvider`] is consulted once per request, just before the
+//! network write.
+
+use std::sync::Arc;
 
 use reqwest::{Method, RequestBuilder};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use crate::accounts::Accounts;
@@ -25,39 +32,69 @@ use crate::market_data::MarketData;
 use crate::orders::{AllOrders, Orders};
 use crate::secrets::{AccountHash, AuthToken};
 use crate::streamer::{self, ReadHalf, WriteHalf};
+use crate::token::{StaticTokenProvider, TokenProvider};
 use crate::transactions::Transactions;
 use crate::user_preferences::UserPreferences;
 
 /// An HTTP client for the Charles Schwab Trader API.
 ///
-/// Owns the bearer [`AuthToken`] for authenticating requests.
-/// Use the namespace accessors ([`Self::accounts`], [`Self::orders`],
-/// [`Self::market_data`], etc.) to construct typed request builders.
-/// Use [`Self::streamer`] to open the streaming WebSocket session.
+/// Holds a [`TokenProvider`] that supplies the bearer credential for
+/// every REST request. Use the namespace accessors ([`Self::accounts`],
+/// [`Self::orders`], [`Self::market_data`], etc.) to construct typed
+/// request builders. Use [`Self::streamer`] to open the streaming
+/// WebSocket session.
 ///
-/// The client is backed by `reqwest::Client` and is therefore `Clone`
-/// and reuse is encouraged as opposed to creating new instances for each
+/// The client is backed by `reqwest::Client` and is therefore cheap to
+/// `Clone`; clones share the same connection pool and the same token
+/// provider, so a token rotation observed through one clone is observed
+/// by every clone. Reuse is encouraged over creating new instances per
 /// request.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SchwabClient {
     client: reqwest::Client,
     trader_base_url: String,
     market_data_base_url: String,
-    auth_token: AuthToken,
+    token_provider: Arc<dyn TokenProvider + Send + Sync>,
+}
+
+// Manual `Debug` because `dyn TokenProvider` does not require `Debug`.
+// The token provider's contents are credentials by definition; printing
+// only the field's presence keeps clients safe to `dbg!`.
+impl std::fmt::Debug for SchwabClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SchwabClient")
+            .field("trader_base_url", &self.trader_base_url)
+            .field("market_data_base_url", &self.market_data_base_url)
+            .field("token_provider", &"<dyn TokenProvider>")
+            .finish()
+    }
 }
 
 impl SchwabClient {
     /// Construct a client with Schwab's production base URLs for both the
-    /// trader and market-data APIs.
+    /// trader and market-data APIs, backed by a [`StaticTokenProvider`]
+    /// wrapping `auth_token`.
     ///
-    /// Override either via [`Self::with_trader_base_url`] /
+    /// For a client that can pick up rotated tokens without being
+    /// reconstructed, use [`Self::with_token_provider`].
+    ///
+    /// Override either base URL via [`Self::with_trader_base_url`] /
     /// [`Self::with_market_data_base_url`] for staging or test fixtures.
     pub fn new(auth_token: AuthToken) -> Self {
+        Self::with_token_provider(Arc::new(StaticTokenProvider::new(auth_token)))
+    }
+
+    /// Construct a client backed by a caller-supplied [`TokenProvider`].
+    ///
+    /// The provider is consulted once per REST request. Sharing an `Arc`
+    /// across `SchwabClient` clones means a token rotation observed
+    /// through any clone is observed by every clone.
+    pub fn with_token_provider(provider: Arc<dyn TokenProvider + Send + Sync>) -> Self {
         Self {
             client: reqwest::Client::new(),
             trader_base_url: TRADER_BASE_URL.to_string(),
             market_data_base_url: MARKET_DATA_BASE_URL.to_string(),
-            auth_token,
+            token_provider: provider,
         }
     }
 
@@ -165,10 +202,10 @@ impl SchwabClient {
 /// [`SchwabClient::market_data_http`]; the handle owns no state of its
 /// own beyond borrows of the parent client.
 ///
-/// All HTTP verb methods return a [`RequestBuilder`] with the bearer
-/// header already attached; callers chain `.query(...)`, `.json(...)`,
-/// etc. as needed and then pass the builder to one of the `execute`
-/// methods to send and decode.
+/// All HTTP verb methods return an [`AuthedRequest`] borrowed from the
+/// underlying [`SchwabClient`]. Callers chain `.query(...)` / `.json(...)`
+/// as needed and finish with `.send()` or `.send_json()`; the bearer
+/// header is attached just before the network write.
 ///
 /// The convenience [`Transport::get_json`] covers the no-query GET case.
 pub(crate) struct Transport<'a> {
@@ -177,42 +214,90 @@ pub(crate) struct Transport<'a> {
 }
 
 impl<'a> Transport<'a> {
-    fn request(&self, method: Method, path: &str) -> RequestBuilder {
-        // Auth-token reveal is scoped to header construction; the exposed
-        // string does not leave this stack frame.
-        self.client
-            .client
-            .request(method, format!("{}{}", self.base_url, path))
-            .bearer_auth(self.client.auth_token.expose_secret())
+    fn request(&self, method: Method, path: &str) -> AuthedRequest<'a> {
+        AuthedRequest {
+            builder: self
+                .client
+                .client
+                .request(method, format!("{}{}", self.base_url, path)),
+            provider: &*self.client.token_provider,
+        }
     }
 
-    /// Build a GET request against `{base_url}{path}` with bearer auth.
-    pub(crate) fn get(&self, path: &str) -> RequestBuilder {
+    /// Build a GET request against `{base_url}{path}`.
+    pub(crate) fn get(&self, path: &str) -> AuthedRequest<'a> {
         self.request(Method::GET, path)
     }
 
-    /// Build a POST with bearer auth. Chain `.json(&body)` for the body.
-    pub(crate) fn post(&self, path: &str) -> RequestBuilder {
+    /// Build a POST. Chain `.json(&body)` for the body.
+    pub(crate) fn post(&self, path: &str) -> AuthedRequest<'a> {
         self.request(Method::POST, path)
     }
 
-    /// Build a PUT with bearer auth.
-    pub(crate) fn put(&self, path: &str) -> RequestBuilder {
+    /// Build a PUT.
+    pub(crate) fn put(&self, path: &str) -> AuthedRequest<'a> {
         self.request(Method::PUT, path)
     }
 
-    /// Build a DELETE with bearer auth.
-    pub(crate) fn delete(&self, path: &str) -> RequestBuilder {
+    /// Build a DELETE.
+    pub(crate) fn delete(&self, path: &str) -> AuthedRequest<'a> {
         self.request(Method::DELETE, path)
     }
 
-    /// Send a prepared [`RequestBuilder`] and return the raw
-    /// [`reqwest::Response`] on 2xx. Non-2xx maps to an [`Error`] via
-    /// [`map_response_to_error`]. Use this when the caller needs to
+    /// Convenience: GET + decode for endpoints that take no query
+    /// parameters. Builders with query params chain `.query(...)` onto
+    /// [`Self::get`] and finish with [`AuthedRequest::send_json`].
+    pub(crate) async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
+        self.get(path).send_json().await
+    }
+}
+
+/// A pending request that has not yet had a bearer header attached.
+///
+/// Returned by [`Transport::get`] / `post` / `put` / `delete`. Wraps a
+/// `reqwest::RequestBuilder` plus a borrow of the client's
+/// [`TokenProvider`]. The provider is consulted exactly once per
+/// request, inside [`Self::send`], so a token rotation observed between
+/// the verb call and the `.send().await` is the one that goes on the
+/// wire.
+pub(crate) struct AuthedRequest<'a> {
+    builder: RequestBuilder,
+    provider: &'a (dyn TokenProvider + Send + Sync),
+}
+
+impl<'a> AuthedRequest<'a> {
+    /// Add query parameters. Forwards to
+    /// [`reqwest::RequestBuilder::query`]; chain multiple `.query(...)`
+    /// calls to append parameters incrementally.
+    pub(crate) fn query<Q: Serialize + ?Sized>(mut self, q: &Q) -> Self {
+        self.builder = self.builder.query(q);
+        self
+    }
+
+    /// Set the request body to the JSON serialization of `body`.
+    /// Forwards to [`reqwest::RequestBuilder::json`].
+    pub(crate) fn json<T: Serialize + ?Sized>(mut self, body: &T) -> Self {
+        self.builder = self.builder.json(body);
+        self
+    }
+
+    /// Consult the [`TokenProvider`], attach the bearer header, send
+    /// the request, and return the raw [`reqwest::Response`] on 2xx.
+    /// Non-2xx maps to an [`Error`] via [`map_response_to_error`].
+    ///
+    /// A provider failure surfaces as [`Error::TokenProvider`] without
+    /// any network I/O. Use this directly when the caller needs to
     /// inspect response headers (e.g. parsing the `Location` header
     /// after a 201).
-    pub(crate) async fn execute(&self, request: RequestBuilder) -> Result<reqwest::Response> {
-        let response = request.send().await?;
+    pub(crate) async fn send(self) -> Result<reqwest::Response> {
+        let token = self.provider.access_token().await?;
+        // The exposed string does not leave this stack frame; it is
+        // copied into the `Authorization` header by `bearer_auth`.
+        let response = self
+            .builder
+            .bearer_auth(token.expose_secret())
+            .send()
+            .await?;
         if response.status().is_success() {
             Ok(response)
         } else {
@@ -220,29 +305,18 @@ impl<'a> Transport<'a> {
         }
     }
 
-    /// Send a prepared [`RequestBuilder`] and decode the JSON body into
-    /// `T` on 2xx, or map the response to an [`Error`].
+    /// Send the request and decode the JSON body into `T` on 2xx.
     ///
-    /// Body bytes are read first so that a malformed response body produces
-    /// [`Error::Codec`] rather than [`Error::Transport`]; transport errors
-    /// are reserved for network-level failures (DNS, connect, TLS, I/O).
-    pub(crate) async fn execute_json<T: DeserializeOwned>(
-        &self,
-        request: RequestBuilder,
-    ) -> Result<T> {
-        let response = self.execute(request).await?;
+    /// Body bytes are read first so a malformed response body produces
+    /// [`Error::Codec`] rather than [`Error::Transport`]; transport
+    /// errors are reserved for network-level failures (DNS, connect,
+    /// TLS, I/O).
+    pub(crate) async fn send_json<T: DeserializeOwned>(self) -> Result<T> {
+        let response = self.send().await?;
         let bytes = response.bytes().await?;
         serde_json::from_slice(&bytes).map_err(|e| Error::Codec {
             context: "decode response body".to_string(),
             reason: e.to_string(),
         })
-    }
-
-    /// Convenience: GET + decode for endpoints that take no query
-    /// parameters. Builders with query params build the request via
-    /// [`Self::get`] + `.query(...)` and finish with
-    /// [`Self::execute_json`].
-    pub(crate) async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        self.execute_json(self.get(path)).await
     }
 }

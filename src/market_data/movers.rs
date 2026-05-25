@@ -63,9 +63,8 @@ impl<'a> GetMoversBuilder<'a> {
 
     /// Execute the request.
     pub async fn send(self) -> Result<MoversResponse> {
-        let md = self.client.market_data_http();
         let path = format!("/movers/{}", self.index);
-        let mut request = md.get(&path);
+        let mut request = self.client.market_data_http().get(&path);
         if let Some(sort) = &self.sort {
             let s = sort.to_string();
             request = request.query(&[("sort", s.as_str())]);
@@ -74,7 +73,7 @@ impl<'a> GetMoversBuilder<'a> {
             let s = freq.to_string();
             request = request.query(&[("frequency", s.as_str())]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 
