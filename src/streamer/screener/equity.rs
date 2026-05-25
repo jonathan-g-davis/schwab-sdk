@@ -33,10 +33,15 @@ impl SubscriptionField for Field {
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum Field {
+    /// Wire symbol / composite screener key (field 0).
     Symbol,
+    /// Snapshot timestamp, epoch milliseconds (field 1).
     Timestamp,
+    /// Field the rankings were sorted on (field 2).
     SortField,
+    /// Aggregation window in minutes (field 3).
     Frequency,
+    /// Ranked instruments (field 4).
     Items,
 }
 
