@@ -34,9 +34,13 @@ impl SubscriptionField for Field {
 #[strum(serialize_all = "snake_case")]
 #[non_exhaustive]
 pub enum Field {
+    /// Wire symbol (field 0).
     Symbol,
+    /// Snapshot timestamp, epoch milliseconds (field 1).
     MarketSnapshotTime,
+    /// Bid-side price levels (field 2).
     BidSideLevels,
+    /// Ask-side price levels (field 3).
     AskSideLevels,
 }
 
