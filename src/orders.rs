@@ -163,9 +163,47 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// `.build()`. A pre-built `OrderRequest` works too.
     ///
     /// Schwab has no client-controllable idempotency key, so a transient
-    /// failure here may have placed the order anyway. Implementers should
-    /// deduplicate orders after a transient failure by listing orders
-    /// and matching by entered-time window, symbol, side, and quantity.
+    /// failure here may have placed the order anyway. Query orders placed
+    /// since the time the original order was submitted and match by symbol,
+    /// side, and quantity to determine whether the order was placed.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use chrono::{Duration, Utc};
+    /// use rust_decimal_macros::dec;
+    /// use schwab_sdk::{AuthToken, SchwabClient};
+    /// use schwab_sdk::orders::OrderRequest;
+    ///
+    /// # async fn run() -> schwab_sdk::Result<()> {
+    /// let client = SchwabClient::new(AuthToken::new("token"));
+    /// let accounts = client.accounts().numbers().await?;
+    /// let account_hash = &accounts.first().expect("a linked account").hash_value;
+    /// let orders = client.orders(account_hash);
+    ///
+    /// // Record the window *before* submitting, so a failed place is
+    /// // reconcilable.
+    /// let submitted_at = Utc::now();
+    ///
+    /// let order_id = match orders.place(OrderRequest::buy_limit("AAPL", dec!(10), dec!(140))).await {
+    ///     Ok(id) => id,
+    ///     Err(err) if err.is_retryable() => {
+    ///         // The order may have been accepted before the failure. List
+    ///         // orders entered since `submitted_at` and match by symbol,
+    ///         // side, and quantity rather than resubmitting blindly.
+    ///         let candidates = orders
+    ///             .list(submitted_at - Duration::seconds(5), Utc::now())
+    ///             .send()
+    ///             .await?;
+    ///         println!("place failed; {} order(s) to reconcile", candidates.len());
+    ///         return Ok(());
+    ///     }
+    ///     Err(err) => return Err(err),
+    /// };
+    /// println!("placed {order_id}");
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn place(&self, order: impl Into<OrderRequest>) -> Result<i64> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
