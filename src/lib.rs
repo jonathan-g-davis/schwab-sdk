@@ -1,4 +1,32 @@
-//! `schwab-sdk` - a typed Rust client for the Charles Schwab Trader API.
+//! Typed Rust client for the Charles Schwab Trader API and streamer WebSocket.
+//! 
+//! All features of the Trader API are exposed through [`SchwabClient`]. From
+//! it, namespace accessors return typed endpoint builders:
+//!
+//! - [`SchwabClient::accounts`] - `/accounts*`
+//! - [`SchwabClient::orders`] / [`SchwabClient::orders_all`] - `/orders*`
+//! - [`SchwabClient::transactions`] - `/accounts/{accountNumber}/transactions*`
+//! - [`SchwabClient::user_preferences`] - `/userPreference`
+//! - [`SchwabClient::market_data`] - quotes, price history, market hours,
+//!   movers, instruments, option chains, expiration chains
+//! - [`SchwabClient::streamer`] - opens the streamer WebSocket and returns
+//!   a [`streamer::ReadHalf`] / [`streamer::WriteHalf`] pair
+//!
+//! All money and quantity fields use [`rust_decimal::Decimal`]; secrets
+//! ([`AuthToken`], [`CustomerId`], [`AccountNumber`], [`AccountHash`])
+//! are wrapped in newtypes that redact in `Debug`.
+//!
+//! What this crate does **not** include:
+//!
+//! - The OAuth authorization-code flow. Callers obtain a bearer token
+//!   themselves and hand it to [`SchwabClient::new`].
+//! - Retry and rate limiting. Each [`Error`] exposes
+//!   [`Error::is_retryable`] and [`Error::retry_after`] so a caller can
+//!   layer a policy (`backon`, etc.) on top.
+//! - Order placement at scale. Place / replace / cancel / preview exist,
+//!   but the Schwab API exposes no client-controllable idempotency key;
+//!   callers that need retry-safe submission must dedupe at their own
+//!   layer.
 
 // Panic-family lints are denied in production code. If a future change
 // genuinely needs one of these in non-test code, add `#[allow(...)]` with
