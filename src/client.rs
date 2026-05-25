@@ -49,7 +49,7 @@ pub struct SchwabClient {
 impl SchwabClient {
     /// Construct a client with Schwab's production base URLs for both the
     /// trader and market-data APIs.
-    /// 
+    ///
     /// Override either via [`Self::with_trader_base_url`] /
     /// [`Self::with_market_data_base_url`] for staging or test fixtures.
     pub fn new(auth_token: AuthToken) -> Self {
