@@ -351,7 +351,10 @@ mod tests {
         assert_eq!(order.child_order_strategies.len(), 2);
         let limit_leg = &order.child_order_strategies[0];
         assert_eq!(limit_leg.order_id, Some(100000006));
-        assert_eq!(limit_leg.order_strategy_type, Some(OrderStrategyType::Single));
+        assert_eq!(
+            limit_leg.order_strategy_type,
+            Some(OrderStrategyType::Single)
+        );
         assert_eq!(limit_leg.order_type, Some(OrderType::Limit));
         assert_eq!(limit_leg.price, Some(dec!(155.00)));
         assert_eq!(limit_leg.order_leg_collection.len(), 1);
