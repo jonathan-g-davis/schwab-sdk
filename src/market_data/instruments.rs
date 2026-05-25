@@ -35,13 +35,16 @@ impl<'a> Instruments<'a> {
         symbol: impl AsRef<str>,
         projection: Projection,
     ) -> Result<InstrumentsResponse> {
-        let md = self.client.market_data_http();
         let projection = projection.to_string();
-        let request = md.get("/instruments").query(&[
-            ("symbol", symbol.as_ref()),
-            ("projection", projection.as_str()),
-        ]);
-        md.execute_json(request).await
+        self.client
+            .market_data_http()
+            .get("/instruments")
+            .query(&[
+                ("symbol", symbol.as_ref()),
+                ("projection", projection.as_str()),
+            ])
+            .send_json()
+            .await
     }
 
     /// `GET /instruments/{cusip_id}` - fetch basic instrument details by

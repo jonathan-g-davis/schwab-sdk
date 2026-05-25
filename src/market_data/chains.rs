@@ -198,8 +198,11 @@ impl<'a> GetChainBuilder<'a> {
 
     /// Execute the request.
     pub async fn send(self) -> Result<OptionChain> {
-        let md = self.client.market_data_http();
-        let mut request = md.get("/chains").query(&[("symbol", self.symbol.as_str())]);
+        let mut request = self
+            .client
+            .market_data_http()
+            .get("/chains")
+            .query(&[("symbol", self.symbol.as_str())]);
         if let Some(v) = &self.contract_type {
             let s = v.to_string();
             request = request.query(&[("contractType", s.as_str())]);
@@ -264,7 +267,7 @@ impl<'a> GetChainBuilder<'a> {
             let s = v.to_string();
             request = request.query(&[("entitlement", s.as_str())]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 

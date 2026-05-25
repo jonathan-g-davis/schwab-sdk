@@ -46,6 +46,7 @@
 
 mod client;
 mod constants;
+mod token;
 
 pub(crate) mod macros;
 
@@ -65,3 +66,4 @@ pub use constants::{
 pub use error::{Error, ErrorBody, Result};
 pub use secrets::{AccountHash, AccountNumber, AuthToken, CustomerId};
 pub use streamer::{StreamerResponse, WebSocketError};
+pub use token::{StaticTokenProvider, TokenProvider};

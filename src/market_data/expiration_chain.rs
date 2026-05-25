@@ -26,11 +26,12 @@ impl<'a> ExpirationChain<'a> {
 
     /// Fetch the option expiration series for an optionable `symbol`.
     pub async fn get(&self, symbol: impl AsRef<str>) -> Result<ExpirationChainResponse> {
-        let md = self.client.market_data_http();
-        let request = md
+        self.client
+            .market_data_http()
             .get("/expirationchain")
-            .query(&[("symbol", symbol.as_ref())]);
-        md.execute_json(request).await
+            .query(&[("symbol", symbol.as_ref())])
+            .send_json()
+            .await
     }
 }
 

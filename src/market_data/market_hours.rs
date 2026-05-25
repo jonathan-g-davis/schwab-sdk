@@ -77,15 +77,16 @@ impl<'a> ListMarketHoursBuilder<'a> {
 
     /// Execute the request.
     pub async fn send(self) -> Result<MarketHoursResponse> {
-        let md = self.client.market_data_http();
-        let mut request = md
+        let mut request = self
+            .client
+            .market_data_http()
             .get("/markets")
             .query(&[("markets", self.markets.as_str())]);
         if let Some(d) = self.date {
             let s = d.format("%Y-%m-%d").to_string();
             request = request.query(&[("date", s.as_str())]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 
@@ -106,14 +107,13 @@ impl<'a> GetMarketHoursBuilder<'a> {
 
     /// Execute the request.
     pub async fn send(self) -> Result<MarketHoursResponse> {
-        let md = self.client.market_data_http();
         let path = format!("/markets/{}", self.market);
-        let mut request = md.get(&path);
+        let mut request = self.client.market_data_http().get(&path);
         if let Some(d) = self.date {
             let s = d.format("%Y-%m-%d").to_string();
             request = request.query(&[("date", s.as_str())]);
         }
-        md.execute_json(request).await
+        request.send_json().await
     }
 }
 

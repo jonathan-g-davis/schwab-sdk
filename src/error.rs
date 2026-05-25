@@ -83,6 +83,16 @@ pub enum Error {
     /// was absent or malformed, so the new order's id is unrecoverable.
     #[error("order id unrecoverable: {0}")]
     OrderIdUnrecoverable(String),
+    /// A [`crate::TokenProvider`] failed to produce a bearer token, so no
+    /// HTTP request could be issued. The wrapped source is the
+    /// provider's own error type, type-erased; the SDK has no opinion on
+    /// whether it is transient.
+    #[error("token provider: {source}")]
+    TokenProvider {
+        /// Underlying provider error, type-erased.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 impl Error {
@@ -120,7 +130,8 @@ impl Error {
             | Error::NotFound(_)
             | Error::Codec { .. }
             | Error::InvalidPreference { .. }
-            | Error::OrderIdUnrecoverable(_) => false,
+            | Error::OrderIdUnrecoverable(_)
+            | Error::TokenProvider { .. } => false,
         }
     }
 

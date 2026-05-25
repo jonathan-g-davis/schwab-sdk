@@ -104,8 +104,9 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
         let end = self.end_date.to_rfc3339_opts(SecondsFormat::Millis, true);
         let types = self.types.to_string();
 
-        let trader = self.client.trader_http();
-        let mut request = trader
+        let mut request = self
+            .client
+            .trader_http()
             .get(&format!("/accounts/{hash}/transactions"))
             .query(&[
                 ("startDate", start.as_str()),
@@ -115,7 +116,7 @@ impl<'a, 'b> ListTransactionsBuilder<'a, 'b> {
         if let Some(sym) = &self.symbol {
             request = request.query(&[("symbol", sym.as_str())]);
         }
-        trader.execute_json(request).await
+        request.send_json().await
     }
 }
 
