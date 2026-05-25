@@ -20,65 +20,94 @@ use crate::orders::enums::*;
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Order {
+    /// Trading session the order is valid in.
     #[serde(default)]
     pub session: Option<Session>,
+    /// Time-in-force.
     #[serde(default)]
     pub duration: Option<Duration>,
+    /// Order type (market / limit / stop / ...).
     #[serde(default, rename = "orderType")]
     pub order_type: Option<OrderType>,
+    /// Scheduled cancel time for time-bound orders.
     #[serde(default, rename = "cancelTime")]
     pub cancel_time: Option<DateTime<Utc>>,
+    /// Multi-leg option strategy shape; `NONE` for single-leg orders.
     #[serde(default, rename = "complexOrderStrategyType")]
     pub complex_order_strategy_type: Option<ComplexOrderStrategyType>,
+    /// Total order quantity.
     #[serde(default, with = "decimal_opt")]
     pub quantity: Option<Decimal>,
+    /// Quantity filled so far.
     #[serde(default, with = "decimal_opt", rename = "filledQuantity")]
     pub filled_quantity: Option<Decimal>,
+    /// Quantity still working.
     #[serde(default, with = "decimal_opt", rename = "remainingQuantity")]
     pub remaining_quantity: Option<Decimal>,
     /// Response-only: the venue Schwab routed the order to.
     #[serde(default, rename = "requestedDestination")]
     pub requested_destination: Option<RequestedDestination>,
+    /// Schwab-internal name for the routing destination.
     #[serde(default, rename = "destinationLinkName")]
     pub destination_link_name: Option<String>,
+    /// Scheduled release time for orders held for later activation.
     #[serde(default, rename = "releaseTime")]
     pub release_time: Option<DateTime<Utc>>,
+    /// Stop trigger price, USD.
     #[serde(default, with = "decimal_opt", rename = "stopPrice")]
     pub stop_price: Option<Decimal>,
+    /// Reference price the stop is linked to.
     #[serde(default, rename = "stopPriceLinkBasis")]
     pub stop_price_link_basis: Option<StopPriceLinkBasis>,
+    /// How the linked stop offset is interpreted.
     #[serde(default, rename = "stopPriceLinkType")]
     pub stop_price_link_type: Option<StopPriceLinkType>,
+    /// Offset from the linked reference price.
     #[serde(default, with = "decimal_opt", rename = "stopPriceOffset")]
     pub stop_price_offset: Option<Decimal>,
+    /// Which feed triggers the stop (bid / ask / last / mark).
     #[serde(default, rename = "stopType")]
     pub stop_type: Option<StopType>,
+    /// Reference price the limit is linked to.
     #[serde(default, rename = "priceLinkBasis")]
     pub price_link_basis: Option<PriceLinkBasis>,
+    /// How the linked limit offset is interpreted.
     #[serde(default, rename = "priceLinkType")]
     pub price_link_type: Option<PriceLinkType>,
+    /// Limit price, USD.
     #[serde(default, with = "decimal_opt")]
     pub price: Option<Decimal>,
+    /// Tax-lot relief method to apply when closing.
     #[serde(default, rename = "taxLotMethod")]
     pub tax_lot_method: Option<TaxLotMethod>,
+    /// One entry per order leg.
     #[serde(default, rename = "orderLegCollection")]
     pub order_leg_collection: Vec<OrderLegCollection>,
+    /// Activation price for stop / trigger orders.
     #[serde(default, with = "decimal_opt", rename = "activationPrice")]
     pub activation_price: Option<Decimal>,
+    /// Schwab special-instruction flag (e.g. all-or-none).
     #[serde(default, rename = "specialInstruction")]
     pub special_instruction: Option<SpecialInstruction>,
+    /// Top-level structure of the order envelope.
     #[serde(default, rename = "orderStrategyType")]
     pub order_strategy_type: Option<OrderStrategyType>,
+    /// Schwab-assigned order id.
     #[serde(default, rename = "orderId")]
     pub order_id: Option<i64>,
+    /// `true` if the order can currently be cancelled.
     #[serde(default)]
     pub cancelable: Option<bool>,
+    /// `true` if the order can currently be replaced.
     #[serde(default)]
     pub editable: Option<bool>,
+    /// Lifecycle status.
     #[serde(default)]
     pub status: Option<ApiOrderStatus>,
+    /// Time Schwab recorded the order.
     #[serde(default, rename = "enteredTime")]
     pub entered_time: Option<DateTime<Utc>>,
+    /// Time the order reached a terminal state.
     #[serde(default, rename = "closeTime")]
     pub close_time: Option<DateTime<Utc>>,
     /// Response-only: Schwab-assigned classification of the order's origin.
@@ -86,69 +115,99 @@ pub struct Order {
     /// client-side correlation.
     #[serde(default)]
     pub tag: Option<String>,
+    /// Plain account number that owns this order.
     #[serde(default, rename = "accountNumber")]
     pub account_number: Option<i64>,
+    /// Per-event activity history (fills, lifecycle actions).
     #[serde(default, rename = "orderActivityCollection")]
     pub order_activity_collection: Vec<OrderActivity>,
+    /// Orders that have replaced this one (replace lineage).
     #[serde(default, rename = "replacingOrderCollection")]
     pub replacing_order_collection: Vec<Order>,
+    /// Child legs for `OCO` / `TRIGGER` / other compound strategies.
     #[serde(default, rename = "childOrderStrategies")]
     pub child_order_strategies: Vec<Order>,
+    /// Schwab's free-form description of the current status (rejection
+    /// reason, etc.).
     #[serde(default, rename = "statusDescription")]
     pub status_description: Option<String>,
 }
 
+/// One leg of an order (the security being traded plus its side / quantity).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OrderLegCollection {
+    /// Asset class of the leg.
     #[serde(default, rename = "orderLegType")]
     pub order_leg_type: Option<OrderLegType>,
+    /// Schwab-assigned leg id within the order.
     #[serde(default, rename = "legId")]
     pub leg_id: Option<i64>,
+    /// Instrument being traded.
     #[serde(default)]
     pub instrument: Option<AccountsInstrument>,
+    /// Side / intent (buy / sell / buy-to-cover / ...).
     #[serde(default)]
     pub instruction: Option<Instruction>,
+    /// Whether the leg opens or closes a position.
     #[serde(default, rename = "positionEffect")]
     pub position_effect: Option<PositionEffect>,
+    /// Leg quantity (shares / contracts / dollars per `quantity_type`).
     #[serde(default, with = "decimal_opt")]
     pub quantity: Option<Decimal>,
+    /// How `quantity` is denominated.
     #[serde(default, rename = "quantityType")]
     pub quantity_type: Option<QuantityType>,
+    /// Dividend / capital-gains handling for mutual-fund legs.
     #[serde(default, rename = "divCapGains")]
     pub div_cap_gains: Option<DivCapGains>,
+    /// Destination symbol for mutual-fund exchanges.
     #[serde(default, rename = "toSymbol")]
     pub to_symbol: Option<String>,
 }
 
+/// One lifecycle event in an order's activity history (a fill or an order
+/// action).
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OrderActivity {
+    /// Whether this row is an execution or an order action.
     #[serde(default, rename = "activityType")]
     pub activity_type: Option<OrderActivityType>,
+    /// For executions, the kind of execution.
     #[serde(default, rename = "executionType")]
     pub execution_type: Option<ExecutionType>,
+    /// Quantity affected by this activity.
     #[serde(default, with = "decimal_opt")]
     pub quantity: Option<Decimal>,
+    /// Order quantity still working after this activity.
     #[serde(default, with = "decimal_opt", rename = "orderRemainingQuantity")]
     pub order_remaining_quantity: Option<Decimal>,
+    /// Per-leg detail for executions.
     #[serde(default, rename = "executionLegs")]
     pub execution_legs: Vec<ExecutionLeg>,
 }
 
+/// One executed leg within an [`OrderActivity`] fill row.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct ExecutionLeg {
+    /// Schwab-assigned leg id this fill is against.
     #[serde(default, rename = "legId")]
     pub leg_id: Option<i64>,
+    /// Fill price, USD.
     #[serde(default, with = "decimal_opt")]
     pub price: Option<Decimal>,
+    /// Quantity filled in this leg.
     #[serde(default, with = "decimal_opt")]
     pub quantity: Option<Decimal>,
+    /// Quantity that was mis-marked at fill time.
     #[serde(default, with = "decimal_opt", rename = "mismarkedQuantity")]
     pub mismarked_quantity: Option<Decimal>,
+    /// Schwab-internal instrument id of the security filled.
     #[serde(default, rename = "instrumentId")]
     pub instrument_id: Option<i64>,
+    /// Execution time.
     #[serde(default)]
     pub time: Option<DateTime<Utc>>,
 }

@@ -1,4 +1,4 @@
-//! `/orders` and `/accounts/{accountNumber}/orders*` - Schwab Trader API.
+//! `/orders` and `/accounts/{accountNumber}/orders*`
 //!
 //! Endpoint coverage:
 //!
@@ -27,7 +27,7 @@
 //! [`Orders::place`] takes only the order body; if a network or 5xx
 //! failure interrupts the response, the order may still have been
 //! accepted. Callers that need retry-safe submission must dedupe at
-//! their own layer - typically by listing orders after a transient
+//! their own layer, typically by listing orders after a transient
 //! failure and matching by entered-time window, symbol, side, and
 //! quantity.
 
@@ -205,6 +205,8 @@ impl<'a> AllOrders<'a> {
 
 // --- List builders ---
 
+/// In-flight request for `GET /accounts/{accountNumber}/orders`. Built via
+/// [`Orders::list`].
 #[must_use = "call .send() to execute the request"]
 pub struct ListOrdersBuilder<'a, 'b> {
     client: &'a SchwabClient,
@@ -228,6 +230,7 @@ impl<'a, 'b> ListOrdersBuilder<'a, 'b> {
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<Vec<Order>> {
         let hash = self.account_hash.expose_secret();
         let from = self
@@ -253,6 +256,8 @@ impl<'a, 'b> ListOrdersBuilder<'a, 'b> {
     }
 }
 
+/// In-flight request for `GET /orders` across every linked account. Built
+/// via [`AllOrders::list`].
 #[must_use = "call .send() to execute the request"]
 pub struct ListAllOrdersBuilder<'a> {
     client: &'a SchwabClient,
@@ -263,16 +268,19 @@ pub struct ListAllOrdersBuilder<'a> {
 }
 
 impl<'a> ListAllOrdersBuilder<'a> {
+    /// Cap the response size. Schwab's default is 3000.
     pub fn max_results(mut self, n: i64) -> Self {
         self.max_results = Some(n);
         self
     }
 
+    /// Restrict the response to orders in a specific status.
     pub fn status(mut self, status: ApiOrderStatus) -> Self {
         self.status = Some(status);
         self
     }
 
+    /// Execute the request.
     pub async fn send(self) -> Result<Vec<Order>> {
         let from = self
             .from_entered_time

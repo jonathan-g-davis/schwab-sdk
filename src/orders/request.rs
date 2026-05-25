@@ -586,6 +586,7 @@ impl SingleOrderBuilder<Ready> {
         self
     }
 
+    /// Finish the builder and return the assembled [`OrderRequest`].
     pub fn build(self) -> OrderRequest {
         self.inner
     }
