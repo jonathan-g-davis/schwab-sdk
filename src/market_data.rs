@@ -33,9 +33,13 @@ pub use price_history::{
     Candle, CandleList, FrequencyType, GetPriceHistoryBuilder, PeriodType, PriceHistory,
 };
 pub use quotes::{
-    AssetMainType, AssetSubType, EquityQuote, ExtendedMarket, FundStrategy, Fundamental,
-    GetQuoteBuilder, ListQuotesBuilder, QuoteEntry, QuoteEquity, QuoteError, QuoteField,
-    QuoteResponse, QuoteType, Quotes, ReferenceEquity, RegularMarket,
+    AssetMainType, AssetSubType, EquityQuote, ExerciseType, ExtendedMarket, ForexQuote,
+    FundStrategy, Fundamental, FutureOptionQuote, FutureQuote, GetQuoteBuilder, IndexQuote,
+    ListQuotesBuilder, MutualFundAssetSubType, MutualFundQuote, OptionContractType, OptionQuote,
+    QuoteEntry, QuoteEquity, QuoteError, QuoteField, QuoteForex, QuoteFuture, QuoteFutureOption,
+    QuoteIndex, QuoteMutualFund, QuoteOption, QuoteResponse, QuoteType, Quotes, ReferenceEquity,
+    ReferenceForex, ReferenceFuture, ReferenceFutureOption, ReferenceIndex, ReferenceMutualFund,
+    ReferenceOption, RegularMarket,
 };
 
 use crate::client::SchwabClient;
