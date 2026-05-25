@@ -9,6 +9,30 @@
 //!
 //! Reached through
 //! [`MarketData::quotes`](super::MarketData::quotes).
+//!
+//! # Examples
+//!
+//! Without [`ListQuotesBuilder::fields`] Schwab returns every root node;
+//! narrowing the selection reduces the payload.
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::QuoteField;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let quotes = client
+//!     .market_data()
+//!     .quotes()
+//!     .list(["AAPL"])
+//!     .fields([QuoteField::Quote, QuoteField::Reference])
+//!     .send()
+//!     .await?;
+//! # let _ = quotes;
+//! # Ok(())
+//! # }
+//! ```
 
 use std::collections::HashMap;
 

@@ -3,6 +3,34 @@
 //! Reached through [`SchwabClient::market_data`](crate::SchwabClient::market_data).
 //! All endpoints in this family hit a different base URL than the Trader
 //! API ([`crate::MARKET_DATA_BASE_URL`] vs [`crate::TRADER_BASE_URL`]).
+//!
+//! # Examples
+//!
+//! Snapshot quotes for several symbols at once. An invalid symbol does not
+//! fail the batch; it comes back as a [`QuoteEntry::Error`] entry in the
+//! response map.
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::QuoteEntry;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let quotes = client.market_data().quotes().list(["AAPL", "MSFT", "SPY"]).send().await?;
+//! for (symbol, entry) in &quotes {
+//!     match entry {
+//!         QuoteEntry::Equity(q) => {
+//!             let last = q.quote.as_ref().and_then(|inner| inner.last_price);
+//!             println!("{symbol}: {last:?}");
+//!         }
+//!         QuoteEntry::Error(_) => println!("{symbol}: not found"),
+//!         _ => println!("{symbol}: non-equity asset"),
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 mod chains;
 mod expiration_chain;
