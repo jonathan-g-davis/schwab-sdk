@@ -56,26 +56,37 @@ use crate::secrets::AccountHash;
 /// Accessor for `/accounts/{accountNumber}/orders*`. Construct via
 /// [`SchwabClient::orders`](crate::SchwabClient::orders).
 ///
+/// `account_hash` throughout is the encrypted [`AccountHash`] from
+/// [`SchwabClient::accounts`](crate::SchwabClient::accounts) ->
+/// [`numbers`](crate::accounts::Accounts::numbers), never the plain account
+/// number.
+///
 /// # Examples
 ///
 /// Place an equity market buy. [`Orders::place`] accepts any
 /// `impl Into<OrderRequest>`, so a shortcut builder flows in without an
 /// explicit `.build()`. On success Schwab returns the new order id parsed
-/// from the `Location` header.
+/// from the `Location` header; fetch the order back with [`Orders::get`] to
+/// see its fill status.
 ///
 /// ```no_run
 /// use rust_decimal_macros::dec;
 /// use schwab_sdk::{AuthToken, SchwabClient};
 /// use schwab_sdk::orders::OrderRequest;
 ///
-/// # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+/// # async fn run() -> schwab_sdk::Result<()> {
 /// let client = SchwabClient::new(AuthToken::new("token"));
+///
+/// let accounts = client.accounts().numbers().await?;
+/// let account_hash = &accounts.first().expect("a linked account").hash_value;
 ///
 /// let order_id = client
 ///     .orders(account_hash)
 ///     .place(OrderRequest::buy_market("AAPL", dec!(10)))
 ///     .await?;
-/// println!("placed order {order_id}");
+///
+/// let order = client.orders(account_hash).get(order_id).await?;
+/// println!("order {order_id} status: {:?}", order.status);
 /// # Ok(())
 /// # }
 /// ```
@@ -90,8 +101,10 @@ use crate::secrets::AccountHash;
 /// use schwab_sdk::{AuthToken, SchwabClient};
 /// use schwab_sdk::orders::{ApiOrderStatus, OrderRequest};
 ///
-/// # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+/// # async fn run() -> schwab_sdk::Result<()> {
 /// let client = SchwabClient::new(AuthToken::new("token"));
+/// let accounts = client.accounts().numbers().await?;
+/// let account_hash = &accounts.first().expect("a linked account").hash_value;
 /// let orders = client.orders(account_hash);
 ///
 /// let working = orders
@@ -99,6 +112,11 @@ use crate::secrets::AccountHash;
 ///     .status(ApiOrderStatus::Working)
 ///     .send()
 ///     .await?;
+///
+/// // Each `Order` carries its id and the symbol on its first leg.
+/// for order in &working {
+///     println!("{:?}: {:?}", order.order_id, order.status);
+/// }
 ///
 /// if let Some(open_id) = working.first().and_then(|o| o.order_id) {
 ///     let new_id = orders
@@ -209,8 +227,10 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// use schwab_sdk::{AuthToken, SchwabClient};
     /// use schwab_sdk::orders::OrderRequest;
     ///
-    /// # async fn run(account_hash: &schwab_sdk::AccountHash) -> schwab_sdk::Result<()> {
+    /// # async fn run() -> schwab_sdk::Result<()> {
     /// let client = SchwabClient::new(AuthToken::new("token"));
+    /// let accounts = client.accounts().numbers().await?;
+    /// let account_hash = &accounts.first().expect("a linked account").hash_value;
     ///
     /// let preview = client
     ///     .orders(account_hash)

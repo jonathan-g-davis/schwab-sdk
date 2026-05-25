@@ -19,7 +19,8 @@
 //! # Examples
 //!
 //! Fetch the near-the-money calls for a symbol. Every filter is optional;
-//! narrow the chain before sending.
+//! narrow the chain before sending. Contracts come back grouped by
+//! expiration and then by strike (see the key format above).
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};
@@ -36,7 +37,18 @@
 //!     .strike_count(5)
 //!     .send()
 //!     .await?;
-//! # let _ = chain;
+//!
+//! // Outer key: "<expiration>:<days-to-expiration>". Inner key: strike.
+//! for (expiration, strikes) in &chain.call_exp_date_map {
+//!     for (strike, contracts) in strikes {
+//!         for contract in contracts {
+//!             println!(
+//!                 "{expiration} {strike}: bid {:?} ask {:?}",
+//!                 contract.bid_price, contract.ask_price,
+//!             );
+//!         }
+//!     }
+//! }
 //! # Ok(())
 //! # }
 //! ```
