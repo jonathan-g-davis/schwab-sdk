@@ -181,17 +181,30 @@ let client = SchwabClient::new(AuthToken::new(env!("SCHWAB_AUTH_TOKEN")));
 ```
 
 For long-lived clients, implement `TokenProvider` over whatever cell or
-refresh strategy fits your application. A swappable provider in ~15
-lines (using `arc-swap` for wait-free reads; `RwLock<AuthToken>` works
-equally well if you prefer the stdlib):
+refresh strategy fits your application. A swappable provider using
+`arc-swap` for wait-free reads. Your refresh loop calls `rotate` when a
+new access token arrives, and the next REST call (or streamer LOGIN)
+hands it out:
 
 ```rust
 use std::sync::Arc;
+
 use arc_swap::ArcSwap;
 use async_trait::async_trait;
 use schwab_sdk::{AuthToken, Error, SchwabClient, TokenProvider};
 
 struct SwappableProvider(ArcSwap<AuthToken>);
+
+impl SwappableProvider {
+    fn new(initial: AuthToken) -> Self {
+        Self(ArcSwap::from_pointee(initial))
+    }
+
+    /// Called by your refresh loop when a fresh access token arrives.
+    fn rotate(&self, fresh: AuthToken) {
+        self.0.store(Arc::new(fresh));
+    }
+}
 
 #[async_trait]
 impl TokenProvider for SwappableProvider {
@@ -200,11 +213,11 @@ impl TokenProvider for SwappableProvider {
     }
 }
 
-let provider = Arc::new(SwappableProvider(ArcSwap::from_pointee(AuthToken::new("..."))));
+let provider = Arc::new(SwappableProvider::new(AuthToken::new("initial-token")));
 let client = SchwabClient::with_token_provider(provider.clone());
 
 // Later, after your refresh strategy obtains a new token:
-provider.0.store(Arc::new(AuthToken::new("rotated")));
+provider.rotate(AuthToken::new("rotated-token"));
 ```
 
 The SDK ships only `StaticTokenProvider`; refreshing providers,

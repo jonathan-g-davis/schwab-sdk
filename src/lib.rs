@@ -16,13 +16,24 @@
 //! ([`AuthToken`], [`CustomerId`], [`AccountNumber`], [`AccountHash`])
 //! are wrapped in newtypes that redact in `Debug`.
 //!
+//! Bearer credentials reach the SDK through the [`TokenProvider`] trait.
+//! [`SchwabClient::new`] wraps a static [`AuthToken`] in a
+//! [`StaticTokenProvider`]. Long-lived clients implement [`TokenProvider`]
+//! over their own refresh strategy and pass it to
+//! [`SchwabClient::with_token_provider`]. The provider is consulted once
+//! per REST request and once per streamer LOGIN frame, so a rotated
+//! token is observed on the next call without rebuilding the client.
+//!
 //! What this crate does **not** include:
 //!
 //! - The OAuth authorization-code flow. Callers obtain a bearer token
-//!   themselves and hand it to [`SchwabClient::new`].
+//!   out of band and hand it to [`SchwabClient::new`], or implement
+//!   [`TokenProvider`] for refresh-on-demand (see its doctest for a
+//!   worked provider).
 //! - Retry and rate limiting. Each [`Error`] exposes
 //!   [`Error::is_retryable`] and [`Error::retry_after`] so a caller can
-//!   layer a policy (`backon`, etc.) on top.
+//!   layer a policy (`backon`, etc.) on top. See the doctest on
+//!   [`Error::is_retryable`] for a minimal backoff loop.
 //! - Order placement at scale. Place / replace / cancel / preview exist,
 //!   but the Schwab API exposes no client-controllable idempotency key;
 //!   callers that need retry-safe submission must dedupe at their own
