@@ -7,17 +7,21 @@ mod common;
 
 use std::future::Future;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use common::TEST_TOKEN;
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal_macros::dec;
-use schwab_sdk::AuthToken;
+use schwab_sdk::error::Error;
 use schwab_sdk::streamer::{
     self, DataContent, Service, StreamerCommand, StreamerResponse, SubscriptionCommand,
     level_one::equities::Field,
 };
 use schwab_sdk::user_preferences::StreamerInfo;
+use schwab_sdk::{AuthToken, StaticTokenProvider, TokenProvider};
 use serde_json::{Value, json};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinHandle;
@@ -85,6 +89,13 @@ async fn send_text(ws: &mut WebSocketStream<TcpStream>, value: Value) {
     ws.send(Message::text(value.to_string()))
         .await
         .expect("send text frame");
+}
+
+/// Build a `StaticTokenProvider` wrapping `token`, type-erased to the
+/// `Arc<dyn TokenProvider + Send + Sync>` shape `streamer::connect`
+/// expects.
+fn static_provider(token: &str) -> Arc<dyn TokenProvider + Send + Sync> {
+    Arc::new(StaticTokenProvider::new(AuthToken::new(token)))
 }
 
 #[tokio::test]
@@ -173,14 +184,12 @@ async fn login_subscribe_recv_logout() {
     })
     .await;
 
-    let (mut reader, writer) = streamer::connect(streamer_info_for(addr))
-        .await
-        .expect("connect");
+    let (mut reader, writer) =
+        streamer::connect(streamer_info_for(addr), static_provider(TEST_TOKEN))
+            .await
+            .expect("connect");
 
-    writer
-        .login(AuthToken::new(TEST_TOKEN))
-        .await
-        .expect("login send");
+    writer.login().await.expect("login send");
 
     let login_resp = timeout(TEST_TIMEOUT, reader.recv())
         .await
@@ -275,13 +284,11 @@ async fn heartbeat_notify_decodes() {
     })
     .await;
 
-    let (mut reader, writer) = streamer::connect(streamer_info_for(addr))
-        .await
-        .expect("connect");
-    writer
-        .login(AuthToken::new(TEST_TOKEN))
-        .await
-        .expect("login send");
+    let (mut reader, writer) =
+        streamer::connect(streamer_info_for(addr), static_provider(TEST_TOKEN))
+            .await
+            .expect("connect");
+    writer.login().await.expect("login send");
 
     // Drain the login response so the next frame is the notify.
     let _login_resp = timeout(TEST_TIMEOUT, reader.recv())
@@ -298,6 +305,108 @@ async fn heartbeat_notify_decodes() {
     };
     assert_eq!(heartbeats.len(), 1);
     assert_eq!(heartbeats[0].heartbeat, 1_668_715_930_582);
+
+    drop(reader);
+    drop(writer);
+    let _ = server.await;
+}
+
+/// `TokenProvider` that serves a scripted sequence of tokens, advancing
+/// one step per `access_token` call. Used to assert that the streamer
+/// re-reads the provider on every `login`, so a token rotated between
+/// the initial LOGIN and a re-LOGIN is the value carried on the wire.
+struct ScriptedProvider(Mutex<std::vec::IntoIter<&'static str>>);
+
+impl ScriptedProvider {
+    fn new(tokens: Vec<&'static str>) -> Arc<Self> {
+        Arc::new(Self(Mutex::new(tokens.into_iter())))
+    }
+}
+
+#[async_trait]
+impl TokenProvider for ScriptedProvider {
+    async fn access_token(&self) -> Result<AuthToken, Error> {
+        let next = self
+            .0
+            .lock()
+            .unwrap()
+            .next()
+            .expect("scripted tokens exhausted");
+        Ok(AuthToken::new(next))
+    }
+}
+
+#[tokio::test]
+async fn login_re_reads_provider_so_rotation_propagates_to_the_wire() {
+    let (addr, server) = spawn_ws_server(|mut ws| async move {
+        // First LOGIN carries token A.
+        let first = expect_text_frame(&mut ws).await;
+        assert_eq!(first["service"], "ADMIN");
+        assert_eq!(first["command"], "LOGIN");
+        assert_eq!(first["parameters"]["Authorization"], "token-A");
+        send_text(
+            &mut ws,
+            json!({
+                "response": [{
+                    "service": "ADMIN",
+                    "command": "LOGIN",
+                    "requestid": first["requestid"],
+                    "SchwabClientCorrelId": "test-corr",
+                    "timestamp": 1,
+                    "content": { "code": 0, "msg": "ok" }
+                }]
+            }),
+        )
+        .await;
+
+        // Second LOGIN (re-LOGIN) must carry token B - the provider has
+        // rotated between the two calls, and the streamer must re-fetch
+        // rather than cache the first value.
+        let second = expect_text_frame(&mut ws).await;
+        assert_eq!(second["service"], "ADMIN");
+        assert_eq!(second["command"], "LOGIN");
+        assert_eq!(second["parameters"]["Authorization"], "token-B");
+        send_text(
+            &mut ws,
+            json!({
+                "response": [{
+                    "service": "ADMIN",
+                    "command": "LOGIN",
+                    "requestid": second["requestid"],
+                    "SchwabClientCorrelId": "test-corr",
+                    "timestamp": 2,
+                    "content": { "code": 0, "msg": "ok" }
+                }]
+            }),
+        )
+        .await;
+
+        while let Some(msg) = ws.next().await {
+            if matches!(msg, Ok(Message::Close(_)) | Err(_)) {
+                break;
+            }
+        }
+    })
+    .await;
+
+    let provider = ScriptedProvider::new(vec!["token-A", "token-B"]);
+    let (mut reader, writer) = streamer::connect(streamer_info_for(addr), provider)
+        .await
+        .expect("connect");
+
+    writer.login().await.expect("first login send");
+    let _first = timeout(TEST_TIMEOUT, reader.recv())
+        .await
+        .expect("first login response timed out")
+        .expect("first login response");
+
+    // Re-LOGIN: the provider advances to token-B, which the server-side
+    // assertion above verifies arrives on the wire.
+    writer.login().await.expect("re-login send");
+    let _second = timeout(TEST_TIMEOUT, reader.recv())
+        .await
+        .expect("re-login response timed out")
+        .expect("re-login response");
 
     drop(reader);
     drop(writer);
