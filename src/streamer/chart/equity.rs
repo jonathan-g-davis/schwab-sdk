@@ -31,19 +31,28 @@ impl SubscriptionField for Field {
 )]
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
+/// Numbered subscription field for CHART_EQUITY.
 #[non_exhaustive]
 pub enum Field {
     /// Field 0. Schwab labels this `"key"` in their docs; we expose it as
     /// `Symbol` so the snake_case key (`symbol`) does not collide with the
     /// top-level `"key"` field that always carries the ticker.
     Symbol,
+    /// Candle open, USD (field 1).
     OpenPrice,
+    /// Candle high, USD (field 2).
     HighPrice,
+    /// Candle low, USD (field 3).
     LowPrice,
+    /// Candle close, USD (field 4).
     ClosePrice,
+    /// Candle volume; may be fractional (field 5).
     Volume,
+    /// Schwab-assigned sequence number (field 6).
     Sequence,
+    /// Candle-open timestamp, epoch milliseconds (field 7).
     ChartTime,
+    /// Days since epoch (field 8).
     ChartDay,
 }
 
@@ -69,40 +78,47 @@ impl TryFrom<u8> for Field {
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {
+    /// Subscription key (the symbol).
     pub key: String,
+    /// `true` if the candle is delayed.
     pub delayed: bool,
+    /// Asset class string (`"EQUITY"`).
     #[serde(rename = "assetMainType")]
     pub asset_main_type: Option<String>,
+    /// Asset sub-type string.
     #[serde(rename = "assetSubType")]
     pub asset_sub_type: Option<String>,
+    /// CUSIP, when Schwab supplies one.
     pub cusip: Option<String>,
 
-    // Field 0.
+    /// Field 0: wire symbol.
     pub symbol: Option<String>,
-    // Field 1.
+    /// Field 1: candle open, USD.
     #[serde(with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    // Field 2.
+    /// Field 2: candle high, USD.
     #[serde(with = "decimal_opt")]
     pub high_price: Option<Decimal>,
-    // Field 3.
+    /// Field 3: candle low, USD.
     #[serde(with = "decimal_opt")]
     pub low_price: Option<Decimal>,
-    // Field 4.
+    /// Field 4: candle close, USD.
     #[serde(with = "decimal_opt")]
     pub close_price: Option<Decimal>,
-    // Field 5.
+    /// Field 5: candle volume; may be fractional on some venues.
     #[serde(with = "decimal_opt")]
     pub volume: Option<Decimal>,
-    // Field 6.
+    /// Field 6: Schwab-assigned sequence number.
     pub sequence: Option<i64>,
-    // Field 7. Milliseconds since the Unix epoch.
+    /// Field 7: candle-open timestamp, epoch milliseconds.
     pub chart_time: Option<u64>,
-    // Field 8.
+    /// Field 8: days since epoch.
     pub chart_day: Option<i32>,
 }
 
 impl Content {
+    /// Decode a remapped JSON object (numeric keys already resolved to
+    /// snake_case names by the streamer frame parser) into a typed batch.
     pub(crate) fn decode_batch(remapped: serde_json::Value) -> Result<Vec<Self>> {
         serde_json::from_value(remapped).map_err(|e| Error::Codec {
             context: "CHART_EQUITY content".to_string(),
