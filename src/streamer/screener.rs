@@ -23,7 +23,9 @@ pub mod option;
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Content {
+    /// Subscription key (the composite screener identifier).
     pub key: String,
+    /// `true` if the snapshot is delayed.
     pub delayed: bool,
     /// Field 0. The symbol used to look up actives, gainers, or losers; in
     /// practice the subscribed composite key.
@@ -49,17 +51,23 @@ pub struct Content {
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Item {
+    /// Instrument description.
     pub description: Option<String>,
+    /// Last trade price, USD.
     #[serde(with = "decimal_opt")]
     pub last_price: Option<Decimal>,
     /// Market share percentage of the instrument.
     #[serde(with = "decimal_opt")]
     pub market_share: Option<Decimal>,
+    /// Net change since prior close, USD.
     #[serde(with = "decimal_opt")]
     pub net_change: Option<Decimal>,
+    /// Net change since prior close as a fraction.
     #[serde(with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
+    /// Wire symbol.
     pub symbol: Option<String>,
+    /// Cumulative session volume.
     pub total_volume: Option<u64>,
     /// Number of trades observed during the requested frequency window.
     pub trades: Option<i64>,
