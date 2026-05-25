@@ -1,4 +1,4 @@
-//! Shared domain types.
+//! Domain types for sensitive strings.
 //!
 //! This module holds newtypes that flow across the public API. Sensitive
 //! string values (bearer tokens, customer identifiers, account numbers) are
@@ -31,6 +31,7 @@ macro_rules! sensitive_string_newtype {
         $vis struct $name(SecretBox<$inner>);
 
         impl $name {
+            /// Wrap a raw string in the redacting newtype.
             pub fn new(value: impl Into<String>) -> Self {
                 Self(SecretBox::new(Box::new($inner(value.into()))))
             }
