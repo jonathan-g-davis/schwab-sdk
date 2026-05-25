@@ -13,7 +13,7 @@
 //! variant.
 //!
 //! [`Error::is_retryable`] and [`Error::retry_after`] are the only retry
-//! seams the crate provides - application code can use these to wire in
+//! seams the crate provides. Application code can use these to wire in
 //! `backon` or another policy on top.
 
 use std::time::Duration;
@@ -23,8 +23,10 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 
 use crate::streamer;
 
+/// Crate result alias: `Result<T, Error>`.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Error returned by every fallible operation in this crate.
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// HTTP 401. Distinct from [`Error::Http`] so a future token-refresh
@@ -38,13 +40,20 @@ pub enum Error {
     /// 429 with optional Retry-After.
     #[error("rate limited: {body}")]
     RateLimited {
+        /// Parsed `Retry-After` header value, if Schwab sent one.
         retry_after: Option<Duration>,
+        /// Decoded response body.
         body: ErrorBody,
     },
     /// Any other non-2xx response. The status is authoritative; the body
     /// is supplementary.
     #[error("http {status}: {body}")]
-    Http { status: StatusCode, body: ErrorBody },
+    Http {
+        /// HTTP status from the response.
+        status: StatusCode,
+        /// Decoded response body.
+        body: ErrorBody,
+    },
     /// `reqwest` transport failure (DNS, connect, TLS, body read).
     #[error("transport: {0}")]
     Transport(#[from] reqwest::Error),
@@ -55,11 +64,21 @@ pub enum Error {
     /// names the operation (e.g. `"decode CHART_EQUITY frame"`,
     /// `"encode subscribe request"`).
     #[error("codec {context}: {reason}")]
-    Codec { context: String, reason: String },
+    Codec {
+        /// Names the operation that failed (e.g. `"decode response body"`).
+        context: String,
+        /// Underlying `serde` error message.
+        reason: String,
+    },
     /// `/userPreference` response missing a required field or carrying
     /// an unparseable value.
     #[error("invalid preference {field}: {reason}")]
-    InvalidPreference { field: &'static str, reason: String },
+    InvalidPreference {
+        /// Name of the missing or unparseable field.
+        field: &'static str,
+        /// Why the field was rejected (e.g. `"missing"`, parse error text).
+        reason: String,
+    },
     /// Schwab acked a place / replace order but the `Location` header
     /// was absent or malformed, so the new order's id is unrecoverable.
     #[error("order id unrecoverable: {0}")]
@@ -164,7 +183,9 @@ impl std::fmt::Display for ErrorBody {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub struct ServiceError {
+    /// Human-readable summary of the failure.
     pub message: String,
+    /// Per-field or per-rule error messages; may be empty.
     #[serde(default)]
     pub errors: Vec<String>,
 }
@@ -180,6 +201,8 @@ impl std::fmt::Display for ServiceError {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct ErrorResponse {
+    /// One entry per problem Schwab detected; empty if Schwab returned
+    /// no structured detail.
     #[serde(default)]
     pub errors: Vec<ApiError>,
 }
