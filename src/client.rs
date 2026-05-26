@@ -49,6 +49,11 @@ use crate::user_preferences::UserPreferences;
 /// provider, so a token rotation observed through one clone is observed
 /// by every clone. Reuse is encouraged over creating new instances per
 /// request.
+///
+/// `Debug` is implemented by hand: the token provider is printed as an
+/// opaque placeholder rather than its contents, so `dbg!(&client)` and
+/// any `Debug`-derived `Error` variants carrying a `SchwabClient` cannot
+/// leak the bearer.
 #[derive(Clone)]
 pub struct SchwabClient {
     client: reqwest::Client,
@@ -57,9 +62,6 @@ pub struct SchwabClient {
     token_provider: Arc<dyn TokenProvider + Send + Sync>,
 }
 
-// Manual `Debug` because `dyn TokenProvider` does not require `Debug`.
-// The token provider's contents are credentials by definition; printing
-// only the field's presence keeps clients safe to `dbg!`.
 impl std::fmt::Debug for SchwabClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SchwabClient")

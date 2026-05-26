@@ -1,7 +1,7 @@
-//! Typed Rust client for the Charles Schwab Trader API and streamer WebSocket.
+//! Typed Rust client for the Charles Schwab Trader and Market Data APIs and
+//! the streamer WebSocket.
 //!
-//! All features of the Trader API are exposed through [`SchwabClient`]. From
-//! it, namespace accessors return typed endpoint builders:
+//! Every endpoint hangs off [`SchwabClient`] via a namespace accessor:
 //!
 //! - [`SchwabClient::accounts`] - `/accounts*`
 //! - [`SchwabClient::orders`] / [`SchwabClient::orders_all`] - `/orders*`
@@ -16,15 +16,17 @@
 //! ([`AuthToken`], [`CustomerId`], [`AccountNumber`], [`AccountHash`])
 //! are wrapped in newtypes that redact in `Debug`.
 //!
+//! # Authentication
+//!
 //! Bearer credentials reach the SDK through the [`TokenProvider`] trait.
 //! [`SchwabClient::new`] wraps a static [`AuthToken`] in a
-//! [`StaticTokenProvider`]. Long-lived clients implement [`TokenProvider`]
+//! [`StaticTokenProvider`]; long-lived clients implement [`TokenProvider`]
 //! over their own refresh strategy and pass it to
 //! [`SchwabClient::with_token_provider`]. The provider is consulted once
-//! per REST request and once per streamer LOGIN frame, so a rotated
-//! token is observed on the next call without rebuilding the client.
+//! per REST request and once per streamer LOGIN frame, so a rotated token
+//! is observed on the next call without rebuilding the client.
 //!
-//! What this crate does **not** include:
+//! # Out of scope
 //!
 //! - The OAuth authorization-code flow. Callers obtain a bearer token
 //!   out of band and hand it to [`SchwabClient::new`], or implement
@@ -65,9 +67,10 @@
 //!
 //! # Examples
 //!
-//! Construct a client from a bearer token and make a call. The token is
-//! obtained out of band; this crate does not perform the OAuth
-//! authorization-code exchange.
+//! ## Construct a client and make a call
+//!
+//! The token is obtained out of band; this crate does not perform the
+//! OAuth authorization-code exchange.
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};
@@ -83,7 +86,7 @@
 //! # }
 //! ```
 //!
-//! End to end: resolve an account, read a quote, and act on it.
+//! ## Resolve an account, read a quote, and place an order
 //!
 //! ```no_run
 //! use rust_decimal_macros::dec;
