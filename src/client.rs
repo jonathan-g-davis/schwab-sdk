@@ -82,6 +82,30 @@ impl SchwabClient {
     ///
     /// Override either base URL via [`Self::with_trader_base_url`] /
     /// [`Self::with_market_data_base_url`] for staging or test fixtures.
+    ///
+    /// # Examples
+    ///
+    /// Build a client from a token obtained out of band, then resolve the
+    /// first linked account's encrypted hash. Every per-account endpoint
+    /// takes the hash, never the plain account number.
+    ///
+    /// ```no_run
+    /// use schwab_sdk::{AuthToken, SchwabClient};
+    ///
+    /// # async fn run() -> schwab_sdk::Result<()> {
+    /// let token = std::env::var("SCHWAB_AUTH_TOKEN")
+    ///     .expect("SCHWAB_AUTH_TOKEN must be set");
+    /// let client = SchwabClient::new(AuthToken::new(token));
+    ///
+    /// let accounts = client.accounts().numbers().await?;
+    /// let account_hash = &accounts
+    ///     .first()
+    ///     .expect("at least one linked account")
+    ///     .hash_value;
+    /// # let _ = account_hash;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(auth_token: AuthToken) -> Self {
         Self::with_token_provider(Arc::new(StaticTokenProvider::new(auth_token)))
     }
@@ -91,6 +115,51 @@ impl SchwabClient {
     /// The provider is consulted once per REST request. Sharing an `Arc`
     /// across `SchwabClient` clones means a token rotation observed
     /// through any clone is observed by every clone.
+    ///
+    /// # Examples
+    ///
+    /// Wire a rotating provider into the client and observe a token
+    /// rotation on the next REST call. See the [`TokenProvider`] trait
+    /// docs for a complete `SwappableProvider` implementation built on
+    /// `arc-swap`. This example assumes that type is in scope.
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use arc_swap::ArcSwap;
+    /// # use async_trait::async_trait;
+    /// use schwab_sdk::{AuthToken, SchwabClient};
+    /// # use schwab_sdk::{Error, TokenProvider};
+    /// #
+    /// # struct SwappableProvider(ArcSwap<AuthToken>);
+    /// # impl SwappableProvider {
+    /// #     fn new(initial: AuthToken) -> Self { Self(ArcSwap::from_pointee(initial)) }
+    /// #     fn rotate(&self, fresh: AuthToken) { self.0.store(Arc::new(fresh)); }
+    /// # }
+    /// # #[async_trait]
+    /// # impl TokenProvider for SwappableProvider {
+    /// #     async fn access_token(&self) -> Result<AuthToken, Error> {
+    /// #         Ok((*self.0.load_full()).clone())
+    /// #     }
+    /// # }
+    /// #
+    /// # async fn run() -> schwab_sdk::Result<()> {
+    /// let provider = Arc::new(SwappableProvider::new(AuthToken::new("initial-token")));
+    /// let client = SchwabClient::with_token_provider(provider.clone());
+    ///
+    /// // The first call uses the initial token.
+    /// let accounts = client.accounts().numbers().await?;
+    /// let initial_count = accounts.len();
+    ///
+    /// // The refresh task obtains a new access token out of band and
+    /// // hands it to the provider.
+    /// provider.rotate(AuthToken::new("rotated-token"));
+    ///
+    /// // The next call uses the rotated token.
+    /// let accounts = client.accounts().numbers().await?;
+    /// assert_eq!(accounts.len(), initial_count);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn with_token_provider(provider: Arc<dyn TokenProvider + Send + Sync>) -> Self {
         Self {
             client: reqwest::Client::new(),
