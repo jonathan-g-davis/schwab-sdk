@@ -124,6 +124,20 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # Disclaimer
+//!
+//! This crate is an independent client. It is **not affiliated with,
+//! endorsed by, or sponsored by Charles Schwab & Co., Inc.** "Schwab"
+//! and related marks are the property of their respective owners.
+//!
+//! The crate is provided "as is" without warranty of any kind. The
+//! authors and contributors are **not responsible for any financial
+//! loss, missed trades, incorrect or duplicate orders, or other trading
+//! outcomes** arising from use of this crate. You are solely responsible
+//! for the orders your code submits and for verifying its behavior
+//! before trading real money. See the MIT and Apache-2.0 license texts
+//! for the full warranty disclaimer.
 
 // Panic-family lints are denied in production code. If a future change
 // genuinely needs one of these in non-test code, add `#[allow(...)]` with
