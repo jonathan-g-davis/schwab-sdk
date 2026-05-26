@@ -54,6 +54,52 @@
 //! what additional process- and host-level hardening to apply. The
 //! crate is provided under MIT / Apache-2.0 with no warranty; see
 //! `SECURITY.md`.
+//!
+//! # Caller responsibilities
+//!
+//! The newtypes cover what happens to a secret once it is inside the
+//! SDK. Everything around that boundary - where the secret comes from,
+//! how it is logged, what other process-level state can see it - is the
+//! caller's.
+//!
+//! - **Token storage.** The SDK does not persist tokens. Put the
+//!   refresh token in an OS-native credential store (Keychain on
+//!   macOS, Credential Manager on Windows, `keyring`/`keyring-core`
+//!   against kernel keyutils on Linux). Do not commit tokens to
+//!   `.env`, config files, or CI environment variables visible across
+//!   jobs. A refresh token carries trading authority on a real-money
+//!   account; treat it at that sensitivity.
+//!
+//! - **Process exposure.** A token in a process's environment is
+//!   readable by any process running as the same user, and by
+//!   `/proc/<pid>/environ` on Linux. Prefer reading from a credential
+//!   store at startup over `std::env::var` in production binaries.
+//!   Never use `env!` for a real token: that bakes the value into the
+//!   binary at compile time.
+//!
+//! - **`expose_secret()` is the security boundary.** Each call site
+//!   should be one of: bearer header construction, LOGIN-frame
+//!   construction, or credential-store encode. New call sites should
+//!   fail code review by default. `expose_secret().to_string()`
+//!   defeats the newtype.
+//!
+//! - **Logging discipline.** If you wrap SDK calls in `tracing` or
+//!   similar, redact request bodies and headers. The streamer LOGIN
+//!   frame serialises the auth token into JSON before transmission,
+//!   so logging a constructed frame body leaks a bearer even though
+//!   [`AuthToken`] redacts in its own `Debug`. Either keep
+//!   frame-level logging off, or scrub by field.
+//!
+//! - **Account number vs. account hash.** Every per-account REST
+//!   endpoint takes the encrypted [`AccountHash`], never the plain
+//!   [`AccountNumber`]. If the plain number flows through your own
+//!   logs, metrics, or error reports, it is PII; treat it accordingly.
+//!
+//! - **Data at rest.** Zeroising on `Drop` does not protect against
+//!   a debugger attached to the live process, a core dump that
+//!   captures heap pages, or pages swapped to disk. These belong to
+//!   the host hardening layer (disabling core dumps, encrypted swap)
+//!   and are out of scope of this crate.
 
 use secrecy::zeroize::Zeroize;
 use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SecretString, SerializableSecret};

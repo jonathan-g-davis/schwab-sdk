@@ -9,6 +9,14 @@
 //!
 //! A consumer that wants on-demand refresh, lazy fetch from a secret
 //! store, or any other policy implements [`TokenProvider`] directly.
+//!
+//! # OAuth flow
+//!
+//! The SDK does not perform the authorization-code exchange. Callers
+//! obtain the bearer out of band. If you stand up a local callback
+//! server for the redirect, bind to `127.0.0.1` only, make the
+//! listener one-shot, and validate the `state` parameter on every
+//! callback to prevent CSRF.
 
 use async_trait::async_trait;
 
