@@ -55,21 +55,27 @@
 //! crate is provided under MIT / Apache-2.0 with no warranty; see
 //! `SECURITY.md`.
 
+use secrecy::zeroize::Zeroize;
 use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SecretString, SerializableSecret};
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
 
 macro_rules! sensitive_string_newtype {
     ($(#[$meta:meta])* $vis:vis $name:ident, $inner:ident) => {
-        #[derive(Clone, Zeroize, Serialize, Deserialize)]
+        #[derive(Clone, Serialize, Deserialize)]
         #[serde(transparent)]
         struct $inner(String);
+
+        impl Zeroize for $inner {
+            fn zeroize(&mut self) {
+                self.0.zeroize();
+            }
+        }
 
         impl CloneableSecret for $inner {}
         impl SerializableSecret for $inner {}
 
         $(#[$meta])*
-        #[derive(Debug, Clone, Zeroize, Serialize, Deserialize)]
+        #[derive(Debug, Clone, Serialize, Deserialize)]
         #[serde(transparent)]
         $vis struct $name(SecretBox<$inner>);
 
