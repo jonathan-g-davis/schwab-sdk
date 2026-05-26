@@ -4,7 +4,7 @@ use chrono::{TimeZone, Utc};
 use rust_decimal_macros::dec;
 use schwab_sdk::AccountHash;
 use schwab_sdk::error::Error;
-use schwab_sdk::orders::{ApiOrderStatus, OrderRequest};
+use schwab_sdk::orders::{ApiOrderStatus, OrderId, OrderRequest};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, ResponseTemplate};
 
@@ -40,8 +40,12 @@ async fn get() {
         .mount(&trader)
         .await;
 
-    let order = client.orders(&hash).get(100000001).await.unwrap();
-    assert_eq!(order.order_id, Some(100000001));
+    let order = client
+        .orders(&hash)
+        .get(OrderId::new(100000001))
+        .await
+        .unwrap();
+    assert_eq!(order.order_id, Some(OrderId::new(100000001)));
 }
 
 #[tokio::test]
@@ -80,7 +84,7 @@ async fn list() {
         .await
         .unwrap();
     assert_eq!(orders.len(), 1);
-    assert_eq!(orders[0].order_id, Some(100000001));
+    assert_eq!(orders[0].order_id, Some(OrderId::new(100000001)));
 }
 
 #[tokio::test]
@@ -104,7 +108,7 @@ async fn place_returns_order_id_from_location_header() {
         .await;
 
     let id = client.orders(&hash).place(test_order()).await.unwrap();
-    assert_eq!(id, 100000001);
+    assert_eq!(id, OrderId::new(100000001));
 }
 
 #[tokio::test]
@@ -150,10 +154,10 @@ async fn replace_returns_new_order_id() {
 
     let id = client
         .orders(&hash)
-        .replace(100000001, test_order())
+        .replace(OrderId::new(100000001), test_order())
         .await
         .unwrap();
-    assert_eq!(id, 100000002);
+    assert_eq!(id, OrderId::new(100000002));
 }
 
 #[tokio::test]
@@ -175,7 +179,7 @@ async fn replace_missing_location_header_returns_error() {
 
     let err = client
         .orders(&hash)
-        .replace(100000001, test_order())
+        .replace(OrderId::new(100000001), test_order())
         .await
         .unwrap_err();
     assert!(matches!(err, Error::OrderIdUnrecoverable(_)));
@@ -198,7 +202,11 @@ async fn cancel() {
         .mount(&trader)
         .await;
 
-    client.orders(&hash).cancel(100000001).await.unwrap();
+    client
+        .orders(&hash)
+        .cancel(OrderId::new(100000001))
+        .await
+        .unwrap();
 }
 
 #[tokio::test]

@@ -8,6 +8,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 
 use crate::accounts::AccountsInstrument;
+use crate::orders::OrderId;
 use crate::orders::enums::*;
 
 /// One order, as returned by the read endpoints. Schwab marks almost no
@@ -16,7 +17,9 @@ use crate::orders::enums::*;
 ///
 /// The OpenAPI spec types `accountNumber` and `orderId` as plain `int64`
 /// here (in contrast to the string-typed account number on
-/// `securitiesAccount`). The fields are kept as numeric here to match.
+/// `securitiesAccount`). `account_number` is kept numeric to match;
+/// `order_id` is wrapped in [`OrderId`], which serializes transparently as
+/// the same `int64`.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Order {
@@ -94,7 +97,7 @@ pub struct Order {
     pub order_strategy_type: Option<OrderStrategyType>,
     /// Schwab-assigned order id.
     #[serde(default, rename = "orderId")]
-    pub order_id: Option<i64>,
+    pub order_id: Option<OrderId>,
     /// `true` if the order can currently be cancelled.
     #[serde(default)]
     pub cancelable: Option<bool>,
@@ -266,7 +269,7 @@ mod tests {
             }]
         }"#;
         let order: Order = serde_json::from_str(json).unwrap();
-        assert_eq!(order.order_id, Some(100000001));
+        assert_eq!(order.order_id, Some(OrderId::new(100000001)));
         assert_eq!(order.status, Some(ApiOrderStatus::Filled));
         assert_eq!(order.order_type, Some(OrderType::Limit));
         assert_eq!(order.order_strategy_type, Some(OrderStrategyType::Single));
@@ -353,7 +356,7 @@ mod tests {
         assert_eq!(order.order_strategy_type, Some(OrderStrategyType::Trigger));
         assert_eq!(order.child_order_strategies.len(), 1);
         let child = &order.child_order_strategies[0];
-        assert_eq!(child.order_id, Some(100000004));
+        assert_eq!(child.order_id, Some(OrderId::new(100000004)));
         assert_eq!(child.order_strategy_type, Some(OrderStrategyType::Single));
         assert_eq!(child.price, Some(dec!(42.03)));
     }
@@ -403,13 +406,13 @@ mod tests {
             ]
         }"#;
         let order: Order = serde_json::from_str(json).unwrap();
-        assert_eq!(order.order_id, Some(100000005));
+        assert_eq!(order.order_id, Some(OrderId::new(100000005)));
         assert_eq!(order.order_strategy_type, Some(OrderStrategyType::Oco));
         assert!(order.order_leg_collection.is_empty());
 
         assert_eq!(order.child_order_strategies.len(), 2);
         let limit_leg = &order.child_order_strategies[0];
-        assert_eq!(limit_leg.order_id, Some(100000006));
+        assert_eq!(limit_leg.order_id, Some(OrderId::new(100000006)));
         assert_eq!(
             limit_leg.order_strategy_type,
             Some(OrderStrategyType::Single)
@@ -423,7 +426,7 @@ mod tests {
         );
 
         let stop_leg = &order.child_order_strategies[1];
-        assert_eq!(stop_leg.order_id, Some(100000007));
+        assert_eq!(stop_leg.order_id, Some(OrderId::new(100000007)));
         assert_eq!(stop_leg.order_type, Some(OrderType::Stop));
         assert_eq!(stop_leg.stop_price, Some(dec!(135.00)));
         assert_eq!(stop_leg.order_leg_collection.len(), 1);
