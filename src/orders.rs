@@ -107,11 +107,12 @@ impl From<OrderId> for i64 {
 ///
 /// # Examples
 ///
-/// Place an equity market buy. [`Orders::place`] accepts any
-/// `impl Into<OrderRequest>`, so a shortcut builder flows in without an
-/// explicit `.build()`. On success Schwab returns the new order id parsed
-/// from the `Location` header; fetch the order back with [`Orders::get`] to
-/// see its fill status.
+/// ## Place a market order
+/// 
+/// [`Orders::place`] accepts any `impl Into<OrderRequest>`, so a shortcut
+/// builder flows in without an explicit `.build()`. On success Schwab returns
+/// the new order id parsed from the `Location` header; fetch the order back
+/// with [`Orders::get`] to see its fill status.
 ///
 /// ```no_run
 /// use rust_decimal_macros::dec;
@@ -135,9 +136,11 @@ impl From<OrderId> for i64 {
 /// # }
 /// ```
 ///
-/// List the working orders from the last week, then reprice and cancel one.
+/// ## Replace an order
+/// 
 /// A replace cancels the original and returns a **new** id; the old id is
-/// dead afterward.
+/// dead afterward. The example below lists the working orders from the last
+/// week, then reprices one and cancels the original.
 ///
 /// ```no_run
 /// use chrono::{Duration as ChronoDuration, Utc};
