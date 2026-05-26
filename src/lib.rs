@@ -39,6 +39,30 @@
 //!   callers that need retry-safe submission must dedupe at their own
 //!   layer.
 //!
+//! # Security
+//!
+//! `schwab-sdk` is built to reduce the risk of credential or PII
+//! leakage through this crate, not to be a security boundary for the
+//! application as a whole.
+//!
+//! - The secret newtypes ([`AuthToken`], [`CustomerId`],
+//!   [`AccountNumber`], [`AccountHash`]) redact in `Debug` and zeroise
+//!   on `Drop`. The [`secrets`] module documents what these properties
+//!   cover and what they do not.
+//! - The crate emits no log lines, writes no files, and does not embed
+//!   secret values in [`Error`] variants. A bearer credential is
+//!   materialised only at the `Authorization` header and the streamer
+//!   LOGIN frame.
+//! - Transport defaults to HTTPS for REST and WSS for the streamer.
+//!   Release builds reject `http://` base-URL overrides and `ws://`
+//!   streamer URLs; debug builds permit them so local fixture servers
+//!   work in tests.
+//! - Credential storage, the OAuth flow, retry policy, rate limiting,
+//!   structured logging, and host-level hardening (disabling core
+//!   dumps, encrypted swap) are caller responsibilities. See
+//!   `SECURITY.md` in the repository for the vulnerability-reporting
+//!   channel and the formal scope.
+//!
 //! # Examples
 //!
 //! Construct a client from a bearer token and make a call. The token is
