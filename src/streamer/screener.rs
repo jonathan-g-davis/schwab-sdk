@@ -20,7 +20,7 @@ pub mod equity;
 pub mod option;
 
 /// One screener result row.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Content {
     /// Subscription key (the composite screener identifier).
@@ -47,7 +47,7 @@ pub struct Content {
 }
 
 /// A single ranked instrument inside `Content::items`.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default, rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct Item {

@@ -163,7 +163,7 @@ impl TryFrom<u8> for Field {
 /// `Field` enum above.
 ///
 /// **Timestamps** are milliseconds since the Unix epoch (`u64`).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {

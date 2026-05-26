@@ -121,7 +121,7 @@ impl TryFrom<u8> for Field {
 /// **Note**: per Schwab's docs, field 18 (`open_interest`) is `double` for
 /// futures-options (unlike LEVELONE_OPTIONS where it's `int`). We honor the
 /// spec and use `Option<Decimal>`.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {

@@ -15,6 +15,7 @@ use crate::error::Result;
 
 /// Accessor for `/expirationchain`. Construct via
 /// [`MarketData::expiration_chain`](super::MarketData::expiration_chain).
+#[derive(Debug)]
 pub struct ExpirationChain<'a> {
     client: &'a SchwabClient,
 }
@@ -38,7 +39,7 @@ impl<'a> ExpirationChain<'a> {
 // --- Response shape ---
 
 /// `/expirationchain` response body.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ExpirationChainResponse {
     /// Schwab response status string (typically `"SUCCESS"`).
@@ -50,7 +51,7 @@ pub struct ExpirationChainResponse {
 }
 
 /// One expiration in the series.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Expiration {
     /// Calendar days until expiration.

@@ -115,7 +115,7 @@ async fn connect_tcp(uri: &Uri) -> std::result::Result<TcpStream, WebSocketError
 }
 
 /// Which transport to use for a given streamer URL scheme.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum WsTransport {
     /// TLS handshake on top of TCP (`wss://`).
     Tls,
@@ -295,6 +295,12 @@ pub struct ReadHalf {
     events_tx: watch::Sender<ConnectionEvent>,
 }
 
+impl std::fmt::Debug for ReadHalf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ReadHalf").finish_non_exhaustive()
+    }
+}
+
 impl ReadHalf {
     /// Receive the next streamer frame.
     ///
@@ -417,6 +423,15 @@ pub struct WriteHalf {
     function_id: String,
     request_id: Arc<AtomicU64>,
     token_provider: Arc<dyn TokenProvider + Send + Sync>,
+}
+
+impl std::fmt::Debug for WriteHalf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WriteHalf")
+            .field("channel", &self.channel)
+            .field("function_id", &self.function_id)
+            .finish_non_exhaustive()
+    }
 }
 
 impl WriteHalf {

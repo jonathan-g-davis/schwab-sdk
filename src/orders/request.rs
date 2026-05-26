@@ -81,7 +81,7 @@ mod decimal_opt {
 /// Response-only fields (`status`, `filledQuantity`, `enteredTime`,
 /// `tag`, `requestedDestination`, etc.) are not present here; they live
 /// on [`Order`](crate::orders::Order) instead.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -173,7 +173,7 @@ impl OrderRequest {
 
 /// One leg of an [`OrderRequest`]. Legs are constructed by the builder's
 /// `equity_*` / `option_*` methods.
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderLegRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -191,7 +191,7 @@ pub struct OrderLegRequest {
 /// Minimal request-side instrument: only `symbol` and `assetType` are
 /// settable. Uses the typed [`AssetType`] from [`crate::accounts`]. Instruments
 /// are produced by the builder.
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderInstrumentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -203,12 +203,15 @@ pub struct OrderInstrumentRequest {
 // --- Typestate builder for SINGLE-strategy orders ---
 
 /// Builder state: order type (market / limit / etc.) has not been set yet.
+#[derive(Debug)]
 pub struct NeedsType;
 /// Builder state: order type is set; at least one leg must still be added.
+#[derive(Debug)]
 pub struct NeedsLeg;
 /// Builder state: at least one leg has been added. Optional fields may be
 /// set, additional legs may be appended (for multi-leg single orders such
 /// as vertical spreads), and `.build()` is callable.
+#[derive(Debug)]
 pub struct Ready;
 
 /// Trait used to lift leg-adding methods across the two states that
@@ -236,6 +239,7 @@ impl AcceptsLeg for Ready {
 
 /// Typestate builder for a `SINGLE` strategy order. Construct via
 /// [`OrderRequest::single`].
+#[derive(Debug)]
 #[must_use = "call .build() to finalize the OrderRequest"]
 pub struct SingleOrderBuilder<State> {
     inner: OrderRequest,

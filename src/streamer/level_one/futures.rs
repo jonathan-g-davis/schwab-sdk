@@ -141,7 +141,7 @@ impl TryFrom<u8> for Field {
 /// **`future_price_format`** is documented by Schwab as `numerator,denominator`
 /// (e.g. `"3,32"` for fixed-income futures, `"D,D"` for pure-decimal equity
 /// futures).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {

@@ -28,6 +28,7 @@ use crate::secrets::{AccountHash, AccountNumber};
 
 /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
 /// family. Construct via [`SchwabClient::transactions`].
+#[derive(Debug)]
 pub struct Transactions<'a, 'b> {
     client: &'a SchwabClient,
     account_hash: &'b AccountHash,
@@ -78,6 +79,7 @@ impl<'a, 'b> Transactions<'a, 'b> {
 
 /// In-flight request for `GET /accounts/{accountNumber}/transactions`.
 /// Built via [`Transactions::list`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct ListTransactionsBuilder<'a, 'b> {
     client: &'a SchwabClient,
@@ -173,7 +175,7 @@ pub struct Transaction {
 }
 
 /// User identification attached to a transaction.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct UserDetails {
     /// Schwab CD domain id.
@@ -205,7 +207,7 @@ pub struct UserDetails {
 /// One leg of a transaction. A trade typically has a security TransferItem
 /// (the instrument moved) and one or more fee TransferItems (commission,
 /// SEC fee, etc.) distinguished by `fee_type`.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct TransferItem {
     /// Instrument moved. `None` on pure-fee items.
@@ -238,7 +240,7 @@ pub struct TransferItem {
 /// The `type` discriminator inside a variant (e.g. `COMMON_STOCK` for an
 /// equity, `VANILLA` for an option, `US_TREASURY_BOND` for fixed income) is
 /// preserved as a raw string in [`Self::variant_type`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct TransactionInstrument {
     /// Asset-class discriminator. Match on this to interpret the variant-
@@ -354,7 +356,7 @@ pub struct TransactionInstrument {
 }
 
 /// One deliverable component of an option contract on a [`Transaction`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct TransactionApiOptionDeliverable {
     /// Root symbol of the deliverable.

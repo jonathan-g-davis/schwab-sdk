@@ -17,7 +17,7 @@ use crate::orders::enums::*;
 /// The OpenAPI spec types `accountNumber` and `orderId` as plain `int64`
 /// here (in contrast to the string-typed account number on
 /// `securitiesAccount`). The fields are kept as numeric here to match.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Order {
     /// Trading session the order is valid in.
@@ -134,7 +134,7 @@ pub struct Order {
 }
 
 /// One leg of an order (the security being traded plus its side / quantity).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderLegCollection {
     /// Asset class of the leg.
@@ -168,7 +168,7 @@ pub struct OrderLegCollection {
 
 /// One lifecycle event in an order's activity history (a fill or an order
 /// action).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderActivity {
     /// Whether this row is an execution or an order action.
@@ -189,7 +189,7 @@ pub struct OrderActivity {
 }
 
 /// One executed leg within an [`OrderActivity`] fill row.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ExecutionLeg {
     /// Schwab-assigned leg id this fill is against.

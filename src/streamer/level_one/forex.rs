@@ -112,7 +112,7 @@ impl TryFrom<u8> for Field {
 }
 
 /// Typed payload for a single LEVELONE_FOREX update.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {

@@ -34,7 +34,7 @@ use crate::streamer::request::StreamerRequest;
 /// Subscription verb. Narrower than [`StreamerCommand`]: only the four
 /// verbs that operate on a subscription. Re-exported as
 /// [`SubscriptionCommand`](super::SubscriptionCommand).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Command {
     /// Subscribe (replaces any existing subscription on the same service).
@@ -79,7 +79,7 @@ impl TryFrom<StreamerCommand> for Command {
 }
 
 /// Fully assembled subscription frame: verb, keys, and the typed field set.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Subscription<T> {
     pub(super) command: Command,
     pub(super) keys: Vec<String>,
@@ -125,11 +125,13 @@ impl<F: SubscriptionField> From<Subscription<F>> for StreamerRequest {
 /// Builder state: no verb has been picked yet. Only the verb methods
 /// (`subscribe` / `add` / `unsubscribe` / `view`) are callable; `fields()`
 /// and `send()` are not. Transition by calling one of the verbs.
+#[derive(Debug)]
 pub struct NeedsVerb;
 
 /// Builder state: a verb has been picked. `fields()` is callable and
 /// `send()` writes the frame. Verb methods are not callable on this state
 /// (commit to one verb per request).
+#[derive(Debug)]
 pub struct Ready {
     command: Command,
 }
@@ -142,6 +144,7 @@ pub struct Ready {
 /// [`NeedsVerb`] to [`Ready`]; the type system then makes `fields(...)` and
 /// `send()` reachable. Calling `send()` without first picking a verb is a
 /// compile-time error.
+#[derive(Debug)]
 #[must_use = "call .send() to write the streamer frame"]
 pub struct SubscribeRequest<'a, F, S = NeedsVerb> {
     write_half: &'a WriteHalf,

@@ -65,7 +65,7 @@ impl TryFrom<u8> for Field {
 }
 
 /// One minute OHLCV candle for a futures contract.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {

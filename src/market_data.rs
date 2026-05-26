@@ -74,6 +74,7 @@ use crate::client::SchwabClient;
 
 /// Accessor for the Market Data API endpoint families. Construct via
 /// [`SchwabClient::market_data`](crate::SchwabClient::market_data).
+#[derive(Debug)]
 pub struct MarketData<'a> {
     client: &'a SchwabClient,
 }

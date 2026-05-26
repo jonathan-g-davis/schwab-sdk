@@ -14,6 +14,7 @@ use crate::secrets::{AccountNumber, CustomerId};
 
 /// Accessor for `/userPreference`. Construct via
 /// [`SchwabClient::user_preferences`].
+#[derive(Debug)]
 pub struct UserPreferences<'a> {
     client: &'a SchwabClient,
 }
@@ -98,7 +99,7 @@ pub struct StreamerInfo {
 }
 
 /// Market-data entitlement entry.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Offer {
     /// `true` if the account is entitled to level-2 (order-book) data.

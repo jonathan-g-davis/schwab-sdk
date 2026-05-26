@@ -69,6 +69,7 @@ use crate::macros::string_enum;
 
 /// Accessor for `/chains`. Construct via
 /// [`MarketData::chains`](super::MarketData::chains).
+#[derive(Debug)]
 pub struct Chains<'a> {
     client: &'a SchwabClient,
 }
@@ -106,6 +107,7 @@ impl<'a> Chains<'a> {
 }
 
 /// In-flight request for `GET /chains`. Built via [`Chains::get`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct GetChainBuilder<'a> {
     client: &'a SchwabClient,
@@ -384,7 +386,7 @@ impl<'de> Visitor<'de> for ContractsVisitor {
 }
 
 /// `/chains` response body.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct OptionChain {
     /// Underlying symbol the chain is for.
@@ -438,7 +440,7 @@ pub struct OptionChain {
 }
 
 /// Underlying-security snapshot attached to an [`OptionChain`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Underlying {
     /// Best ask, USD.
@@ -513,7 +515,7 @@ pub struct Underlying {
 }
 
 /// A single option contract within a [`OptionChain`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OptionContract {
     /// Put/call discriminator.
@@ -668,7 +670,7 @@ pub struct OptionContract {
 }
 
 /// One deliverable backing an option contract.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OptionDeliverables {
     /// Symbol of the deliverable.

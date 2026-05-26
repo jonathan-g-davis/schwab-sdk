@@ -127,6 +127,7 @@ use crate::secrets::AccountHash;
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct Orders<'a, 'b> {
     client: &'a SchwabClient,
     account_hash: &'b AccountHash,
@@ -319,6 +320,7 @@ impl<'a, 'b> Orders<'a, 'b> {
 
 /// Accessor for `/orders` (across every linked account). Construct via
 /// [`SchwabClient::orders_all`](crate::SchwabClient::orders_all).
+#[derive(Debug)]
 pub struct AllOrders<'a> {
     client: &'a SchwabClient,
 }
@@ -352,6 +354,7 @@ impl<'a> AllOrders<'a> {
 
 /// In-flight request for `GET /accounts/{accountNumber}/orders`. Built via
 /// [`Orders::list`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct ListOrdersBuilder<'a, 'b> {
     client: &'a SchwabClient,
@@ -406,6 +409,7 @@ impl<'a, 'b> ListOrdersBuilder<'a, 'b> {
 
 /// In-flight request for `GET /orders` across every linked account. Built
 /// via [`AllOrders::list`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct ListAllOrdersBuilder<'a> {
     client: &'a SchwabClient,
