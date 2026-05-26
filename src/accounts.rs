@@ -71,6 +71,7 @@ use crate::secrets::{AccountHash, AccountNumber};
 
 /// Accessor for the `/accounts*` endpoint family. Construct via
 /// [`SchwabClient::accounts`].
+#[derive(Debug)]
 pub struct Accounts<'a> {
     client: &'a SchwabClient,
 }
@@ -113,6 +114,7 @@ impl<'a> Accounts<'a> {
 }
 
 /// In-flight request for `GET /accounts`. Built via [`Accounts::list`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct ListAccountsBuilder<'a> {
     client: &'a SchwabClient,
@@ -140,6 +142,7 @@ impl<'a> ListAccountsBuilder<'a> {
 
 /// In-flight request for `GET /accounts/{accountNumber}`. Built via
 /// [`Accounts::get`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct GetAccountBuilder<'a, 'b> {
     client: &'a SchwabClient,
@@ -396,7 +399,7 @@ pub struct CashAccount {
 ///
 /// Every field is `Option<Decimal>`; `None` distinguishes "Schwab omitted the
 /// field" from "Schwab sent zero." All money values are USD.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct MarginInitialBalance {
     /// Interest accrued but not yet posted.
@@ -506,7 +509,7 @@ pub struct MarginInitialBalance {
 
 /// Margin-account current / projected balances. Same units as
 /// [`MarginInitialBalance`] (USD, `None` means Schwab omitted the field).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct MarginBalance {
     /// Funds available to enter new trades.
@@ -580,7 +583,7 @@ pub struct MarginBalance {
 ///
 /// Every field is `Option<Decimal>`; `None` means Schwab omitted the field.
 /// USD throughout.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CashInitialBalance {
     /// Interest accrued but not yet posted.
@@ -641,7 +644,7 @@ pub struct CashInitialBalance {
 
 /// Cash-account current / projected balances. Same units as
 /// [`CashInitialBalance`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CashBalance {
     /// Cash available for new trades.
@@ -672,7 +675,7 @@ pub struct CashBalance {
 /// Schwab reports both long and short sides on the same row. Quantities are
 /// signed by side (`long_quantity` for the long leg, `short_quantity` for the
 /// short leg). All monetary values are USD.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Position {
     /// Short quantity (shares / contracts).
@@ -745,7 +748,7 @@ pub struct Position {
 /// on any documented asset variant lives here as `Option`, so newly-added
 /// asset types deserialize cleanly even if this crate has not been updated.
 /// Consumers match on [`AccountsInstrument::asset_type`] to route.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AccountsInstrument {
     /// Asset-class discriminator. Match on this to interpret the variant-
@@ -799,7 +802,7 @@ pub struct AccountsInstrument {
 
 /// One deliverable component of an option contract (the security delivered
 /// per contract on assignment / exercise).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct AccountApiOptionDeliverable {
     /// Symbol of the deliverable security.

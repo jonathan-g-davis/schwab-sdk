@@ -64,6 +64,7 @@ use crate::macros::string_enum;
 
 /// Accessor for `/pricehistory`. Construct via
 /// [`MarketData::price_history`](super::MarketData::price_history).
+#[derive(Debug)]
 pub struct PriceHistory<'a> {
     client: &'a SchwabClient,
 }
@@ -95,6 +96,7 @@ impl<'a> PriceHistory<'a> {
 
 /// In-flight request for `GET /pricehistory`. Built via
 /// [`PriceHistory::get`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct GetPriceHistoryBuilder<'a> {
     client: &'a SchwabClient,
@@ -221,7 +223,7 @@ impl<'a> GetPriceHistoryBuilder<'a> {
 // --- Response shape ---
 
 /// `/pricehistory` response body.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CandleList {
     /// OHLCV candles, in chronological order.
@@ -245,7 +247,7 @@ pub struct CandleList {
 }
 
 /// One OHLCV candle.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Candle {
     /// Candle open, USD.

@@ -74,7 +74,7 @@ impl TryFrom<u8> for Field {
 /// `volume` is `Decimal` because Schwab types it as a `double` on the wire
 /// (fractional share volume on some venues). Timestamps are milliseconds
 /// since the Unix epoch.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Content {

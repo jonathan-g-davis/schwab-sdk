@@ -12,7 +12,7 @@
 
 /// Lifecycle event for one streamer WebSocket session, published on the
 /// watch channel returned by [`ReadHalf::events`](super::ReadHalf::events).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConnectionEvent {
     /// WS handshake complete; no login attempt observed yet on this session.
     Connected,
@@ -29,7 +29,7 @@ pub enum ConnectionEvent {
 }
 
 /// Why a [`ConnectionEvent::Disconnected`] event was emitted.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum DisconnectReason {
     /// WebSocket transport-level failure (read_frame error, EOF, etc.).
     Transport(String),

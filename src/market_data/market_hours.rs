@@ -19,6 +19,7 @@ use crate::macros::string_enum;
 
 /// Accessor for `/markets*`. Construct via
 /// [`MarketData::market_hours`](super::MarketData::market_hours).
+#[derive(Debug)]
 pub struct MarketHours<'a> {
     client: &'a SchwabClient,
 }
@@ -59,6 +60,7 @@ impl<'a> MarketHours<'a> {
 }
 
 /// In-flight request for `GET /markets`.
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct ListMarketHoursBuilder<'a> {
     client: &'a SchwabClient,
@@ -91,6 +93,7 @@ impl<'a> ListMarketHoursBuilder<'a> {
 }
 
 /// In-flight request for `GET /markets/{market_id}`.
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct GetMarketHoursBuilder<'a> {
     client: &'a SchwabClient,
@@ -126,7 +129,7 @@ impl<'a> GetMarketHoursBuilder<'a> {
 pub type MarketHoursResponse = HashMap<String, HashMap<String, Hours>>;
 
 /// Market-hours detail for one product within one market.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Hours {
     /// `yyyy-MM-dd` date the hours apply to.
@@ -162,7 +165,7 @@ pub struct Hours {
 /// `"2024-03-15T09:30:00-04:00"`); kept as `String` for now since the
 /// timezone is informational and chrono parsing is a one-liner at the
 /// consumer.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Interval {
     /// Session start timestamp.

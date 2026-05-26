@@ -7,7 +7,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 /// One element of a `response` array on a streamer frame: the
 /// acknowledgement Schwab returns for a command (login, subscribe, etc.).
 #[serde_as]
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ResponsePayload {
     /// Echo of the `request_id` the client sent on the command.
@@ -29,7 +29,7 @@ pub struct ResponsePayload {
 }
 
 /// Outcome payload inside a [`ResponsePayload`].
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ResponseContent {
     /// Status code from Schwab.
@@ -42,7 +42,7 @@ pub struct ResponseContent {
 /// Heartbeat frame, sent by Schwab on the `notify` channel at regular
 /// intervals to confirm the session is alive.
 #[serde_as]
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Heartbeat {
     /// Heartbeat timestamp, epoch milliseconds.
@@ -51,7 +51,7 @@ pub struct Heartbeat {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 pub(super) struct RawDataPayload {
     service: Service,
     #[serde_as(as = "PickFirst<(_, DisplayFromStr)>")]
@@ -254,7 +254,7 @@ fn transform_keys<T: std::fmt::Display + TryFrom<u8>>(
     Ok(serde_json::Value::Array(out))
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 pub(super) enum RawStreamerResponse {
     #[serde(rename = "response")]
     Response(Vec<ResponsePayload>),

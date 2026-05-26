@@ -16,6 +16,7 @@ use crate::macros::string_enum;
 
 /// Accessor for `/movers/{symbol_id}`. Construct via
 /// [`MarketData::movers`](super::MarketData::movers).
+#[derive(Debug)]
 pub struct Movers<'a> {
     client: &'a SchwabClient,
 }
@@ -38,6 +39,7 @@ impl<'a> Movers<'a> {
 
 /// In-flight request for `GET /movers/{symbol_id}`. Built via
 /// [`Movers::get`].
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct GetMoversBuilder<'a> {
     client: &'a SchwabClient,
@@ -80,7 +82,7 @@ impl<'a> GetMoversBuilder<'a> {
 // --- Response shape ---
 
 /// `/movers/{symbol_id}` response body.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct MoversResponse {
     /// One entry per top-moving security in the index.
@@ -89,7 +91,7 @@ pub struct MoversResponse {
 }
 
 /// One moved security within an index.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Screener {
     /// Percent (default) or value changed. Sign is informational; pair

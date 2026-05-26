@@ -22,7 +22,7 @@ pub mod nyse;
 pub mod options;
 
 /// Top-level book payload. One per subscribed symbol per tick.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Content {
     /// Subscription key (the symbol the book is for).
@@ -42,7 +42,7 @@ pub struct Content {
 }
 
 /// A single price level on one side of the book.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct PriceLevel {
     /// Sub-field 0.
@@ -60,7 +60,7 @@ pub struct PriceLevel {
 }
 
 /// A single market maker's contribution to a price level.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct MarketMaker {
     /// Sub-field 0.

@@ -17,6 +17,7 @@ use crate::macros::string_enum;
 
 /// Accessor for `/instruments*`. Construct via
 /// [`MarketData::instruments`](super::MarketData::instruments).
+#[derive(Debug)]
 pub struct Instruments<'a> {
     client: &'a SchwabClient,
 }
@@ -60,7 +61,7 @@ impl<'a> Instruments<'a> {
 // --- Response shape ---
 
 /// `GET /instruments` (search) response body.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct InstrumentsResponse {
     /// One entry per matched instrument; empty when nothing matched.
@@ -71,7 +72,7 @@ pub struct InstrumentsResponse {
 /// One instrument record. Search results without
 /// [`Projection::Fundamental`] populate only the identity fields;
 /// `fundamental` is present only for fundamental-projection searches.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct InstrumentResponse {
     /// CUSIP.
@@ -111,7 +112,7 @@ pub struct InstrumentResponse {
 }
 
 /// Basic instrument identity block.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Instrument {
     /// CUSIP.
@@ -132,7 +133,7 @@ pub struct Instrument {
 }
 
 /// Bond-specific instrument block.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Bond {
     /// CUSIP.
@@ -165,7 +166,7 @@ pub struct Bond {
 /// searches. Every field is optional; Schwab populates the subset it
 /// has for the instrument. Date-like fields are kept as `String` (Schwab
 /// ships them in a variety of formats here).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct FundamentalInst {
     /// Wire symbol the fundamentals belong to.

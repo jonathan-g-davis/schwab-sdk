@@ -117,7 +117,7 @@ pub struct OrderStrategy {
 }
 
 /// Projected balance impact of the order, USD.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderBalance {
     /// Notional value of the order.
@@ -137,7 +137,7 @@ pub struct OrderBalance {
 /// Per-leg preview entry. Distinct from the response-side
 /// [`OrderLegCollection`](crate::orders::OrderLegCollection): preview
 /// adds market quotes (bid/ask/last/mark) and a projected commission.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderLeg {
     /// Best ask at preview time, USD.
@@ -173,7 +173,7 @@ pub struct OrderLeg {
 }
 
 /// Per-rule outcome of the preview's validation pass.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderValidationResult {
     /// Soft-warning rules.
@@ -195,7 +195,7 @@ pub struct OrderValidationResult {
 }
 
 /// Detail for one rule outcome inside an [`OrderValidationResult`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OrderValidationDetail {
     /// Schwab-internal rule name (e.g. `"BUYING_POWER_CHECK"`).
@@ -219,7 +219,7 @@ pub struct OrderValidationDetail {
 }
 
 /// Combined commission and fee projection for the preview.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CommissionAndFee {
     /// Projected commissions, broken down by leg.
@@ -235,7 +235,7 @@ pub struct CommissionAndFee {
 }
 
 /// Per-leg commission projection.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Commission {
     /// One entry per order leg.
@@ -244,7 +244,7 @@ pub struct Commission {
 }
 
 /// One leg's projected commission values.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CommissionLeg {
     /// One entry per commission component (e.g. base commission, surcharge).
@@ -253,7 +253,7 @@ pub struct CommissionLeg {
 }
 
 /// A single commission component within a [`CommissionLeg`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct CommissionValue {
     /// Value of this commission component, USD.
@@ -265,7 +265,7 @@ pub struct CommissionValue {
 }
 
 /// Per-leg fee projection (regulatory and venue fees).
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Fees {
     /// One entry per order leg.
@@ -274,7 +274,7 @@ pub struct Fees {
 }
 
 /// One leg's projected fee values.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct FeeLeg {
     /// One entry per fee component (SEC, TAF, OPT_REG, ...).
@@ -283,7 +283,7 @@ pub struct FeeLeg {
 }
 
 /// A single fee component within a [`FeeLeg`].
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct FeeValue {
     /// Value of this fee component, USD.

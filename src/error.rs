@@ -235,7 +235,7 @@ impl Error {
 /// }
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ErrorBody {
     /// Trader API shape: a top-level message plus error strings.
     Trader(ServiceError),
@@ -277,7 +277,7 @@ impl std::fmt::Display for ErrorBody {
 }
 
 /// The error body Schwab's Trader API returns on 4xx/5xx responses.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ServiceError {
     /// Human-readable summary of the failure.
@@ -295,7 +295,7 @@ impl std::fmt::Display for ServiceError {
 
 /// The error body Schwab's Market Data API returns on 4xx/5xx responses:
 /// a list of structured per-error entries.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ErrorResponse {
     /// One entry per problem Schwab detected; empty if Schwab returned
@@ -321,7 +321,7 @@ impl std::fmt::Display for ErrorResponse {
 
 /// One structured error within an [`ErrorResponse`].
 #[serde_as]
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ApiError {
     /// Unique error id Schwab assigns; useful when contacting support.
@@ -359,7 +359,7 @@ impl std::fmt::Display for ApiError {
 }
 
 /// Locates the request element that triggered an [`ApiError`].
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ErrorSource {
     /// JSON pointer(s) into the request body.

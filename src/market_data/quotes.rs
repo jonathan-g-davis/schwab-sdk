@@ -53,6 +53,7 @@ use crate::macros::string_enum;
 
 /// Accessor for the `/quotes` endpoint family. Construct via
 /// [`MarketData::quotes`](super::MarketData::quotes).
+#[derive(Debug)]
 pub struct Quotes<'a> {
     client: &'a SchwabClient,
 }
@@ -97,6 +98,7 @@ impl<'a> Quotes<'a> {
 }
 
 /// In-flight request for `GET /quotes`.
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct ListQuotesBuilder<'a> {
     client: &'a SchwabClient,
@@ -147,6 +149,7 @@ impl<'a> ListQuotesBuilder<'a> {
 }
 
 /// In-flight request for `GET /{symbol}/quotes`.
+#[derive(Debug)]
 #[must_use = "call .send() to execute the request"]
 pub struct GetQuoteBuilder<'a> {
     client: &'a SchwabClient,
@@ -198,7 +201,7 @@ pub type QuoteResponse = HashMap<String, QuoteEntry>;
 /// - Entries with no `assetMainType` (Schwab returns these when a
 ///   symbol was invalid) -> [`QuoteEntry::Error`] carrying the lists of
 ///   invalid symbols / cusips / SSIDs.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum QuoteEntry {
     /// Equity (`assetMainType` = `EQUITY`).
@@ -259,7 +262,7 @@ impl<'de> serde::Deserialize<'de> for QuoteEntry {
 
 /// Equity-asset response: composes the `quote` / `reference` / `regular`
 /// / `extended` / `fundamental` sub-objects with the asset metadata.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct EquityQuote {
     /// Asset class discriminator (always [`AssetMainType::Equity`]).
@@ -298,7 +301,7 @@ pub struct EquityQuote {
 }
 
 /// Equity quote sub-object: bid/ask/last, day OHLC, mark, volume, etc.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteEquity {
     /// 52-week high price, USD.
@@ -385,7 +388,7 @@ pub struct QuoteEquity {
 }
 
 /// Static reference data for an equity quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceEquity {
     /// CUSIP.
@@ -421,7 +424,7 @@ pub struct ReferenceEquity {
 }
 
 /// Last regular-session trade summary.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct RegularMarket {
     /// Last regular-session trade price, USD.
@@ -442,7 +445,7 @@ pub struct RegularMarket {
 }
 
 /// Pre-/post-market quote block.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ExtendedMarket {
     /// Extended-hours best ask, USD.
@@ -478,7 +481,7 @@ pub struct ExtendedMarket {
 }
 
 /// Fundamental data block returned with equity and mutual-fund quotes.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Fundamental {
     /// Trailing 10-day average daily volume (shares).
@@ -531,7 +534,7 @@ pub struct Fundamental {
 
 /// Error block Schwab returns when one or more requested identifiers
 /// could not be quoted.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteError {
     /// CUSIPs Schwab could not resolve.
@@ -549,7 +552,7 @@ pub struct QuoteError {
 
 /// Option-asset response: the `quote`/`reference` sub-objects with the
 /// asset metadata.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct OptionQuote {
     /// Asset class discriminator.
@@ -574,7 +577,7 @@ pub struct OptionQuote {
 
 /// Option quote sub-object: bid/ask/last, the Greeks, and theoretical
 /// values.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteOption {
     /// 52-week high price, USD.
@@ -689,7 +692,7 @@ pub struct QuoteOption {
 }
 
 /// Static reference data for an option quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceOption {
     /// Put/call discriminator.
@@ -751,7 +754,7 @@ pub struct ReferenceOption {
 // --- Forex ---
 
 /// Forex-asset response.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ForexQuote {
     /// Asset class discriminator.
@@ -775,7 +778,7 @@ pub struct ForexQuote {
 }
 
 /// Live forex quote block.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteForex {
     /// 52-week high (counter-currency units per base unit).
@@ -844,7 +847,7 @@ pub struct QuoteForex {
 }
 
 /// Static reference data for a forex quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceForex {
     /// Pair description.
@@ -873,7 +876,7 @@ pub struct ReferenceForex {
 // --- Future ---
 
 /// Future-asset response.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct FutureQuote {
     /// Asset class discriminator.
@@ -897,7 +900,7 @@ pub struct FutureQuote {
 }
 
 /// Live futures quote block.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteFuture {
     /// MIC venue id for the best ask.
@@ -984,7 +987,7 @@ pub struct QuoteFuture {
 }
 
 /// Static reference data for a futures quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceFuture {
     /// Contract description.
@@ -1025,7 +1028,7 @@ pub struct ReferenceFuture {
 // --- Future option ---
 
 /// Future-option-asset response.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct FutureOptionQuote {
     /// Asset class discriminator.
@@ -1049,7 +1052,7 @@ pub struct FutureOptionQuote {
 }
 
 /// Live futures-option quote block.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteFutureOption {
     /// MIC venue id for the best ask.
@@ -1136,7 +1139,7 @@ pub struct QuoteFutureOption {
 }
 
 /// Static reference data for a futures-option quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceFutureOption {
     /// Put/call discriminator.
@@ -1171,7 +1174,7 @@ pub struct ReferenceFutureOption {
 // --- Index ---
 
 /// Index-asset response.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct IndexQuote {
     /// Asset class discriminator.
@@ -1196,7 +1199,7 @@ pub struct IndexQuote {
 
 /// Live index quote block. Indices have no bid/ask; only last-price-style
 /// fields.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteIndex {
     /// 52-week high.
@@ -1238,7 +1241,7 @@ pub struct QuoteIndex {
 }
 
 /// Static reference data for an index quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceIndex {
     /// Index description.
@@ -1255,7 +1258,7 @@ pub struct ReferenceIndex {
 // --- Mutual fund ---
 
 /// Mutual-fund-asset response.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct MutualFundQuote {
     /// Asset class discriminator.
@@ -1285,7 +1288,7 @@ pub struct MutualFundQuote {
 }
 
 /// Live mutual-fund quote block. Mutual funds price once per day.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct QuoteMutualFund {
     /// 52-week high NAV, USD.
@@ -1318,7 +1321,7 @@ pub struct QuoteMutualFund {
 }
 
 /// Static reference data for a mutual-fund quote.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct ReferenceMutualFund {
     /// CUSIP.
