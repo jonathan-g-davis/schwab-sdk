@@ -50,7 +50,7 @@ use crate::user_preferences::UserPreferences;
 /// by every clone. Reuse is encouraged over creating new instances per
 /// request.
 ///
-/// `Debug` is implemented by hand: the token provider is printed as an
+/// `Debug` is manually implemented. The token provider is printed as an
 /// opaque placeholder rather than its contents, so `dbg!(&client)` and
 /// any `Debug`-derived `Error` variants carrying a `SchwabClient` cannot
 /// leak the bearer.

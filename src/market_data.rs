@@ -1,8 +1,6 @@
 //! Schwab Market Data API.
 //!
 //! Reached through [`SchwabClient::market_data`](crate::SchwabClient::market_data).
-//! All endpoints in this family hit a different base URL than the Trader
-//! API ([`crate::MARKET_DATA_BASE_URL`] vs [`crate::TRADER_BASE_URL`]).
 //!
 //! # Examples
 //!
