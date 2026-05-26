@@ -11,6 +11,49 @@
 //!   `SerializableSecret`).
 //! - `new(impl Into<String>)` and `expose_secret() -> &str`.
 //! - `From<&str>`, `From<String>`, and `From<SecretString>` for convenience.
+//!
+//! # Threat model
+//!
+//! These newtypes reduce the chance of accidental credential or PII
+//! leakage from code that uses them as intended. They are not a
+//! security boundary on their own; an explicit
+//! `.expose_secret().to_string()`, a misconfigured logger, or a
+//! compromised process defeats them.
+//!
+//! **What they help with**
+//!
+//! - `{:?}` / `dbg!` / `Debug`-derived `Error` variants do not print
+//!   the secret. The redacted form is `Secret([REDACTED ...])`.
+//! - `Drop` zeroises the heap buffer that held the secret, narrowing
+//!   the window during which a swap-out, post-free read, or stale-page
+//!   capture could observe it.
+//! - `Clone` copies the protected box rather than producing a plain
+//!   `String`, so the secret does not silently widen when passed
+//!   around.
+//! - [`expose_secret`](secrecy::ExposeSecret::expose_secret) is the
+//!   single, grep-able boundary that yields the raw value. Code review
+//!   can enumerate every call site.
+//!
+//! **What they do not help with**
+//!
+//! - An explicit `.expose_secret().to_string()`, an assignment into a
+//!   plain `String` field, or any other code path that copies the raw
+//!   bytes out of the protected box. The `secrecy` machinery no longer
+//!   applies to the copy.
+//! - A `Debug` impl elsewhere that captures an already-exposed form of
+//!   the secret (e.g. a `serde_json::Value` built from
+//!   `expose_secret()` and then `Debug`-printed).
+//! - A debugger, `ptrace` reader, or memory profiler attached to the
+//!   live process.
+//! - A core dump that snapshots heap pages before `Drop` runs, or heap
+//!   pages swapped to disk before the buffer was zeroised.
+//! - Logging frameworks, panic hooks, or backtrace machinery that
+//!   capture values before this crate's redaction applies.
+//!
+//! These limits are listed so callers can make informed decisions about
+//! what additional process- and host-level hardening to apply. The
+//! crate is provided under MIT / Apache-2.0 with no warranty; see
+//! `SECURITY.md`.
 
 use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SecretString, SerializableSecret};
 use serde::{Deserialize, Serialize};
@@ -68,23 +111,49 @@ sensitive_string_newtype! {
     /// OAuth bearer access token used in `Authorization: Bearer ...` headers
     /// and in the streamer LOGIN frame's `Authorization` parameter.
     ///
-    /// Redacted in logs via `secrecy`.
+    /// # Security
+    ///
+    /// Bearer credential with trading authority on a real-money
+    /// account. Wrapped in `secrecy::SecretBox`: `Debug` redacts and
+    /// `Drop` zeroises. Obtain the raw value via
+    /// [`expose_secret`](secrecy::ExposeSecret::expose_secret) only at
+    /// the point of use (header construction, LOGIN-frame
+    /// construction); do not store it in a plain `String`, do not
+    /// include it in error variants or log lines, and do not pass it
+    /// to a serializer that prints its input on error. See the
+    /// module-level threat model for what these properties do and do
+    /// not defend against.
     pub AuthToken, AuthTokenInner
 }
 
 sensitive_string_newtype! {
     /// `schwabClientCustomerId` from the user-preference endpoint. Echoed
-    /// back into every streamer request envelope. Treated as PII.
+    /// back into every streamer request envelope.
     ///
-    /// Redacted in logs via `secrecy`.
+    /// # Security
+    ///
+    /// PII linking a streamer session to a Schwab customer. Not itself
+    /// a bearer credential, but identifying enough that it should be
+    /// handled with the same care: do not log, do not surface in error
+    /// strings, do not write to disk outside an OS-native credential
+    /// store. `Debug` redacts and `Drop` zeroises; see the module-level
+    /// threat model for the limits of those properties.
     pub CustomerId, CustomerIdInner
 }
 
 sensitive_string_newtype! {
-    /// Schwab account number. PII-equivalent - appears in account-activity
-    /// events and in response bodies for account lookups.
+    /// Schwab account number. Appears in account-activity events and in
+    /// response bodies for account lookups.
     ///
-    /// Redacted in logs via `secrecy`.
+    /// # Security
+    ///
+    /// PII at financial-account sensitivity. Not used in REST URL
+    /// paths - per-account endpoints take the encrypted
+    /// [`AccountHash`] instead - but does appear in response payloads
+    /// and streamer account-activity frames. Do not log, do not embed
+    /// in error strings, do not transmit to third-party services.
+    /// `Debug` redacts and `Drop` zeroises; see the module-level
+    /// threat model for the limits of those properties.
     pub AccountNumber, AccountNumberInner
 }
 
@@ -93,7 +162,16 @@ sensitive_string_newtype! {
     /// Schwab requires this value (not the plain account number) in the
     /// `{accountNumber}` path segment of subsequent REST calls.
     ///
-    /// Still account-linked, so redacted in logs via `secrecy`.
+    /// # Security
+    ///
+    /// Account-linked identifier. Schwab encrypts the account number
+    /// before issuing this hash, so it is less directly sensitive than
+    /// [`AccountNumber`], but it is still a stable account identifier
+    /// that an attacker could use to correlate activity. Treat as PII:
+    /// do not log, do not include in error variants, do not share
+    /// outside the SDK boundary. `Debug` redacts and `Drop` zeroises;
+    /// see the module-level threat model for the limits of those
+    /// properties.
     pub AccountHash, AccountHashInner
 }
 
