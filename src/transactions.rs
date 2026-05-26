@@ -24,6 +24,7 @@ use serde::Deserialize;
 use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::macros::string_enum;
+use crate::orders::OrderId;
 use crate::secrets::{AccountHash, AccountNumber};
 
 /// Accessor for the `/accounts/{accountNumber}/transactions*` endpoint
@@ -162,7 +163,7 @@ pub struct Transaction {
     pub position_id: Option<i64>,
     /// Order id this activity originates from, if any.
     #[serde(default, rename = "orderId")]
-    pub order_id: Option<i64>,
+    pub order_id: Option<OrderId>,
     /// Net cash impact on the account, USD. Negative for debits.
     #[serde(default, with = "decimal_opt", rename = "netAmount")]
     pub net_amount: Option<Decimal>,

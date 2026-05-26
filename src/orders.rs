@@ -46,10 +46,54 @@ pub use request::{OrderRequest, SingleOrderBuilder};
 pub use response::{ExecutionLeg, Order, OrderActivity, OrderLegCollection};
 
 use chrono::{DateTime, SecondsFormat, Utc};
+use serde::{Deserialize, Serialize};
 
 use crate::client::SchwabClient;
 use crate::error::{Error, Result};
 use crate::secrets::AccountHash;
+
+// --- Order id ---
+
+/// Schwab-assigned order identifier (`int64`).
+///
+/// Returned by [`Orders::place`] and [`Orders::replace`] and accepted by
+/// [`Orders::get`], [`Orders::replace`], and [`Orders::cancel`]. The
+/// newtype keeps an order id from being transposed with a leg id, a
+/// quantity, or a `maxResults` count at a call site. Serializes and
+/// deserializes transparently as the bare `int64` Schwab puts on the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct OrderId(i64);
+
+impl OrderId {
+    /// Wrap a raw Schwab order id.
+    pub fn new(id: i64) -> Self {
+        Self(id)
+    }
+
+    /// The underlying `int64` order id.
+    pub fn get(self) -> i64 {
+        self.0
+    }
+}
+
+impl std::fmt::Display for OrderId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<i64> for OrderId {
+    fn from(id: i64) -> Self {
+        Self(id)
+    }
+}
+
+impl From<OrderId> for i64 {
+    fn from(id: OrderId) -> Self {
+        id.0
+    }
+}
 
 // --- Namespaces ---
 
@@ -142,9 +186,9 @@ impl<'a, 'b> Orders<'a, 'b> {
     }
 
     /// `GET /accounts/{accountNumber}/orders/{orderId}` - fetch a single
-    /// order. `order_id` is the Schwab-assigned `int64` (from the
+    /// order. `order_id` is the Schwab-assigned [`OrderId`] (from the
     /// `Location` header on a place / replace, or from a list call).
-    pub async fn get(&self, order_id: i64) -> Result<Order> {
+    pub async fn get(&self, order_id: OrderId) -> Result<Order> {
         let hash = self.account_hash.expose_secret();
         let path = format!("/accounts/{hash}/orders/{order_id}");
         self.client.trader_http().get_json(&path).await
@@ -205,7 +249,7 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn place(&self, order: impl Into<OrderRequest>) -> Result<i64> {
+    pub async fn place(&self, order: impl Into<OrderRequest>) -> Result<OrderId> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
         let response = self
@@ -221,10 +265,14 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// `PUT /accounts/{accountNumber}/orders/{orderId}` - replace an order.
     ///
     /// Schwab cancels `order_id` and creates a brand-new order from the
-    /// supplied order body; the returned `i64` is the **new** order's
+    /// supplied order body; the returned [`OrderId`] is the **new** order's
     /// id, parsed from the response `Location` header. The original
     /// `order_id` is no longer valid after a successful replace.
-    pub async fn replace(&self, order_id: i64, order: impl Into<OrderRequest>) -> Result<i64> {
+    pub async fn replace(
+        &self,
+        order_id: OrderId,
+        order: impl Into<OrderRequest>,
+    ) -> Result<OrderId> {
         let order = order.into();
         let hash = self.account_hash.expose_secret();
         let response = self
@@ -242,7 +290,7 @@ impl<'a, 'b> Orders<'a, 'b> {
     /// method discards the response and returns `Ok(())`. Inspecting the
     /// order's terminal state after cancel is the caller's responsibility
     /// (typically by calling [`Self::get`]).
-    pub async fn cancel(&self, order_id: i64) -> Result<()> {
+    pub async fn cancel(&self, order_id: OrderId) -> Result<()> {
         let hash = self.account_hash.expose_secret();
         self.client
             .trader_http()
@@ -461,7 +509,7 @@ impl<'a> ListAllOrdersBuilder<'a> {
 /// Parse Schwab's `Location` header after a successful place / replace and
 /// extract the trailing `{orderId}` segment. Accepts both absolute URLs
 /// (`https://api.schwabapi.com/.../orders/123`) and bare paths.
-fn parse_order_id_from_location(response: &reqwest::Response) -> Result<i64> {
+fn parse_order_id_from_location(response: &reqwest::Response) -> Result<OrderId> {
     let value = response
         .headers()
         .get(reqwest::header::LOCATION)
@@ -471,7 +519,7 @@ fn parse_order_id_from_location(response: &reqwest::Response) -> Result<i64> {
     parse_order_id_from_location_str(value)
 }
 
-fn parse_order_id_from_location_str(location: &str) -> Result<i64> {
+fn parse_order_id_from_location_str(location: &str) -> Result<OrderId> {
     let trimmed = location.trim_end_matches('/');
     let id_segment = trimmed
         .rsplit('/')
@@ -480,6 +528,7 @@ fn parse_order_id_from_location_str(location: &str) -> Result<i64> {
     let id_segment = id_segment.split(['?', '#']).next().unwrap_or(id_segment);
     id_segment
         .parse::<i64>()
+        .map(OrderId::new)
         .map_err(|_| Error::OrderIdUnrecoverable(location.to_string()))
 }
 
@@ -493,25 +542,25 @@ mod tests {
             "https://api.schwabapi.com/trader/v1/accounts/ABCDEF/orders/100000001",
         )
         .unwrap();
-        assert_eq!(id, 100000001);
+        assert_eq!(id, OrderId::new(100000001));
     }
 
     #[test]
     fn parse_order_id_from_relative_path() {
         let id = parse_order_id_from_location_str("/trader/v1/accounts/ABCDEF/orders/42").unwrap();
-        assert_eq!(id, 42);
+        assert_eq!(id, OrderId::new(42));
     }
 
     #[test]
     fn parse_order_id_strips_trailing_slash() {
         let id = parse_order_id_from_location_str("/accounts/ABCDEF/orders/99/").unwrap();
-        assert_eq!(id, 99);
+        assert_eq!(id, OrderId::new(99));
     }
 
     #[test]
     fn parse_order_id_strips_query_string() {
         let id = parse_order_id_from_location_str("/accounts/ABCDEF/orders/77?v=1").unwrap();
-        assert_eq!(id, 77);
+        assert_eq!(id, OrderId::new(77));
     }
 
     #[test]
