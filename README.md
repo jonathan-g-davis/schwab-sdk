@@ -246,6 +246,109 @@ The recovery pattern is to reconcile before determing whether to resubmit:
 
 The same applies to `replace`, which Schwab implements as a cancel-and-place.
 
+## Security
+
+`schwab-sdk` is built to reduce the risk of credential or PII leakage
+through this crate. It is not a security boundary for your application
+as a whole, and it makes no warranty; the MIT and Apache-2.0 licences
+under which it is distributed disclaim that explicitly. See
+[`SECURITY.md`](SECURITY.md) for the vulnerability-reporting channel
+and the formal scope.
+
+### What the SDK does
+
+- **Secret newtypes.** [`AuthToken`][AuthToken-doc],
+  [`CustomerId`][CustomerId-doc], [`AccountNumber`][AccountNumber-doc],
+  and [`AccountHash`][AccountHash-doc] are `secrecy::SecretBox`-backed
+  newtypes. `Debug` prints `Secret([REDACTED ...])`. `Drop` zeroises
+  the inner buffer. `Clone` copies the protected box rather than
+  producing a plain `String`. The raw value is reachable only via
+  `.expose_secret()`. The [`secrets`][secrets-doc] module documents
+  what these properties cover and what they do not (debuggers, core
+  dumps, swap, panic hooks, and any caller-side code that copies the
+  exposed value into a `String`).
+
+- **No logs or file writes, no secrets in errors.** The crate has no
+  `println!`, `eprintln!`, `tracing`, or `log` calls in production
+  code paths. It never writes to disk. No `Error` or `WebSocketError`
+  variant carries a bearer or a `SecretBox`-wrapped value. A bearer is
+  materialised in exactly two places on the wire: the
+  `Authorization: Bearer ...` header on outbound REST requests and the
+  streamer LOGIN frame's `Authorization` field.
+
+- **HTTPS for REST, WSS for the streamer.** Default base URLs point at
+  Schwab's production HTTPS endpoints. The `with_trader_base_url` and
+  `with_market_data_base_url` builders accept caller-supplied URLs but
+  reject any scheme other than `https://` in release builds. The
+  streamer connect path rejects any scheme other than `wss://` in
+  release builds, even though the URL is supplied by Schwab's own
+  `/userPreference` response. Debug builds additionally permit `http://`
+  and `ws://` so wiremock and other local fixture servers work in
+  tests. **Production deployments must use release builds**; a debug
+  binary in production would weaken these checks.
+
+- **Forward-compatible decoding avoids panic-on-input.** Public enums
+  and response structs are `#[non_exhaustive]`; unknown discriminants
+  land in `Unknown` / `Raw` fallback variants with the raw value
+  preserved. A Schwab response containing a new field or service does
+  not panic the SDK and does not abort the connection. The panic-family
+  lints (`unwrap`, `expect`, `panic`, `unreachable`, `todo`,
+  `unimplemented`) are denied in non-test code at compile time.
+
+- **Manual `Debug` where automatic would widen.** Types that hold a
+  `TokenProvider` derive `Debug` by hand so `dbg!(&client)` prints the
+  provider as a placeholder rather than its contents.
+
+### What you must do
+
+- **Storage.** The SDK does not persist tokens. Put the refresh token
+  in an OS-native credential store (Keychain on macOS, Credential
+  Manager on Windows, kernel keyutils via `keyring` / `keyring-core`
+  on Linux). Do not commit tokens to `.env`, config files, or CI
+  environment variables visible across jobs. Refresh tokens are bearer
+  credentials with trading authority on a real-money account; treat
+  them at that sensitivity.
+
+- **Process exposure.** A token in a process's environment is readable
+  by any process running as the same user, and by `/proc/<pid>/environ`
+  on Linux. Prefer reading from a credential store at startup over
+  `std::env::var` in production binaries. Never use `env!` for a real
+  token as it bakes the value into the binary at compile time.
+
+- **`expose_secret()` is the security boundary.** Each call site
+  should be one of: bearer header construction, LOGIN-frame
+  construction, or credential-store encode. New call sites should fail
+  code review by default. `expose_secret().to_string()` defeats the
+  newtype.
+
+- **OAuth flow.** The SDK does not perform the authorization-code
+  exchange. If you stand up a local callback server: bind to
+  `127.0.0.1` only, make the listener one-shot, and validate the
+  `state` parameter on every callback to prevent CSRF.
+
+- **Logging discipline.** If you wrap calls in `tracing` or similar,
+  redact request bodies and headers. The streamer LOGIN frame
+  serialises the auth token into JSON before transmission, so logging
+  a constructed frame body would leak a bearer even though
+  [`AuthToken`][AuthToken-doc] itself redacts in its own `Debug`.
+  Either keep frame-level logging off, or scrub by field.
+
+- **Account number vs. account hash.** Every per-account REST endpoint
+  takes the encrypted [`AccountHash`][AccountHash-doc], never the
+  plain [`AccountNumber`][AccountNumber-doc]. If you carry the plain
+  number through your own logs, metrics, or error reports, it is PII;
+  treat it accordingly.
+
+- **Data at rest.** `secrecy` zeroises on `Drop`. It does not
+  protect against a debugger attached to the live process, a core dump
+  that captures heap pages, or pages swapped to disk. These concerns
+  are out of scope of this crate and must be addressed elsewhere.
+
+- **Order resubmission.**
+  A blind retry on a network failure can place a duplicate order.
+  See [Retries and idempotency](#retries-and-idempotency) for the
+  reconcile-before-resubmit pattern.
+
 ## License
 
 Licensed under either of
@@ -259,3 +362,8 @@ at your option.
 [docs]: https://docs.rs/schwab-sdk
 [`rust_decimal::Decimal`]: https://docs.rs/rust_decimal
 [`secrecy`]: https://docs.rs/secrecy
+[AuthToken-doc]: https://docs.rs/schwab-sdk/latest/schwab_sdk/struct.AuthToken.html
+[CustomerId-doc]: https://docs.rs/schwab-sdk/latest/schwab_sdk/struct.CustomerId.html
+[AccountNumber-doc]: https://docs.rs/schwab-sdk/latest/schwab_sdk/struct.AccountNumber.html
+[AccountHash-doc]: https://docs.rs/schwab-sdk/latest/schwab_sdk/struct.AccountHash.html
+[secrets-doc]: https://docs.rs/schwab-sdk/latest/schwab_sdk/secrets/index.html
