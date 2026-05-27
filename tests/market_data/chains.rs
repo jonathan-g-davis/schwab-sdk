@@ -1,5 +1,6 @@
 use crate::common;
 
+use rust_decimal::Decimal;
 use schwab_sdk::market_data::{ContractType, OptionRange};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, ResponseTemplate};
@@ -37,6 +38,39 @@ async fn get_chain_minimal() {
     assert_eq!(chain.status.as_deref(), Some("SUCCESS"));
     assert!(!chain.call_exp_date_map.is_empty());
     assert!(!chain.put_exp_date_map.is_empty());
+}
+
+// The live API returns `deliverableUnits` as a JSON number, but it is typed
+// in the spec as a JSON string.
+#[tokio::test]
+async fn get_chain_parses_deliverable_units_as_number() {
+    let market = common::market_mock().await;
+    let client = common::client_for(&common::trader_mock().await, &market);
+
+    Mock::given(method("GET"))
+        .and(path("/chains"))
+        .and(query_param("symbol", "AAPL"))
+        .and(header("Authorization", bearer()))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(common::fixtures::read_fixture("chains/get.json")),
+        )
+        .expect(1)
+        .mount(&market)
+        .await;
+
+    let chain = client
+        .market_data()
+        .chains()
+        .get("AAPL")
+        .send()
+        .await
+        .unwrap();
+
+    let contract = &chain.call_exp_date_map["2024-03-15:1"]["175.0"][0];
+    let deliverable = &contract.option_deliverables_list[0];
+    assert_eq!(deliverable.symbol.as_deref(), Some("AAPL"));
+    assert_eq!(deliverable.deliverable_units, Some(Decimal::from(100)));
 }
 
 #[tokio::test]

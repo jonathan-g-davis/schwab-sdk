@@ -254,21 +254,11 @@ impl SchwabClient {
     /// established session; call [`WriteHalf::login`] before any other
     /// command.
     ///
-    /// `/userPreference` returns `array<UserPreference>`; this picks the
-    /// first entry and the first `streamerInfo` block within it.
+    /// Uses the first `streamerInfo` block from `UserPreference`.
     /// [`streamer::connect`] validates that every field it needs is
     /// present, returning [`Error::InvalidPreference`] otherwise.
     pub async fn streamer(&self) -> Result<(ReadHalf, WriteHalf)> {
-        let preferences = self
-            .user_preferences()
-            .get()
-            .await?
-            .into_iter()
-            .next()
-            .ok_or(Error::InvalidPreference {
-                field: "userPreference",
-                reason: "empty response".to_string(),
-            })?;
+        let preferences = self.user_preferences().get().await?;
         let streamer_info =
             preferences
                 .streamer_info

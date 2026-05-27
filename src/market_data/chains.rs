@@ -680,9 +680,11 @@ pub struct OptionDeliverables {
     /// space differs from [`crate::accounts::AssetType`]).
     #[serde(rename = "assetType", default)]
     pub asset_type: Option<String>,
-    /// Number of units delivered, sent by Schwab as a string.
-    #[serde(rename = "deliverableUnits", default)]
-    pub deliverable_units: Option<String>,
+    /// Number of units delivered.
+    // Schwab's spec types this as a string, but the live API sends a number.
+    // `float_option` accepts either form.
+    #[serde(rename = "deliverableUnits", default, with = "decimal_opt")]
+    pub deliverable_units: Option<Decimal>,
     /// Settlement currency code.
     #[serde(rename = "currencyType", default)]
     pub currency_type: Option<String>,

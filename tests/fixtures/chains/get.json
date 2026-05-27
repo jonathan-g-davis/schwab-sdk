@@ -84,7 +84,15 @@
                     "isNonStandard": false,
                     "isMini": false,
                     "isInTheMoney": false,
-                    "isPennyPilot": true
+                    "isPennyPilot": true,
+                    "optionDeliverablesList": [
+                        {
+                            "symbol": "AAPL",
+                            "assetType": "STOCK",
+                            "deliverableUnits": 100,
+                            "currencyType": "USD"
+                        }
+                    ]
                 }
             ]
         }
