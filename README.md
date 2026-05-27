@@ -1,5 +1,10 @@
 # schwab-sdk
 
+[![crates.io](https://img.shields.io/crates/v/schwab-sdk.svg)](https://crates.io/crates/schwab-sdk)
+[![Documentation](https://docs.rs/schwab-sdk/badge.svg)](https://docs.rs/schwab-sdk)
+[![CI](https://github.com/jonathan-g-davis/schwab-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/jonathan-g-davis/schwab-sdk/actions/workflows/ci.yml)
+[![MIT/Apache 2.0 licensed](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
 Typed Rust client for the [Charles Schwab Trader API][trader] and its
 streamer WebSocket.
 
