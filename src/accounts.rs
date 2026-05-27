@@ -488,8 +488,8 @@ pub struct MarginInitialBalance {
     #[serde(default, with = "decimal_opt", rename = "totalCash")]
     pub total_cash: Option<Decimal>,
     /// Non-zero if the account is in a call.
-    #[serde(default, with = "decimal_opt", rename = "isInCall")]
-    pub is_in_call: Option<Decimal>,
+    #[serde(default, rename = "isInCall")]
+    pub is_in_call: Option<bool>,
     /// Cash from pending trades not yet settled.
     #[serde(default, with = "decimal_opt", rename = "unsettledCash")]
     pub unsettled_cash: Option<Decimal>,
@@ -569,8 +569,8 @@ pub struct MarginBalance {
     #[serde(default, with = "decimal_opt")]
     pub sma: Option<Decimal>,
     /// Non-zero if the account is in a call.
-    #[serde(default, with = "decimal_opt", rename = "isInCall")]
-    pub is_in_call: Option<Decimal>,
+    #[serde(default, rename = "isInCall")]
+    pub is_in_call: Option<bool>,
     /// Buying power available specifically for stock trades.
     #[serde(default, with = "decimal_opt", rename = "stockBuyingPower")]
     pub stock_buying_power: Option<Decimal>,
@@ -626,8 +626,8 @@ pub struct CashInitialBalance {
     #[serde(default, with = "decimal_opt", rename = "shortStockValue")]
     pub short_stock_value: Option<Decimal>,
     /// Non-zero if the account is in a call.
-    #[serde(default, with = "decimal_opt", rename = "isInCall")]
-    pub is_in_call: Option<Decimal>,
+    #[serde(default, rename = "isInCall")]
+    pub is_in_call: Option<bool>,
     /// Cash from pending trades not yet settled.
     #[serde(default, with = "decimal_opt", rename = "unsettledCash")]
     pub unsettled_cash: Option<Decimal>,

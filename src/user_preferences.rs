@@ -25,7 +25,7 @@ impl<'a> UserPreferences<'a> {
     }
 
     /// `GET /userPreference` - returns the caller's preferences.
-    pub async fn get(&self) -> Result<Vec<UserPreference>> {
+    pub async fn get(&self) -> Result<UserPreference> {
         self.client.trader_http().get_json("/userPreference").await
     }
 }
