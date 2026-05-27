@@ -10,6 +10,7 @@ use serde::Deserialize;
 use crate::accounts::AccountsInstrument;
 use crate::orders::OrderId;
 use crate::orders::enums::*;
+use crate::secrets::AccountNumber;
 
 /// One order, as returned by the read endpoints. Schwab marks almost no
 /// field as required, so everything outside the discriminator-bearing
@@ -120,7 +121,7 @@ pub struct Order {
     pub tag: Option<String>,
     /// Plain account number that owns this order.
     #[serde(default, rename = "accountNumber")]
-    pub account_number: Option<i64>,
+    pub account_number: Option<AccountNumber>,
     /// Per-event activity history (fills, lifecycle actions).
     #[serde(default, rename = "orderActivityCollection")]
     pub order_activity_collection: Vec<OrderActivity>,
