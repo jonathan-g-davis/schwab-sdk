@@ -3,13 +3,23 @@ name = "schwab-sdk"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Typed Rust client for the Charles Schwab Trader API and streamer WebSocket."
+description = "Async Rust client for the Charles Schwab Trader API and real-time market-data streaming."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/jonathan-g-davis/schwab-sdk"
 homepage = "https://github.com/jonathan-g-davis/schwab-sdk"
+authors = ["Jonathan Davis <jonathan.grady.davis@gmail.com>"]
 readme = "README.md"
 keywords = ["schwab", "trading", "brokerage", "finance", "websocket"]
 categories = ["api-bindings", "finance"]
+include = [
+    "/src/**",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [dependencies]
 async-trait = "0.1"
