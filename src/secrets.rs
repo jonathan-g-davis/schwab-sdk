@@ -105,12 +105,74 @@ use secrecy::zeroize::Zeroize;
 use secrecy::{CloneableSecret, ExposeSecret, SecretBox, SecretString, SerializableSecret};
 use serde::{Deserialize, Serialize};
 
+/// Deserialize a [`String`] from either a JSON string or a JSON integer.
+///
+/// Schwab returns the same logical field as different JSON types across
+/// endpoints (e.g. `accountNumber` is a string on `securitiesAccount` and
+/// an `int64` on `Order`). This function accepts either form to prevent a
+/// parse error.
+fn deserialize_string_or_int<'de, D>(d: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    struct V;
+    impl<'de> serde::de::Visitor<'de> for V {
+        type Value = String;
+
+        fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("a string or integer")
+        }
+
+        fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<String, E> {
+            Ok(v.to_owned())
+        }
+
+        fn visit_string<E: serde::de::Error>(self, v: String) -> Result<String, E> {
+            Ok(v)
+        }
+
+        fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<String, E> {
+            Ok(v.to_string())
+        }
+
+        fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<String, E> {
+            Ok(v.to_string())
+        }
+    }
+
+    d.deserialize_any(V)
+}
+
 macro_rules! sensitive_string_newtype {
+    // Default: deserialize from a JSON string only.
     ($(#[$meta:meta])* $vis:vis $name:ident, $inner:ident) => {
         #[derive(Clone, Serialize, Deserialize)]
         #[serde(transparent)]
         struct $inner(String);
 
+        sensitive_string_newtype!(@common $(#[$meta])* $vis $name, $inner);
+    };
+
+    // Use a custom deserializer for the inner type.
+    ($(#[$meta:meta])* $vis:vis $name:ident, $inner:ident, deserialize_with = $de:path) => {
+        #[derive(Clone, Serialize)]
+        #[serde(transparent)]
+        struct $inner(String);
+
+        impl<'de> Deserialize<'de> for $inner {
+            fn deserialize<D>(d: D) -> std::result::Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                $de(d).map($inner)
+            }
+        }
+
+        sensitive_string_newtype!(@common $(#[$meta])* $vis $name, $inner);
+    };
+
+    // Common expansion: the inner type, its zeroization, cloning, and serialization.
+    (@common $(#[$meta:meta])* $vis:vis $name:ident, $inner:ident) => {
         impl Zeroize for $inner {
             fn zeroize(&mut self) {
                 self.0.zeroize();
@@ -206,7 +268,26 @@ sensitive_string_newtype! {
     /// in error strings, do not transmit to third-party services.
     /// `Debug` redacts and `Drop` zeroises; see the module-level
     /// threat model for the limits of those properties.
-    pub AccountNumber, AccountNumberInner
+    pub AccountNumber, AccountNumberInner, deserialize_with = deserialize_string_or_int
+}
+
+// Add impls for PartialEq, Eq, and Hash to the AccountNumber type so response
+// types that contain an `AccountNumber` can derive `PartialEq` / `Eq` / `Hash`.
+//
+// AccountNumber is sensitive enough that we don't want to accidentally log it,
+// but not so sensitive that we couldn't use it as a key in a HashMap.
+impl PartialEq for AccountNumber {
+    fn eq(&self, other: &Self) -> bool {
+        self.expose_secret() == other.expose_secret()
+    }
+}
+
+impl Eq for AccountNumber {}
+
+impl std::hash::Hash for AccountNumber {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.expose_secret().hash(state);
+    }
 }
 
 sensitive_string_newtype! {
@@ -289,6 +370,32 @@ mod tests {
         assert_eq!(json, r#""12345678""#);
         let restored: AccountNumber = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.expose_secret(), "12345678");
+    }
+
+    #[test]
+    fn account_number_deserializes_from_string_or_int() {
+        // Schwab's wire type varies across endpoints (string on
+        // `securitiesAccount`, `int64` on `Order`). Both must decode.
+        let from_str: AccountNumber = serde_json::from_str(r#""12345678""#).unwrap();
+        let from_int: AccountNumber = serde_json::from_str("12345678").unwrap();
+        assert_eq!(from_str.expose_secret(), "12345678");
+        assert_eq!(from_int.expose_secret(), "12345678");
+        assert_eq!(from_str, from_int);
+
+        let debug = format!("{from_int:?}");
+        assert!(!debug.contains("12345678"), "Debug leaked: {debug}");
+        assert!(debug.contains("REDACTED"), "expected REDACTED in {debug}");
+    }
+
+    #[test]
+    fn account_number_unexpected_type_produces_descriptive_error() {
+        let err = serde_json::from_str::<AccountNumber>("true").unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("string") && msg.contains("integer"),
+            "missing expectation: {msg}",
+        );
+        assert!(msg.contains("bool"), "missing offending type: {msg}");
     }
 
     #[test]
