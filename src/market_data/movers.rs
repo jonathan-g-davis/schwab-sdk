@@ -3,8 +3,43 @@
 //! Returns the top-moving securities within an index, optionally sorted
 //! and windowed.
 //!
+//! The `index` path segment is a [`MoverIndex`]; both broad indices (`$DJI`,
+//! `$COMPX`, `$SPX`) and Schwab venue aggregates (`NYSE`, `NASDAQ`,
+//! `INDEX_ALL`, `EQUITY_ALL`, `OPTION_ALL`, `OPTION_PUT`, `OPTION_CALL`) are
+//! valid. The optional `sort` ([`MoverSort`]) selects the ranking key, and
+//! the optional `frequency` is an aggregation window in minutes. Schwab
+//! documents valid `frequency` values as `{0, 1, 5, 10, 30, 60}` with a
+//! default of `0`. Out-of-range values surface as a 400.
+//!
 //! Reached through
 //! [`MarketData::movers`](super::MarketData::movers).
+//!
+//! # Example
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::{MoverIndex, MoverSort};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let movers = client
+//!     .market_data()
+//!     .movers()
+//!     .get(MoverIndex::Spx)
+//!     .sort(MoverSort::PercentChangeUp)
+//!     .send()
+//!     .await?;
+//!
+//! for screener in movers.screeners.iter().take(10) {
+//!     println!(
+//!         "{:?} {:?} {:?}",
+//!         screener.symbol, screener.change, screener.direction,
+//!     );
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
