@@ -10,14 +10,12 @@ use serde::Deserialize;
 use crate::accounts::AccountsInstrument;
 use crate::orders::OrderId;
 use crate::orders::enums::*;
+use crate::secrets::AccountNumber;
 
 /// One order, as returned by the read endpoints. Schwab marks almost no
 /// field as required, so everything outside the discriminator-bearing
 /// enums is `Option`.
 ///
-/// The OpenAPI spec types `accountNumber` and `orderId` as plain `int64`
-/// here (in contrast to the string-typed account number on
-/// `securitiesAccount`). `account_number` is kept numeric to match;
 /// `order_id` is wrapped in [`OrderId`], which serializes transparently as
 /// the same `int64`.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
@@ -120,7 +118,7 @@ pub struct Order {
     pub tag: Option<String>,
     /// Plain account number that owns this order.
     #[serde(default, rename = "accountNumber")]
-    pub account_number: Option<i64>,
+    pub account_number: Option<AccountNumber>,
     /// Per-event activity history (fills, lifecycle actions).
     #[serde(default, rename = "orderActivityCollection")]
     pub order_activity_collection: Vec<OrderActivity>,
@@ -270,6 +268,13 @@ mod tests {
         }"#;
         let order: Order = serde_json::from_str(json).unwrap();
         assert_eq!(order.order_id, Some(OrderId::new(100000001)));
+        assert_eq!(
+            order
+                .account_number
+                .as_ref()
+                .map(AccountNumber::expose_secret),
+            Some("12345678"),
+        );
         assert_eq!(order.status, Some(ApiOrderStatus::Filled));
         assert_eq!(order.order_type, Some(OrderType::Limit));
         assert_eq!(order.order_strategy_type, Some(OrderStrategyType::Single));
@@ -359,6 +364,36 @@ mod tests {
         assert_eq!(child.order_id, Some(OrderId::new(100000004)));
         assert_eq!(child.order_strategy_type, Some(OrderStrategyType::Single));
         assert_eq!(child.price, Some(dec!(42.03)));
+    }
+
+    #[test]
+    fn account_number_accepts_both_string_and_int_forms() {
+        // The OpenAPI spec types `accountNumber` here as `int64`. For
+        // robustness, check that both string and int forms decode to the
+        // same `AccountNumber`, and the resulting value is redacted in Debug.
+        let as_int: Order =
+            serde_json::from_str(r#"{"orderId": 1, "accountNumber": 12345678}"#).unwrap();
+        let as_str: Order =
+            serde_json::from_str(r#"{"orderId": 1, "accountNumber": "12345678"}"#).unwrap();
+
+        assert_eq!(
+            as_int
+                .account_number
+                .as_ref()
+                .map(AccountNumber::expose_secret),
+            Some("12345678"),
+        );
+        assert_eq!(as_int.account_number, as_str.account_number);
+
+        let debug = format!("{:?}", as_str.account_number.as_ref().unwrap());
+        assert!(!debug.contains("12345678"), "Debug leaked: {debug}");
+        assert!(debug.contains("REDACTED"), "expected REDACTED in {debug}");
+    }
+
+    #[test]
+    fn missing_account_number_decodes_as_none() {
+        let order: Order = serde_json::from_str(r#"{"orderId": 1}"#).unwrap();
+        assert!(order.account_number.is_none());
     }
 
     #[test]

@@ -70,7 +70,7 @@ pub struct UserPreferenceAccount {
     pub account_color: Option<String>,
     /// Masked id Schwab displays (e.g. `"...5678"`).
     #[serde(rename = "displayAcctId")]
-    pub display_account_id: Option<AccountNumber>,
+    pub display_account_id: Option<String>,
     /// `true` if Schwab should auto-determine `position_effect`
     /// (open / close) on submitted orders.
     #[serde(rename = "autoPositionEffect", default)]
