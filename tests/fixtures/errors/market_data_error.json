@@ -1,0 +1,10 @@
+{
+    "errors": [
+        {
+            "id": "abc123def456",
+            "status": "404",
+            "title": "Not Found",
+            "detail": "Symbol not found"
+        }
+    ]
+}

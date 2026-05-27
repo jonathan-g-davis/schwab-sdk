@@ -1,0 +1,29 @@
+{
+    "status": "SUCCESS",
+    "expirationList": [
+        {
+            "expirationDate": "2024-03-15",
+            "daysToExpiration": 1,
+            "expirationType": "W",
+            "standard": true,
+            "settlementType": "P",
+            "optionRoots": "AAPL"
+        },
+        {
+            "expirationDate": "2024-03-22",
+            "daysToExpiration": 8,
+            "expirationType": "W",
+            "standard": false,
+            "settlementType": "P",
+            "optionRoots": "AAPL"
+        },
+        {
+            "expirationDate": "2024-04-19",
+            "daysToExpiration": 36,
+            "expirationType": "S",
+            "standard": true,
+            "settlementType": "A",
+            "optionRoots": "AAPL"
+        }
+    ]
+}

@@ -1,0 +1,51 @@
+[package]
+name = "schwab-sdk"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Async Rust client for the Charles Schwab Trader API and real-time market-data streaming."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jonathan-g-davis/schwab-sdk"
+homepage = "https://github.com/jonathan-g-davis/schwab-sdk"
+authors = ["Jonathan Davis <jonathan.grady.davis@gmail.com>"]
+readme = "README.md"
+keywords = ["schwab", "trading", "brokerage", "finance", "websocket"]
+categories = ["api-bindings", "finance"]
+include = [
+    "/src/**",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
+
+[dependencies]
+async-trait = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
+fastwebsockets = { version = "0.10.0", features = ["unstable-split", "upgrade"] }
+http = "1.4.0"
+http-body-util = "0.1.3"
+hyper = { version = "1.9.0", features = ["http1", "client"] }
+hyper-util = { version = "0.1.20", features = ["tokio"] }
+reqwest = { version = "0.13.3", features = ["json", "query"] }
+rust_decimal = { version = "1.36", features = ["serde-with-float"] }
+rustls-pki-types = "1.14.1"
+rustls-platform-verifier = "0.7.0"
+secrecy = { version = "0.10.3", features = ["serde"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_repr = "0.1.20"
+serde_with = "3.20.0"
+strum = { version = "0.28.0", features = ["derive"] }
+thiserror = "2.0.18"
+tokio = { version = "1.52.3", features = ["net", "rt", "rt-multi-thread", "macros", "time"] }
+tokio-rustls = "0.26.4"
+
+[dev-dependencies]
+arc-swap = "1.7"
+futures-util = "0.3"
+rust_decimal_macros = "1.36"
+tokio-tungstenite = "0.27"
+wiremock = "0.6"

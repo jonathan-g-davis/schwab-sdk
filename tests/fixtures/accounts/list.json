@@ -1,0 +1,17 @@
+[
+    {
+        "securitiesAccount": {
+            "type": "MARGIN",
+            "accountNumber": "12345678",
+            "roundTrips": 0,
+            "isDayTrader": false,
+            "isClosingOnlyRestricted": false,
+            "pfcbFlag": false,
+            "currentBalances": {
+                "availableFunds": 10000.00,
+                "buyingPower": 20000.00,
+                "equity": 50000.00
+            }
+        }
+    }
+]

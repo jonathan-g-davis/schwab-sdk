@@ -1,0 +1,10 @@
+{
+    "orderId": 999999999,
+    "orderValidationResult": {
+        "alerts": [],
+        "rejects": [],
+        "accepts": [],
+        "reviews": [],
+        "warns": []
+    }
+}

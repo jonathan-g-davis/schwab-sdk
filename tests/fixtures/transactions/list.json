@@ -1,0 +1,16 @@
+[
+    {
+        "activityId": 9876543210,
+        "time": "2024-01-15T15:30:00.000Z",
+        "description": "BOUGHT 10 AAPL @ 145.32",
+        "accountNumber": "12345678",
+        "type": "TRADE",
+        "status": "VALID",
+        "subAccount": "MARGIN",
+        "tradeDate": "2024-01-15T15:30:00.000Z",
+        "settlementDate": "2024-01-17T00:00:00.000Z",
+        "netAmount": -1453.20,
+        "activityType": "EXECUTION",
+        "transferItems": []
+    }
+]

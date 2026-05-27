@@ -1,0 +1,30 @@
+{
+    "AAPL": {
+        "assetMainType": "EQUITY",
+        "assetSubType": "COE",
+        "ssid": 1234567890,
+        "symbol": "AAPL",
+        "realtime": true,
+        "quoteType": "NBBO",
+        "quote": {
+            "lastPrice": 175.50,
+            "bidPrice": 175.48,
+            "askPrice": 175.52,
+            "closePrice": 174.21,
+            "highPrice": 176.10,
+            "lowPrice": 174.00,
+            "totalVolume": 45000000
+        },
+        "reference": {
+            "cusip": "037833100",
+            "description": "Apple Inc. - Common Stock",
+            "exchange": "q",
+            "exchangeName": "NASDAQ",
+            "isShortable": true
+        },
+        "regular": {
+            "regularMarketLastPrice": 175.50,
+            "regularMarketTradeTime": 1710450000000
+        }
+    }
+}

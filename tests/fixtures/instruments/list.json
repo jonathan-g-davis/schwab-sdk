@@ -1,0 +1,18 @@
+{
+    "instruments": [
+        {
+            "cusip": "037833100",
+            "symbol": "AAPL",
+            "description": "Apple Inc",
+            "exchange": "NASDAQ",
+            "assetType": "EQUITY"
+        },
+        {
+            "cusip": "594918104",
+            "symbol": "MSFT",
+            "description": "Microsoft Corporation",
+            "exchange": "NASDAQ",
+            "assetType": "EQUITY"
+        }
+    ]
+}
