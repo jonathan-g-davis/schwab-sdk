@@ -12,6 +12,44 @@
 //! - `new(impl Into<String>)` and `expose_secret() -> &str`.
 //! - `From<&str>`, `From<String>`, and `From<SecretString>` for convenience.
 //!
+//! # Example
+//!
+//! Construct an [`AuthToken`] for [`SchwabClient::new`](crate::SchwabClient::new),
+//! then reach the raw value only at the point of use:
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! // Construction: the raw string is wrapped immediately. Prefer reading from 
+//! // a credential store over `std::env::var` in production; see
+//! // "Token storage" below.
+//! let token = AuthToken::new(std::env::var("SCHWAB_AUTH_TOKEN").unwrap());
+//!
+//! // `Debug` redacts; the bearer never appears in `{:?}` output.
+//! println!("token = {token:?}"); // prints `token = AuthToken([REDACTED])`
+//!
+//! // The SDK reveals the secret internally only at the `Authorization`
+//! // header and the streamer LOGIN frame. Callers do not need to.
+//! let client = SchwabClient::new(token);
+//! let accounts = client.accounts().numbers().await?;
+//! # let _ = accounts;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! When a caller does need the raw value (e.g. when implementing a
+//! [`TokenProvider`](crate::TokenProvider) over an external store),
+//! [`expose_secret`](secrecy::ExposeSecret::expose_secret) can be used to
+//! retrieve it.
+//!
+//! ```
+//! use schwab_sdk::AuthToken;
+//!
+//! let token = AuthToken::new("abc123");
+//! assert_eq!(token.expose_secret(), "abc123");
+//! ```
+//!
 //! # Threat model
 //!
 //! These newtypes reduce the chance of accidental credential or PII
