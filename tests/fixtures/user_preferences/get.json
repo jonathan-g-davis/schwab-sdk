@@ -1,30 +1,28 @@
-[
-    {
-        "accounts": [
-            {
-                "accountNumber": "12345678",
-                "primaryAccount": true,
-                "type": "MARGIN",
-                "nickName": "main",
-                "accountColor": "Green",
-                "displayAcctId": "...5678",
-                "autoPositionEffect": false
-            }
-        ],
-        "streamerInfo": [
-            {
-                "streamerSocketUrl": "wss://streamer-api.schwab.com/ws",
-                "schwabClientCustomerId": "CUSTID123",
-                "schwabClientCorrelId": "abc-123",
-                "schwabClientChannel": "N9",
-                "schwabClientFunctionId": "APIAPP"
-            }
-        ],
-        "offers": [
-            {
-                "level2Permissions": true,
-                "mktDataPermission": "NP"
-            }
-        ]
-    }
-]
+{
+    "accounts": [
+        {
+            "accountNumber": "12345678",
+            "primaryAccount": true,
+            "type": "MARGIN",
+            "nickName": "main",
+            "accountColor": "Green",
+            "displayAcctId": "...5678",
+            "autoPositionEffect": false
+        }
+    ],
+    "streamerInfo": [
+        {
+            "streamerSocketUrl": "wss://streamer-api.schwab.com/ws",
+            "schwabClientCustomerId": "CUSTID123",
+            "schwabClientCorrelId": "abc-123",
+            "schwabClientChannel": "N9",
+            "schwabClientFunctionId": "APIAPP"
+        }
+    ],
+    "offers": [
+        {
+            "level2Permissions": true,
+            "mktDataPermission": "NP"
+        }
+    ]
+}

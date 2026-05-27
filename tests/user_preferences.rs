@@ -24,10 +24,9 @@ async fn get() {
         .await;
 
     let prefs = client.user_preferences().get().await.unwrap();
-    assert_eq!(prefs.len(), 1);
-    assert!(prefs[0].accounts[0].primary_account);
+    assert!(prefs.accounts[0].primary_account);
     assert_eq!(
-        prefs[0].streamer_info[0].streamer_socket_url.as_deref(),
+        prefs.streamer_info[0].streamer_socket_url.as_deref(),
         Some("wss://streamer-api.schwab.com/ws"),
     );
 }
