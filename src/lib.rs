@@ -11,7 +11,7 @@
 //! - [List transactions](`transactions`)
 //! - [Read user preferences](`user_preferences`)
 //!
-//! All money and quantity fields use [`rust_decimal::Decimal`]; secrets
+//! All money and quantity fields use [`rust_decimal::Decimal`]. Secrets
 //! ([`AuthToken`], [`CustomerId`], [`AccountNumber`], [`AccountHash`])
 //! are wrapped in newtypes that redact in `Debug` and zeroize on `Drop`.
 //!
