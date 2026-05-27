@@ -5,8 +5,32 @@
 //! streamer halves at connection time
 //! (see [`SchwabClient::streamer`](crate::SchwabClient::streamer)).
 //!
-//! Reached through
-//! [`SchwabClient::user_preferences`](crate::SchwabClient::user_preferences).
+//! See [`UserPreferences`] for available methods.
+//!
+//! # Example
+//!
+//! List the caller's linked accounts with their nicknames and types,
+//! flagging the primary:
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//! let prefs = client.user_preferences().get().await?;
+//!
+//! for account in &prefs.accounts {
+//!     let primary = if account.primary_account { " (primary)" } else { "" };
+//!     println!(
+//!         "{:?} {:?} {:?}{primary}",
+//!         account.display_account_id,
+//!         account.account_type,
+//!         account.nickname,
+//!     );
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::client::SchwabClient;
 use crate::error::Result;

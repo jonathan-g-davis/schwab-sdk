@@ -13,8 +13,38 @@
 //! `{accountNumber}` is the encrypted [`AccountHash`], not the plain
 //! account number.
 //!
-//! Reached through
-//! [`SchwabClient::transactions`](crate::SchwabClient::transactions).
+//! See [`Transactions`] for available methods.
+//!
+//! # Example
+//!
+//! List the past week's trade executions:
+//!
+//! ```no_run
+//! use chrono::{Duration, Utc};
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::transactions::TransactionType;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//! let accounts = client.accounts().numbers().await?;
+//! let account_hash = &accounts.first().expect("a linked account").hash_value;
+//!
+//! let now = Utc::now();
+//! let trades = client
+//!     .transactions(account_hash)
+//!     .list(now - Duration::days(7), now, TransactionType::Trade)
+//!     .send()
+//!     .await?;
+//!
+//! for tx in &trades {
+//!     println!(
+//!         "{:?} {:?} net={:?}",
+//!         tx.time, tx.description, tx.net_amount,
+//!     );
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use chrono::{DateTime, SecondsFormat, Utc};
 use rust_decimal::Decimal;

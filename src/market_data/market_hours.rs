@@ -7,6 +7,39 @@
 //!
 //! Reached through
 //! [`MarketData::market_hours`](super::MarketData::market_hours).
+//!
+//! # Example
+//!
+//! Read today's equity hours:
+//!
+//! ```no_run
+//! use chrono::Utc;
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::Market;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let hours = client
+//!     .market_data()
+//!     .market_hours()
+//!     .get(Market::Equity)
+//!     .date(Utc::now().date_naive())
+//!     .send()
+//!     .await?;
+//!
+//! // Outer key is the market id (lowercase); inner key is the product code.
+//! if let Some(eq) = hours.get("equity").and_then(|m| m.get("EQ")) {
+//!     println!("open today: {:?}", eq.is_open);
+//!     if let Some(regular) = eq.session_hours.get("regularMarket") {
+//!         for window in regular {
+//!             println!("regular: {:?} -> {:?}", window.start, window.end);
+//!         }
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use std::collections::HashMap;
 

@@ -6,6 +6,33 @@
 //!
 //! Reached through
 //! [`MarketData::instruments`](super::MarketData::instruments).
+//!
+//! # Example
+//!
+//! Search for an equity and pull its fundamentals:
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::market_data::Projection;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let results = client
+//!     .market_data()
+//!     .instruments()
+//!     .search("AAPL", Projection::Fundamental)
+//!     .await?;
+//!
+//! for inst in &results.instruments {
+//!     println!("{:?} {:?}", inst.symbol, inst.description);
+//!     if let Some(f) = &inst.fundamental {
+//!         println!("  pe={:?} market_cap={:?}", f.pe_ratio, f.market_cap);
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;

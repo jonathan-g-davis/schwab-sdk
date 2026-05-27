@@ -7,11 +7,11 @@
 //! - [List linked accounts, balances, and their positions](`accounts`)
 //! - [Query quotes, price history, options chains, and other market data](`market_data`)
 //! - [Stream real-time market data and account activity](`streamer`)
-//! - [Place, replace, cancel, and preview orders](`orders::Orders`)
+//! - [Place, replace, cancel, and preview orders](`orders`)
 //! - [List transactions](`transactions`)
 //! - [Read user preferences](`user_preferences`)
 //!
-//! All money and quantity fields use [`rust_decimal::Decimal`]; secrets
+//! All money and quantity fields use [`rust_decimal::Decimal`]. Secrets
 //! ([`AuthToken`], [`CustomerId`], [`AccountNumber`], [`AccountHash`])
 //! are wrapped in newtypes that redact in `Debug` and zeroize on `Drop`.
 //!

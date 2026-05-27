@@ -2,10 +2,37 @@
 //!
 //! Returns the option expiration (series) information for an optionable
 //! symbol. Unlike `/chains`, the response does not include the individual
-//! contracts at each expiration.
+//! contracts at each expiration. Use this endpoint to enumerate the
+//! expirations, then call `/chains` for a chosen one to get the strikes.
 //!
 //! Reached through
 //! [`MarketData::expiration_chain`](super::MarketData::expiration_chain).
+//!
+//! # Example
+//!
+//! ```no_run
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//!
+//! let chain = client
+//!     .market_data()
+//!     .expiration_chain()
+//!     .get("AAPL")
+//!     .await?;
+//!
+//! for exp in &chain.expiration_list {
+//!     println!(
+//!         "{:?} ({} days, {:?})",
+//!         exp.expiration_date,
+//!         exp.days_to_expiration.unwrap_or(0),
+//!         exp.expiration_type,
+//!     );
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use serde::Deserialize;
 
