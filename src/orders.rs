@@ -108,7 +108,7 @@ impl From<OrderId> for i64 {
 /// # Examples
 ///
 /// ## Place a market order
-/// 
+///
 /// [`Orders::place`] accepts any `impl Into<OrderRequest>`, so a shortcut
 /// builder flows in without an explicit `.build()`. On success Schwab returns
 /// the new order id parsed from the `Location` header; fetch the order back
@@ -137,7 +137,7 @@ impl From<OrderId> for i64 {
 /// ```
 ///
 /// ## Replace an order
-/// 
+///
 /// A replace cancels the original and returns a **new** id; the old id is
 /// dead afterward. The example below lists the working orders from the last
 /// week, then reprices one and cancels the original.

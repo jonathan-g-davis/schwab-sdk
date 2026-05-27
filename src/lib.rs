@@ -14,7 +14,7 @@
 //! All money and quantity fields use [`rust_decimal::Decimal`]; secrets
 //! ([`AuthToken`], [`CustomerId`], [`AccountNumber`], [`AccountHash`])
 //! are wrapped in newtypes that redact in `Debug` and zeroize on `Drop`.
-//! 
+//!
 //! To start, you will need to obtain an access token. See the
 //! [Authentication](#authentication) section for details.
 //!
@@ -39,7 +39,7 @@
 //! ```
 //!
 //! ## Read a quote and place an order
-//! 
+//!
 //! This example requests a quote for AAPL, places a limit buy order just under
 //! the last trade, and prints the order id. Orders are constructed using the
 //! [`orders::OrderRequest`] builder, which enforces type safety and compile-time
@@ -84,19 +84,19 @@
 //! # Ok(())
 //! # }
 //! ```
-//! 
+//!
 //! # Authentication
-//! 
+//!
 //! The Schwab APIs require a short-lived access token. You will need to obtain
 //! one using Schwab's OAuth flow and either pass it to [`SchwabClient::new`]
 //! or make it available to the client via a [`TokenProvider`]. The
 //! `TokenProider` is the recommended mechanism for long-lived clients. The
 //! provider is consulted once per REST request and once per streamer LOGIN frame,
 //! so a rotated token is observed on the next call without rebuilding the client.
-//! 
+//!
 //! See the [`TokenProvider`] docs for examples of implementing a custom
 //! provider.
-//! 
+//!
 //! **Note:** This crate does not perform the OAuth authorization-code exchange
 //! See [Schwab's developer portal](https://developer.schwab.com/)
 //! for details on their OAuth flow.

@@ -61,7 +61,7 @@
 //! SDK. Everything outside of that boundary (where the secret comes from,
 //! how it is logged, what other process-level state can see it) is the
 //! caller's responsibility.
-//! 
+//!
 //! Below are recommendations for how to handle the secrets in your own code.
 //!
 //! ## Token storage
@@ -71,12 +71,12 @@
 //! tokens to `.env`, config files, or CI environment variables visible across
 //! jobs. A refresh token carries trading authority on a real-money account;
 //! treat it at that sensitivity.
-//! 
+//!
 //! The [`keyring-core`](https://crates.io/crates/keyring-core) and its
 //! platform-native implementations are a good starting point.
-//! 
+//!
 //! ## Process exposure
-//! 
+//!
 //! A token in a process's environment is readable by any process running as
 //! the same user, and by `/proc/<pid>/environ` on Linux. Prefer reading from a
 //! credential store at startup over `std::env::var` in production binaries.
@@ -84,18 +84,18 @@
 //! compile time.
 //!
 //! ## Logging discipline
-//! 
+//!
 //! If you wrap SDK calls in `tracing` or similar, redact request bodies and
 //! headers. The streamer LOGIN frame serialises the auth token into JSON
 //! before transmission, so logging a constructed frame body leaks a bearer
 //! even though [`AuthToken`] redacts in its own `Debug`. Either keep
 //! frame-level logging off, or scrub by field.
-//! 
+//!
 //! Secrets are only redacted within the newtypes. Only call `.expose_secret()`
 //! to get the raw value at the point of use instead of logging or storing it.
-//! 
+//!
 //! ## Data at rest
-//! 
+//!
 //! Zeroising on `Drop` does not protect against a debugger attached to the
 //! live process, a core dump that captures heap pages, or pages swapped to
 //! disk. If these are a concern, you should apply host-level hardening
