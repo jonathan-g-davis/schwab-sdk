@@ -8,7 +8,7 @@
 //! - [`Instruments`](`crate::market_data::Instruments`)
 //! - [`Chains`](`crate::market_data::Chains`)
 //! - [`ExpirationChain`](`crate::market_data::ExpirationChain`)
-//! 
+//!
 //! See the respective structs for available methods.
 //!
 //! # Examples

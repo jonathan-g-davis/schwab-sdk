@@ -21,7 +21,7 @@
 //! use schwab_sdk::{AuthToken, SchwabClient};
 //!
 //! # async fn run() -> schwab_sdk::Result<()> {
-//! // Construction: the raw string is wrapped immediately. Prefer reading from 
+//! // Construction: the raw string is wrapped immediately. Prefer reading from
 //! // a credential store over `std::env::var` in production; see
 //! // "Token storage" below.
 //! let token = AuthToken::new(std::env::var("SCHWAB_AUTH_TOKEN").unwrap());

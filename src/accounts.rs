@@ -15,7 +15,7 @@
 //! # Examples
 //!
 //! ## List linked accounts with their positions
-//! 
+//!
 //! Balances are returned by default. Positions are opt-in via
 //! [`ListAccountsBuilder::with_positions`].
 //!
@@ -35,7 +35,7 @@
 //! ```
 //!
 //! ## Read balances off a single account
-//! 
+//!
 //! You'll need the encrypted [`AccountHash`] from [`Accounts::numbers`] to
 //! query the account. Balance fields are `Option<Decimal>`, where `None` means
 //! Schwab omitted the field, distinct from a sent zero.
