@@ -13,8 +13,7 @@
 //! `{accountNumber}` is the encrypted [`AccountHash`], not the plain
 //! account number.
 //!
-//! Reached through
-//! [`SchwabClient::transactions`](crate::SchwabClient::transactions).
+//! See [`Transactions`] for available methods.
 //!
 //! # Example
 //!

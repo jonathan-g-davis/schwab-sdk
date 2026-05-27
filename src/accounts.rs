@@ -10,12 +10,14 @@
 //! - `GET /accounts/{accountNumber}` returns the same shape for a single
 //!   account, keyed by the encrypted hash.
 //!
-//! Reached through [`SchwabClient::accounts`](crate::SchwabClient::accounts).
+//! See [`Accounts`] for available methods.
 //!
 //! # Examples
 //!
-//! List every linked account with positions. Balances come back by default;
-//! positions are opt-in via [`ListAccountsBuilder::with_positions`].
+//! ## List linked accounts with their positions
+//! 
+//! Balances are returned by default. Positions are opt-in via
+//! [`ListAccountsBuilder::with_positions`].
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};
@@ -32,10 +34,11 @@
 //! # }
 //! ```
 //!
-//! Read balances off a single account. The `{accountNumber}` path segment
-//! is the encrypted [`AccountHash`] from [`Accounts::numbers`], never the
-//! plain account number. Balance fields are `Option<Decimal>`, where `None`
-//! means Schwab omitted the field, distinct from a sent zero.
+//! ## Read balances off a single account
+//! 
+//! You'll need the encrypted [`AccountHash`] from [`Accounts::numbers`] to
+//! query the account. Balance fields are `Option<Decimal>`, where `None` means
+//! Schwab omitted the field, distinct from a sent zero.
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};

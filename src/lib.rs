@@ -7,7 +7,7 @@
 //! - [List linked accounts, balances, and their positions](`accounts`)
 //! - [Query quotes, price history, options chains, and other market data](`market_data`)
 //! - [Stream real-time market data and account activity](`streamer`)
-//! - [Place, replace, cancel, and preview orders](`orders::Orders`)
+//! - [Place, replace, cancel, and preview orders](`orders`)
 //! - [List transactions](`transactions`)
 //! - [Read user preferences](`user_preferences`)
 //!

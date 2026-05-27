@@ -5,8 +5,7 @@
 //! streamer halves at connection time
 //! (see [`SchwabClient::streamer`](crate::SchwabClient::streamer)).
 //!
-//! Reached through
-//! [`SchwabClient::user_preferences`](crate::SchwabClient::user_preferences).
+//! See [`UserPreferences`] for available methods.
 //!
 //! # Example
 //!

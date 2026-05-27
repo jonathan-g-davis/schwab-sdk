@@ -21,6 +21,33 @@
 //! account number. `orderId` is the Schwab-assigned `int64` returned in
 //! the `Location` header of a successful place / replace.
 //!
+//! Per-account methods are on [`Orders`], list methods are on [`AllOrders`].
+//! See the respective structs for available methods.
+//!
+//! # Example
+//!
+//! Place a limit buy, then fetch it back to read its status:
+//!
+//! ```no_run
+//! use rust_decimal_macros::dec;
+//! use schwab_sdk::{AuthToken, SchwabClient};
+//! use schwab_sdk::orders::OrderRequest;
+//!
+//! # async fn run() -> schwab_sdk::Result<()> {
+//! let client = SchwabClient::new(AuthToken::new("token"));
+//! let accounts = client.accounts().numbers().await?;
+//! let account_hash = &accounts.first().expect("a linked account").hash_value;
+//!
+//! let order_id = client
+//!     .orders(account_hash)
+//!     .place(OrderRequest::buy_limit("AAPL", dec!(10), dec!(140)))
+//!     .await?;
+//! let order = client.orders(account_hash).get(order_id).await?;
+//! println!("order {order_id}: {:?}", order.status);
+//! # Ok(())
+//! # }
+//! ```
+//!
 //! ## Idempotency
 //!
 //! Schwab's Trader API exposes **no client-controllable idempotency key**.

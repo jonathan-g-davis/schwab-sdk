@@ -1,12 +1,23 @@
 //! Schwab Market Data API.
 //!
-//! Reached through [`SchwabClient::market_data`](crate::SchwabClient::market_data).
+//! Sub-namespaces are on [`MarketData`]:
+//! - [`Quotes`](`crate::market_data::Quotes`)
+//! - [`PriceHistory`](`crate::market_data::PriceHistory`)
+//! - [`MarketHours`](`crate::market_data::MarketHours`)
+//! - [`Movers`](`crate::market_data::Movers`)
+//! - [`Instruments`](`crate::market_data::Instruments`)
+//! - [`Chains`](`crate::market_data::Chains`)
+//! - [`ExpirationChain`](`crate::market_data::ExpirationChain`)
+//! 
+//! See the respective structs for available methods.
 //!
 //! # Examples
 //!
-//! Snapshot quotes for several symbols at once. An invalid symbol does not
-//! fail the batch; it comes back as a [`QuoteEntry::Error`] entry in the
-//! response map.
+//! ## Retrieve quotes for several symbols at once
+//!
+//! Retrieve quotes for several symbols at once through the Market Data API.
+//! An invalid symbol does not fail the batch, it comes back as a
+//! [`QuoteEntry::Error`] entry in the response map.
 //!
 //! ```no_run
 //! use schwab_sdk::{AuthToken, SchwabClient};
