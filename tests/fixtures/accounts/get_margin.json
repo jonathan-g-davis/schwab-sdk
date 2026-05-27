@@ -1,0 +1,19 @@
+{
+    "securitiesAccount": {
+        "type": "MARGIN",
+        "accountNumber": "87654321",
+        "roundTrips": 0,
+        "isDayTrader": false,
+        "isClosingOnlyRestricted": false,
+        "pfcbFlag": false,
+        "initialBalances": {
+            "accountValue": 25000.00,
+            "isInCall": true
+        },
+        "currentBalances": {
+            "buyingPower": 50000.00,
+            "marginBalance": 0.00,
+            "isInCall": false
+        }
+    }
+}
