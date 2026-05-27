@@ -30,7 +30,10 @@ impl<'a> UserPreferences<'a> {
     }
 }
 
-/// `GET /userPreference` element.
+/// `GET /userPreference` response body.
+//
+// Schwab's spec types this endpoint as `array<UserPreference>`, but the live
+// API returns a single object.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[non_exhaustive]
 pub struct UserPreference {
@@ -117,42 +120,38 @@ mod tests {
 
     #[test]
     fn deserializes_canonical_payload() {
-        // Single-element array, every documented field populated. Mirrors
-        // the shape Schwab returns today.
-        let body = r#"[
-            {
-                "accounts": [
-                    {
-                        "accountNumber": "12345678",
-                        "primaryAccount": true,
-                        "type": "MARGIN",
-                        "nickName": "main",
-                        "accountColor": "Green",
-                        "displayAcctId": "...5678",
-                        "autoPositionEffect": false
-                    }
-                ],
-                "streamerInfo": [
-                    {
-                        "streamerSocketUrl": "wss://streamer-api.schwab.com/ws",
-                        "schwabClientCustomerId": "CUSTID",
-                        "schwabClientCorrelId": "abc-123",
-                        "schwabClientChannel": "N9",
-                        "schwabClientFunctionId": "APIAPP"
-                    }
-                ],
-                "offers": [
-                    {
-                        "level2Permissions": true,
-                        "mktDataPermission": "NP"
-                    }
-                ]
-            }
-        ]"#;
+        // Single object with every documented field populated.
+        // Schwab API spec types this as an array, but it really only sends one object.
+        let body = r#"{
+            "accounts": [
+                {
+                    "accountNumber": "12345678",
+                    "primaryAccount": true,
+                    "type": "MARGIN",
+                    "nickName": "main",
+                    "accountColor": "Green",
+                    "displayAcctId": "...5678",
+                    "autoPositionEffect": false
+                }
+            ],
+            "streamerInfo": [
+                {
+                    "streamerSocketUrl": "wss://streamer-api.schwab.com/ws",
+                    "schwabClientCustomerId": "CUSTID",
+                    "schwabClientCorrelId": "abc-123",
+                    "schwabClientChannel": "N9",
+                    "schwabClientFunctionId": "APIAPP"
+                }
+            ],
+            "offers": [
+                {
+                    "level2Permissions": true,
+                    "mktDataPermission": "NP"
+                }
+            ]
+        }"#;
 
-        let prefs: Vec<UserPreference> = serde_json::from_str(body).unwrap();
-        assert_eq!(prefs.len(), 1);
-        let p = &prefs[0];
+        let p: UserPreference = serde_json::from_str(body).unwrap();
         assert_eq!(p.accounts.len(), 1);
         assert!(p.accounts[0].primary_account);
         assert_eq!(p.accounts[0].nickname.as_deref(), Some("main"));
@@ -168,19 +167,15 @@ mod tests {
 
     #[test]
     fn deserializes_minimal_payload() {
-        // No required fields per the spec; an entry with empty objects,
-        // missing arrays, and missing booleans must still decode.
-        let body = r#"[
-            {
-                "accounts": [{}],
-                "streamerInfo": [{}],
-                "offers": [{}]
-            }
-        ]"#;
+        // No required fields per the spec; empty objects, missing arrays, and
+        // missing booleans must still decode.
+        let body = r#"{
+            "accounts": [{}],
+            "streamerInfo": [{}],
+            "offers": [{}]
+        }"#;
 
-        let prefs: Vec<UserPreference> = serde_json::from_str(body).unwrap();
-        assert_eq!(prefs.len(), 1);
-        let p = &prefs[0];
+        let p: UserPreference = serde_json::from_str(body).unwrap();
         assert_eq!(p.accounts.len(), 1);
         assert!(p.accounts[0].account_number.is_none());
         assert!(!p.accounts[0].primary_account);
@@ -196,21 +191,11 @@ mod tests {
 
     #[test]
     fn deserializes_when_top_level_arrays_missing() {
-        // Spec lists no required fields on UserPreference; an entry with
-        // no `accounts`/`streamerInfo`/`offers` keys must decode to empty
-        // vecs.
-        let prefs: Vec<UserPreference> = serde_json::from_str("[{}]").unwrap();
-        assert_eq!(prefs.len(), 1);
-        assert!(prefs[0].accounts.is_empty());
-        assert!(prefs[0].streamer_info.is_empty());
-        assert!(prefs[0].offers.is_empty());
-    }
-
-    #[test]
-    fn deserializes_empty_array() {
-        // Spec response type is `array<UserPreference>`; an empty array
-        // must decode without error.
-        let prefs: Vec<UserPreference> = serde_json::from_str("[]").unwrap();
-        assert!(prefs.is_empty());
+        // Spec lists no required fields on UserPreference; a response with no
+        // `accounts`/`streamerInfo`/`offers` keys must decode to empty vecs.
+        let p: UserPreference = serde_json::from_str("{}").unwrap();
+        assert!(p.accounts.is_empty());
+        assert!(p.streamer_info.is_empty());
+        assert!(p.offers.is_empty());
     }
 }
