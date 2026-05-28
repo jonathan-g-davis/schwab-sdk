@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.1.0...v0.1.1) - 2026-05-28
+
+### Other
+
+- Setup continuous deployment ([#9](https://github.com/jonathan-g-davis/schwab-sdk/pull/9))
+- Docs cleanup ([#8](https://github.com/jonathan-g-davis/schwab-sdk/pull/8))
+- Update redactions ([#7](https://github.com/jonathan-g-davis/schwab-sdk/pull/7))
+- Fix mis-documented types ([#6](https://github.com/jonathan-g-davis/schwab-sdk/pull/6))
+
 ## [0.1.0] - 2026-05-26
 
 Initial release. A typed Rust client for the Charles Schwab Trader API, Market
