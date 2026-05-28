@@ -7,14 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.1](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.1.0...v0.1.1) - 2026-05-28
+## [0.2.0](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.1.0...v0.2.0) - 2026-05-27
 
-### Other
+### Added
 
-- Setup continuous deployment ([#9](https://github.com/jonathan-g-davis/schwab-sdk/pull/9))
-- Docs cleanup ([#8](https://github.com/jonathan-g-davis/schwab-sdk/pull/8))
-- Update redactions ([#7](https://github.com/jonathan-g-davis/schwab-sdk/pull/7))
-- Fix mis-documented types ([#6](https://github.com/jonathan-g-davis/schwab-sdk/pull/6))
+- More examples to crate documentation ([#8](https://github.com/jonathan-g-davis/schwab-sdk/pull/8))
+
+### Changed
+
+- **Breaking:** `user_preferences().get()` now returns a singular `UserPreference` object instead of `Vec<UserPreference>` to match the live API ([#6](https://github.com/jonathan-g-davis/schwab-sdk/pull/6))
+- **Breaking:** `is_in_call` on `MarginInitialBalance`, `MarginBalance`, and `CashInitialBalance` changed from `Option<Decimal>` to `Option<bool>` to match live API ([#6](https://github.com/jonathan-g-davis/schwab-sdk/pull/6))
+- **Breaking:** `OptionDeliverables.deliverable_units` changed from `Option<String>` to `Option<Decimal>` to match live API ([#6](https://github.com/jonathan-g-davis/schwab-sdk/pull/6))
+- **Breaking:** `UserPreference.display_account_id` changed from `Option<AccountNumber>` to `Option<String>` as it is already masked ([#7](https://github.com/jonathan-g-davis/schwab-sdk/pull/7))
+- **Breaking:** `Order.account_number` changed from `Option<i64>` to `Option<AccountNumber>` ([#7](https://github.com/jonathan-g-davis/schwab-sdk/pull/7))
+- `AccountNumber` now parses from either a JSON string or a JSON number ([#7](https://github.com/jonathan-g-davis/schwab-sdk/pull/7))
+- `AccountNumber` implements `PartialEq`, `Eq`, and `Hash` ([#7](https://github.com/jonathan-g-davis/schwab-sdk/pull/7))
 
 ## [0.1.0] - 2026-05-26
 
