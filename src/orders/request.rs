@@ -52,6 +52,42 @@ use crate::orders::enums::{
     StopPriceLinkType, StopType, TaxLotMethod,
 };
 
+/// Conversion trait for **quantity** arguments on the order builders and
+/// shortcut factories. Lets integer literals flow into `qty` parameters
+/// without an explicit `.into()` or a `dec!(...)` wrapper.
+///
+/// Monetary arguments (prices, stops, net debits / credits, activation
+/// prices) deliberately do **not** implement this trait and remain
+/// `Decimal`-only.
+///
+/// `f32` / `f64` are intentionally not implemented: float quantities
+/// are not safe in a money path.
+pub trait IntoQuantity: sealed::Sealed {
+    /// Convert into the `Decimal` quantity stored on the request body.
+    fn into_quantity(self) -> Decimal;
+}
+
+impl IntoQuantity for Decimal {
+    fn into_quantity(self) -> Decimal {
+        self
+    }
+}
+
+macro_rules! impl_into_quantity_int {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl sealed::Sealed for $t {}
+            impl IntoQuantity for $t {
+                fn into_quantity(self) -> Decimal {
+                    Decimal::from(self)
+                }
+            }
+        )*
+    };
+}
+
+impl_into_quantity_int!(u8, u16, u32, u64, i8, i16, i32, i64);
+
 /// Local serde helper for `Option<Decimal>` on **request bodies** that
 /// preserves the textual form of the decimal value. Read-side helpers can
 /// keep using the upstream `float_option` because its deserialize path
@@ -227,6 +263,7 @@ mod sealed {
     pub trait Sealed {}
     impl Sealed for super::NeedsLeg {}
     impl Sealed for super::Ready {}
+    impl Sealed for rust_decimal::Decimal {}
 }
 
 impl AcceptsLeg for NeedsLeg {
@@ -275,28 +312,34 @@ impl OrderRequest {
     // builder can be passed straight through without an explicit `.build()`.
 
     /// Equity buy-at-market, default day order.
-    pub fn buy_market(symbol: impl Into<String>, qty: Decimal) -> SingleOrderBuilder<Ready> {
+    pub fn buy_market(
+        symbol: impl Into<String>,
+        qty: impl IntoQuantity,
+    ) -> SingleOrderBuilder<Ready> {
         Self::single().market().equity_buy(symbol, qty)
     }
 
     /// Equity buy-at-limit, default day order.
     pub fn buy_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().limit(price).equity_buy(symbol, qty)
     }
 
     /// Equity long-sale at market, default day order.
-    pub fn sell_market(symbol: impl Into<String>, qty: Decimal) -> SingleOrderBuilder<Ready> {
+    pub fn sell_market(
+        symbol: impl Into<String>,
+        qty: impl IntoQuantity,
+    ) -> SingleOrderBuilder<Ready> {
         Self::single().market().equity_sell(symbol, qty)
     }
 
     /// Equity long-sale at limit, default day order.
     pub fn sell_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().limit(price).equity_sell(symbol, qty)
@@ -306,7 +349,7 @@ impl OrderRequest {
     /// exits.
     pub fn sell_stop(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         stop_price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().stop(stop_price).equity_sell(symbol, qty)
@@ -317,7 +360,7 @@ impl OrderRequest {
     /// `limit_price`.
     pub fn sell_stop_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         stop_price: Decimal,
         limit_price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
@@ -338,7 +381,7 @@ impl OrderRequest {
     /// option position.
     pub fn buy_to_open_market(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().market().option_buy_to_open(symbol, qty)
     }
@@ -346,7 +389,7 @@ impl OrderRequest {
     /// Option buy-to-open at limit, default day order.
     pub fn buy_to_open_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().limit(price).option_buy_to_open(symbol, qty)
@@ -356,7 +399,7 @@ impl OrderRequest {
     /// an option.
     pub fn sell_to_open_market(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().market().option_sell_to_open(symbol, qty)
     }
@@ -364,7 +407,7 @@ impl OrderRequest {
     /// Option sell-to-open at limit, default day order.
     pub fn sell_to_open_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().limit(price).option_sell_to_open(symbol, qty)
@@ -374,7 +417,7 @@ impl OrderRequest {
     /// previously written (short) option.
     pub fn buy_to_close_market(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().market().option_buy_to_close(symbol, qty)
     }
@@ -382,7 +425,7 @@ impl OrderRequest {
     /// Option buy-to-close at limit, default day order.
     pub fn buy_to_close_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().limit(price).option_buy_to_close(symbol, qty)
@@ -392,7 +435,7 @@ impl OrderRequest {
     /// option position.
     pub fn sell_to_close_market(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<Ready> {
         Self::single().market().option_sell_to_close(symbol, qty)
     }
@@ -400,7 +443,7 @@ impl OrderRequest {
     /// Option sell-to-close at limit, default day order.
     pub fn sell_to_close_limit(
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
         price: Decimal,
     ) -> SingleOrderBuilder<Ready> {
         Self::single()
@@ -578,7 +621,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn equity_buy(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(equity_leg(Instruction::Buy, symbol, qty))
     }
@@ -587,7 +630,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn equity_sell(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(equity_leg(Instruction::Sell, symbol, qty))
     }
@@ -596,7 +639,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn equity_sell_short(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(equity_leg(Instruction::SellShort, symbol, qty))
     }
@@ -605,7 +648,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn equity_buy_to_cover(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(equity_leg(Instruction::BuyToCover, symbol, qty))
     }
@@ -614,7 +657,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn option_buy_to_open(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(option_leg(Instruction::BuyToOpen, symbol, qty))
     }
@@ -623,7 +666,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn option_sell_to_open(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(option_leg(Instruction::SellToOpen, symbol, qty))
     }
@@ -632,7 +675,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn option_buy_to_close(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(option_leg(Instruction::BuyToClose, symbol, qty))
     }
@@ -641,7 +684,7 @@ impl<S: AcceptsLeg> SingleOrderBuilder<S> {
     pub fn option_sell_to_close(
         self,
         symbol: impl Into<String>,
-        qty: Decimal,
+        qty: impl IntoQuantity,
     ) -> SingleOrderBuilder<S::AfterLeg> {
         self.push_leg(option_leg(Instruction::SellToClose, symbol, qty))
     }
@@ -682,11 +725,11 @@ impl SingleOrderBuilder<Ready> {
 fn equity_leg(
     instruction: Instruction,
     symbol: impl Into<String>,
-    qty: Decimal,
+    qty: impl IntoQuantity,
 ) -> OrderLegRequest {
     OrderLegRequest {
         instruction: Some(instruction),
-        quantity: Some(qty),
+        quantity: Some(qty.into_quantity()),
         instrument: Some(OrderInstrumentRequest {
             symbol: Some(symbol.into()),
             asset_type: Some(AssetType::Equity),
@@ -698,11 +741,11 @@ fn equity_leg(
 fn option_leg(
     instruction: Instruction,
     symbol: impl Into<String>,
-    qty: Decimal,
+    qty: impl IntoQuantity,
 ) -> OrderLegRequest {
     OrderLegRequest {
         instruction: Some(instruction),
-        quantity: Some(qty),
+        quantity: Some(qty.into_quantity()),
         instrument: Some(OrderInstrumentRequest {
             symbol: Some(symbol.into()),
             asset_type: Some(AssetType::Option),
@@ -1143,6 +1186,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(actual, expected, "got: {}", pretty(&actual));
+    }
+
+    // --- IntoQuantity: integer literals on quantity arguments ---
+
+    #[test]
+    fn into_quantity_decimal_is_identity() {
+        assert_eq!(dec!(10).into_quantity(), dec!(10));
+        assert_eq!(dec!(0.5).into_quantity(), dec!(0.5));
+    }
+
+    #[test]
+    fn into_quantity_accepts_unsigned_and_signed_ints() {
+        assert_eq!(IntoQuantity::into_quantity(10u8), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10u16), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10u32), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10u64), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10i8), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10i16), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10i32), dec!(10));
+        assert_eq!(IntoQuantity::into_quantity(10i64), dec!(10));
+    }
+
+    #[test]
+    fn factory_shortcuts_accept_integer_literal_for_qty() {
+        // Integer literals should infer cleanly into `impl IntoQuantity`.
+        // The matching `Decimal` form must yield the same serialized body.
+        let a = OrderRequest::buy_market("AAPL", 10).build();
+        let b = OrderRequest::buy_market("AAPL", dec!(10)).build();
+        assert_eq!(
+            serde_json::to_value(&a).unwrap(),
+            serde_json::to_value(&b).unwrap()
+        );
     }
 
     #[test]

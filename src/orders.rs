@@ -69,7 +69,7 @@ pub use preview::{
     CommissionValue, FeeLeg, FeeValue, Fees, OrderBalance, OrderLeg, OrderStrategy,
     OrderValidationDetail, OrderValidationResult, PreviewOrder, SettlementInstruction,
 };
-pub use request::{OrderRequest, SingleOrderBuilder};
+pub use request::{IntoQuantity, OrderRequest, SingleOrderBuilder};
 pub use response::{ExecutionLeg, Order, OrderActivity, OrderLegCollection};
 
 use chrono::{DateTime, SecondsFormat, Utc};
