@@ -31,6 +31,7 @@ hyper = { version = "1.10.0", features = ["http1", "client"] }
 hyper-util = { version = "0.1.20", features = ["tokio"] }
 reqwest = { version = "0.13.4", features = ["json", "query"] }
 rust_decimal = { version = "1.36", features = ["serde-with-float"] }
+rust_decimal_macros = { version = "1.36", optional = true }
 rustls-pki-types = "1.14.1"
 rustls-platform-verifier = "0.7.0"
 secrecy = { version = "0.10.3", features = ["serde"] }
@@ -49,3 +50,12 @@ futures-util = "0.3"
 rust_decimal_macros = "1.36"
 tokio-tungstenite = "0.27"
 wiremock = "0.6"
+
+[features]
+# Re-export `rust_decimal_macros::dec!` at the crate root so callers do not
+# have to add `rust_decimal_macros` as a separate dependency.
+macros = ["dep:rust_decimal_macros"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

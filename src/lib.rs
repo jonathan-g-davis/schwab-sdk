@@ -168,6 +168,7 @@
         clippy::unimplemented,
     )
 )]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![warn(missing_docs)]
 
 mod client;
@@ -189,6 +190,21 @@ pub mod user_preferences;
 pub use chrono;
 pub use http;
 pub use rust_decimal;
+
+/// Construct a [`rust_decimal::Decimal`] from a numeric literal at compile time.
+///
+/// Re-export of [`rust_decimal_macros::dec`](https://docs.rs/rust_decimal/latest/rust_decimal/macro.dec.html).
+///
+/// ```
+/// # #[cfg(feature = "macros")] {
+/// use schwab_sdk::dec;
+///
+/// let price = dec!(123.45);
+/// # let _ = price;
+/// # }
+/// ```
+#[cfg(feature = "macros")]
+pub use rust_decimal_macros::dec;
 
 pub use client::SchwabClient;
 pub use constants::{
