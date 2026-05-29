@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.2.0...v0.3.0) - 2026-05-29
+
+### Added
+
+- Print ServiceError details in Display ([#18](https://github.com/jonathan-g-davis/schwab-sdk/pull/18))
+- Add source for WebSocket errors ([#16](https://github.com/jonathan-g-davis/schwab-sdk/pull/16))
+
+### Fixed
+
+- [**breaking**] Surface Retry-After on all HTTP responses ([#17](https://github.com/jonathan-g-davis/schwab-sdk/pull/17))
+- WebSocket error retry ([#15](https://github.com/jonathan-g-davis/schwab-sdk/pull/15))
+
+### Other
+
+- Add SUBS error parse unit test ([#19](https://github.com/jonathan-g-davis/schwab-sdk/pull/19))
+- Bump the patch-and-minor group across 1 directory with 4 updates ([#11](https://github.com/jonathan-g-davis/schwab-sdk/pull/11))
+
 ## [0.2.0](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.1.0...v0.2.0) - 2026-05-27
 
 ### Added
