@@ -107,6 +107,7 @@ async fn http_500_trader_body() {
         Error::Http {
             status,
             body: ErrorBody::Trader(_),
+            ..
         } => assert_eq!(status.as_u16(), 500),
         other => panic!("expected Http {{ status: 500, body: Trader(_) }}, got {other:?}"),
     }
@@ -128,6 +129,7 @@ async fn http_503_unrecognized_body() {
         Error::Http {
             status,
             body: ErrorBody::Unrecognized(_),
+            ..
         } => assert_eq!(status.as_u16(), 503),
         other => panic!("expected Http {{ status: 503, body: Unrecognized(_) }}, got {other:?}"),
     }
