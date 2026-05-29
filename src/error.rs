@@ -304,7 +304,14 @@ pub struct ServiceError {
 
 impl std::fmt::Display for ServiceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
+        write!(f, "{}", self.message)?;
+        if !self.errors.is_empty() {
+            for (i, error) in self.errors.iter().enumerate() {
+                let sep = if i == 0 { ": " } else { "; " };
+                write!(f, "{sep}{error}")?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -422,7 +429,24 @@ mod tests {
         };
         assert_eq!(body.message, "Order validation failed");
         assert_eq!(body.errors.len(), 2);
-        assert_eq!(body.to_string(), "Order validation failed");
+        // Per-field errors must be rendered alongside the summary so an
+        // operator logging the failure sees what Schwab actually rejected,
+        // not just "Order validation failed" with no detail.
+        assert_eq!(
+            body.to_string(),
+            "Order validation failed: quantity must be positive; symbol is required"
+        );
+    }
+
+    #[test]
+    fn trader_error_body_without_errors_renders_message_only() {
+        // Empty `errors` keeps the previous one-line shape so existing
+        // log patterns matching on the bare message still work.
+        let svc = ServiceError {
+            message: "Forbidden".to_string(),
+            errors: Vec::new(),
+        };
+        assert_eq!(svc.to_string(), "Forbidden");
     }
 
     #[test]
