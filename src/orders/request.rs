@@ -209,6 +209,65 @@ impl OrderRequest {
     }
 }
 
+impl OrderRequest {
+    /// Session in which the order is eligible to trade.
+    pub fn session(&self) -> Option<&Session> {
+        self.session.as_ref()
+    }
+
+    /// Time in force (`DAY`, `GOOD_TILL_CANCEL`, etc.).
+    pub fn duration(&self) -> Option<&Duration> {
+        self.duration.as_ref()
+    }
+
+    /// Order type (`MARKET`, `LIMIT`, `STOP`, `NET_DEBIT`, etc.).
+    pub fn order_type(&self) -> Option<&OrderType> {
+        self.order_type.as_ref()
+    }
+
+    /// Multi-leg option strategy shape, if any.
+    pub fn complex_order_strategy_type(&self) -> Option<&ComplexOrderStrategyType> {
+        self.complex_order_strategy_type.as_ref()
+    }
+
+    /// Top-level quantity, when Schwab carries it separately from the
+    /// per-leg quantity.
+    pub fn quantity(&self) -> Option<Decimal> {
+        self.quantity
+    }
+
+    /// Limit / net-debit / net-credit price.
+    pub fn price(&self) -> Option<Decimal> {
+        self.price
+    }
+
+    /// Stop-trigger price for stop and stop-limit orders.
+    pub fn stop_price(&self) -> Option<Decimal> {
+        self.stop_price
+    }
+
+    /// Special instruction (e.g. `AllOrNone`).
+    pub fn special_instruction(&self) -> Option<&SpecialInstruction> {
+        self.special_instruction.as_ref()
+    }
+
+    /// Envelope strategy (`SINGLE`, `OCO`, `TRIGGER`, ...).
+    pub fn order_strategy_type(&self) -> Option<&OrderStrategyType> {
+        self.order_strategy_type.as_ref()
+    }
+
+    /// Order legs.
+    pub fn legs(&self) -> &[OrderLegRequest] {
+        &self.order_leg_collection
+    }
+
+    /// Child strategies of a composite envelope (`OCO` or `TRIGGER`).
+    /// Empty for `SINGLE`.
+    pub fn child_strategies(&self) -> &[OrderRequest] {
+        &self.child_order_strategies
+    }
+}
+
 /// One leg of an [`OrderRequest`]. Legs are constructed by the builder's
 /// `equity_*` / `option_*` methods.
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq, Hash)]
@@ -236,6 +295,46 @@ pub struct OrderInstrumentRequest {
     pub(crate) symbol: Option<String>,
     #[serde(rename = "assetType", skip_serializing_if = "Option::is_none")]
     pub(crate) asset_type: Option<AssetType>,
+}
+
+impl OrderLegRequest {
+    /// Side of the order (`BUY`, `SELL`, `BUY_TO_OPEN`, ...).
+    pub fn instruction(&self) -> Option<&Instruction> {
+        self.instruction.as_ref()
+    }
+
+    /// Leg quantity in shares or contracts.
+    pub fn quantity(&self) -> Option<Decimal> {
+        self.quantity
+    }
+
+    /// Instrument the leg trades.
+    pub fn instrument(&self) -> Option<&OrderInstrumentRequest> {
+        self.instrument.as_ref()
+    }
+
+    /// Position effect (`OPENING`, `CLOSING`).
+    pub fn position_effect(&self) -> Option<&PositionEffect> {
+        self.position_effect.as_ref()
+    }
+
+    /// Quantity-type discriminant when the leg expresses quantity in
+    /// non-share units.
+    pub fn quantity_type(&self) -> Option<&QuantityType> {
+        self.quantity_type.as_ref()
+    }
+}
+
+impl OrderInstrumentRequest {
+    /// Schwab symbol.
+    pub fn symbol(&self) -> Option<&str> {
+        self.symbol.as_deref()
+    }
+
+    /// Asset class (`EQUITY`, `OPTION`, ...).
+    pub fn asset_type(&self) -> Option<&AssetType> {
+        self.asset_type.as_ref()
+    }
 }
 
 // --- Typestate builder for SINGLE-strategy orders ---
@@ -1601,5 +1700,44 @@ mod tests {
         };
         assert!(!err.is_retryable());
         assert_eq!(err.retry_after(), None);
+    }
+
+    #[test]
+    fn accessors_read_single_limit_order() {
+        let req = OrderRequest::buy_limit("AAPL", dec!(10), dec!(150.25)).build();
+
+        assert_eq!(req.session(), Some(&Session::Normal));
+        assert_eq!(req.duration(), Some(&Duration::Day));
+        assert_eq!(req.order_type(), Some(&OrderType::Limit));
+        assert_eq!(req.price(), Some(dec!(150.25)));
+        assert_eq!(req.stop_price(), None);
+        assert_eq!(req.order_strategy_type(), Some(&OrderStrategyType::Single));
+        assert!(req.child_strategies().is_empty());
+
+        let legs = req.legs();
+        assert_eq!(legs.len(), 1);
+        let leg = &legs[0];
+        assert_eq!(leg.instruction(), Some(&Instruction::Buy));
+        assert_eq!(leg.quantity(), Some(dec!(10)));
+        let instrument = leg.instrument().expect("leg has instrument");
+        assert_eq!(instrument.symbol(), Some("AAPL"));
+        assert_eq!(instrument.asset_type(), Some(&AssetType::Equity));
+    }
+
+    #[test]
+    fn accessors_walk_oco_composite() {
+        let take_profit = OrderRequest::sell_limit("XYZ", dec!(1), dec!(50));
+        let stop_loss = OrderRequest::sell_stop("XYZ", dec!(1), dec!(40));
+        let req = OrderRequest::oco(take_profit, stop_loss);
+
+        assert_eq!(req.order_strategy_type(), Some(&OrderStrategyType::Oco));
+        assert!(req.legs().is_empty());
+
+        let children = req.child_strategies();
+        assert_eq!(children.len(), 2);
+        assert_eq!(children[0].order_type(), Some(&OrderType::Limit));
+        assert_eq!(children[0].price(), Some(dec!(50)));
+        assert_eq!(children[1].order_type(), Some(&OrderType::Stop));
+        assert_eq!(children[1].stop_price(), Some(dec!(40)));
     }
 }
