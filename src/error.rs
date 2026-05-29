@@ -65,11 +65,16 @@ pub enum Error {
         body: ErrorBody,
     },
     /// Any other non-2xx response. The status is authoritative; the body
-    /// is supplementary.
+    /// is supplementary. `retry_after` carries the parsed `Retry-After`
+    /// header when the server sent one (the spec allows it on any 4xx /
+    /// 5xx, not only `429`); callers can read it via
+    /// [`Error::retry_after`] without matching on the variant.
     #[error("http {status}: {body}")]
     Http {
         /// HTTP status from the response.
         status: StatusCode,
+        /// Parsed `Retry-After` header value, if the server sent one.
+        retry_after: Option<Duration>,
         /// Decoded response body.
         body: ErrorBody,
     },
@@ -141,7 +146,11 @@ impl Error {
             StatusCode::UNAUTHORIZED => Error::Unauthorized(body),
             StatusCode::NOT_FOUND => Error::NotFound(body),
             StatusCode::TOO_MANY_REQUESTS => Error::RateLimited { retry_after, body },
-            _ => Error::Http { status, body },
+            _ => Error::Http {
+                status,
+                retry_after,
+                body,
+            },
         }
     }
 
@@ -204,11 +213,17 @@ impl Error {
         }
     }
 
-    /// `Retry-After` duration parsed from a 429 response, when present.
-    /// Always `None` for non-rate-limited errors.
+    /// `Retry-After` duration parsed from a non-2xx response, when the
+    /// server sent the header. `None` for variants that do not carry
+    /// HTTP status (transport, codec, etc.) or when the header was
+    /// absent. Surfaces on both [`Error::RateLimited`] (429) and
+    /// [`Error::Http`] (any other 4xx / 5xx Schwab annotated with
+    /// `Retry-After`, typically `503`).
     pub fn retry_after(&self) -> Option<Duration> {
         match self {
-            Error::RateLimited { retry_after, .. } => *retry_after,
+            Error::RateLimited { retry_after, .. } | Error::Http { retry_after, .. } => {
+                *retry_after
+            }
             _ => None,
         }
     }
@@ -226,7 +241,7 @@ impl Error {
 ///
 /// # fn report(err: Error) {
 /// match err {
-///     Error::Http { status, body } => match body {
+///     Error::Http { status, body, .. } => match body {
 ///         ErrorBody::Trader(svc) => eprintln!("{status}: {}", svc.message),
 ///         ErrorBody::MarketData(resp) => eprintln!("{status}: {resp}"),
 ///         ErrorBody::Unrecognized(raw) => eprintln!("{status}: {raw}"),
@@ -554,6 +569,33 @@ mod tests {
         );
         assert_eq!(error.retry_after(), Some(Duration::from_secs(30)));
         assert!(error.is_retryable());
+    }
+
+    #[test]
+    fn http_503_with_retry_after_surfaces_through_accessor() {
+        // The spec allows Retry-After on any 4xx/5xx, not just 429.
+        // `Error::retry_after()` previously returned `None` for Http
+        // variants, silently dropping the server's hint. A caller wrapping
+        // the SDK in a backoff loop now receives the upstream delay.
+        let error = Error::from_status(
+            StatusCode::SERVICE_UNAVAILABLE,
+            Some(Duration::from_secs(15)),
+            ErrorBody::Unrecognized(String::new()),
+        );
+        assert!(matches!(error, Error::Http { .. }));
+        assert_eq!(error.retry_after(), Some(Duration::from_secs(15)));
+        assert!(error.is_retryable());
+    }
+
+    #[test]
+    fn http_without_retry_after_returns_none() {
+        // Absence of the header must still surface as `None`.
+        let error = Error::from_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            None,
+            ErrorBody::Unrecognized(String::new()),
+        );
+        assert_eq!(error.retry_after(), None);
     }
 
     #[test]
