@@ -313,6 +313,39 @@ mod tests {
     use rust_decimal_macros::dec;
 
     #[test]
+    fn parses_subs_error_response() {
+        // A SUBS frame that Schwab rejects: the response envelope is the
+        // generic `ResponsePayload` shape with a non-Ok code and a
+        // human-readable `msg`. The parser must decode the typed code so
+        // consumers can branch on `FailedCommandSubs` without re-parsing
+        // the string.
+        let frame = r#"{
+            "response": [{
+                "service": "LEVELONE_EQUITIES",
+                "command": "SUBS",
+                "requestid": "7",
+                "SchwabClientCorrelId": "abc-123",
+                "timestamp": 1668715930000,
+                "content": { "code": 22, "msg": "Bad keys: ZZZZ" }
+            }]
+        }"#;
+        let StreamerResponse::Response(responses) = parse(frame).expect("parse subs error") else {
+            panic!("expected Response");
+        };
+        assert_eq!(responses.len(), 1);
+        let r = &responses[0];
+        assert_eq!(r.service, Service::LevelOneEquities);
+        assert_eq!(r.command, StreamerCommand::Subs);
+        assert_eq!(r.request_id, 7);
+        assert_eq!(r.content.code, ResponseCode::FailedCommandSubs);
+        assert!(
+            r.content.message.contains("Bad keys"),
+            "msg = {}",
+            r.content.message
+        );
+    }
+
+    #[test]
     fn parses_heartbeat_notify() {
         let frame = r#"{"notify":[{"heartbeat":"1668715930582"}]}"#;
         let StreamerResponse::Notify(heartbeats) = parse(frame).unwrap() else {
