@@ -107,6 +107,17 @@ pub enum Error {
     /// was absent or malformed, so the new order's id is unrecoverable.
     #[error("order id unrecoverable: {0}")]
     OrderIdUnrecoverable(String),
+    /// An [`crate::orders::Order`] returned by a read endpoint could not
+    /// be converted into an [`crate::orders::OrderRequest`] for a
+    /// follow-up place or replace call. The carried `reason` names the
+    /// specific shape mismatch (e.g. a leg missing its instrument, an
+    /// instrument missing its `symbol`, an unknown `assetType`). This
+    /// variant is not retryable: the response will not change on a retry.
+    #[error("order response not representable as a request: {reason}")]
+    OrderResponseNotRepresentable {
+        /// What in the response prevented the conversion.
+        reason: String,
+    },
     /// A [`crate::TokenProvider`] failed to produce a bearer token, so no
     /// HTTP request could be issued. The wrapped source is the
     /// provider's own error type, type-erased; the SDK has no opinion on
@@ -208,6 +219,7 @@ impl Error {
             | Error::Codec { .. }
             | Error::InvalidPreference { .. }
             | Error::OrderIdUnrecoverable(_)
+            | Error::OrderResponseNotRepresentable { .. }
             | Error::TokenProvider { .. }
             | Error::InsecureBaseUrl { .. } => false,
         }

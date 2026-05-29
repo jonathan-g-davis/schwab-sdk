@@ -46,11 +46,13 @@ use rust_decimal::Decimal;
 use serde::Serialize;
 
 use crate::accounts::AssetType;
+use crate::error::Error;
 use crate::orders::enums::{
     ComplexOrderStrategyType, Duration, Instruction, OrderStrategyType, OrderType, PositionEffect,
     PriceLinkBasis, PriceLinkType, QuantityType, Session, SpecialInstruction, StopPriceLinkBasis,
     StopPriceLinkType, StopType, TaxLotMethod,
 };
+use crate::orders::response::{Order, OrderLegCollection};
 
 /// Conversion trait for **quantity** arguments on the order builders and
 /// shortcut factories. Lets integer literals flow into `qty` parameters
@@ -754,6 +756,140 @@ fn option_leg(
     }
 }
 
+// --- Response -> Request conversion ---
+//
+// Round-trip a fetched [`Order`] back into an [`OrderRequest`] body suitable
+// for `PUT /accounts/{n}/orders/{id}` (replace). Broker-assigned fields
+// (`orderId`, `status`, `enteredTime`, `cancelable`, fills, lineage, etc.)
+// have no place in a request and are dropped. Fields that *could* be
+// represented but cannot be decoded unambiguously (e.g. a leg with no
+// instrument, or an instrument with no symbol) surface as
+// [`Error::OrderResponseNotRepresentable`] rather than being silently
+// defaulted.
+
+impl TryFrom<Order> for OrderRequest {
+    type Error = Error;
+
+    /// Convert a fetched [`Order`] into an [`OrderRequest`] body. Useful for
+    /// constructing the body of a replace request from a previously-fetched
+    /// order: take the live order, mutate the field(s) you want to change,
+    /// and send it back.
+    ///
+    /// Broker-assigned fields (`orderId`, `status`, `enteredTime`,
+    /// `cancelable`, `editable`, fills, lineage, etc.) are not part of a
+    /// request body and are dropped. Child strategies (`OCO` / `TRIGGER`)
+    /// are converted recursively. Fields that cannot be represented in a
+    /// request (a leg missing its instrument, an instrument missing its
+    /// `symbol`) surface as [`Error::OrderResponseNotRepresentable`].
+    fn try_from(order: Order) -> Result<Self, Self::Error> {
+        let Order {
+            session,
+            duration,
+            order_type,
+            complex_order_strategy_type,
+            quantity,
+            destination_link_name,
+            stop_price,
+            stop_price_link_basis,
+            stop_price_link_type,
+            stop_price_offset,
+            stop_type,
+            price_link_basis,
+            price_link_type,
+            price,
+            tax_lot_method,
+            order_leg_collection,
+            activation_price,
+            special_instruction,
+            order_strategy_type,
+            child_order_strategies,
+            // Dropped: broker-assigned, response-only, or activity data with
+            // no request counterpart.
+            ..
+        } = order;
+
+        let order_leg_collection = order_leg_collection
+            .into_iter()
+            .map(OrderLegRequest::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let child_order_strategies = child_order_strategies
+            .into_iter()
+            .map(OrderRequest::try_from)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(OrderRequest {
+            session,
+            duration,
+            order_type,
+            complex_order_strategy_type,
+            quantity,
+            destination_link_name,
+            stop_price,
+            stop_price_link_basis,
+            stop_price_link_type,
+            stop_price_offset,
+            stop_type,
+            price_link_basis,
+            price_link_type,
+            price,
+            tax_lot_method,
+            order_leg_collection,
+            activation_price,
+            special_instruction,
+            order_strategy_type,
+            child_order_strategies,
+        })
+    }
+}
+
+impl TryFrom<OrderLegCollection> for OrderLegRequest {
+    type Error = Error;
+
+    fn try_from(leg: OrderLegCollection) -> Result<Self, Self::Error> {
+        let OrderLegCollection {
+            instruction,
+            quantity,
+            instrument,
+            position_effect,
+            quantity_type,
+            // Dropped: response-only or carried elsewhere (the leg's asset
+            // class lives on the instrument's `asset_type` instead).
+            ..
+        } = leg;
+
+        let instrument = instrument
+            .map(|inst| {
+                let symbol = inst
+                    .symbol
+                    .ok_or_else(|| Error::OrderResponseNotRepresentable {
+                        reason: "order leg instrument is missing `symbol`".to_string(),
+                    })?;
+                if let AssetType::Unknown(raw) = &inst.asset_type {
+                    return Err(Error::OrderResponseNotRepresentable {
+                        reason: format!("order leg instrument has unknown assetType `{raw}`"),
+                    });
+                }
+                Ok(OrderInstrumentRequest {
+                    symbol: Some(symbol),
+                    asset_type: Some(inst.asset_type),
+                })
+            })
+            .ok_or_else(|| Error::OrderResponseNotRepresentable {
+                reason: "order leg is missing its instrument".to_string(),
+            })
+            .flatten()?;
+
+        Ok(OrderLegRequest {
+            instruction,
+            quantity,
+            instrument: Some(instrument),
+            position_effect,
+            quantity_type,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1233,5 +1369,237 @@ mod tests {
         assert_eq!(obj.len(), 2);
         assert!(obj.contains_key("orderStrategyType"));
         assert!(obj.contains_key("childOrderStrategies"));
+    }
+
+    // --- Response -> Request round trip ---
+
+    fn try_round_trip(req: &OrderRequest) -> OrderRequest {
+        // Serialize a request, deserialize as the response shape, convert
+        // back.
+        let wire = serde_json::to_string(req).expect("serialize OrderRequest");
+        let order: crate::orders::Order =
+            serde_json::from_str(&wire).expect("deserialize as Order");
+        OrderRequest::try_from(order).expect("Order -> OrderRequest")
+    }
+
+    #[test]
+    fn try_from_round_trips_equity_limit_buy() {
+        let req = OrderRequest::single()
+            .limit(dec!(140.00))
+            .equity_buy("AAPL", dec!(5))
+            .duration(Duration::GoodTillCancel)
+            .session(Session::Seamless)
+            .special_instruction(SpecialInstruction::AllOrNone)
+            .build();
+        let after = try_round_trip(&req);
+        assert_eq!(req, after);
+    }
+
+    #[test]
+    fn try_from_round_trips_vertical_spread() {
+        let req = OrderRequest::single()
+            .net_debit(dec!(0.10))
+            .option_buy_to_open("XYZ   240315P00045000", dec!(2))
+            .option_sell_to_open("XYZ   240315P00043000", dec!(2))
+            .build();
+        let after = try_round_trip(&req);
+        assert_eq!(req, after);
+    }
+
+    #[test]
+    fn try_from_round_trips_oco_pair() {
+        let limit_leg = OrderRequest::single()
+            .limit(dec!(45.97))
+            .equity_sell("XYZ", dec!(2))
+            .build();
+        let stop_limit_leg = OrderRequest::single()
+            .stop_limit(dec!(37.03), dec!(37.00))
+            .equity_sell("XYZ", dec!(2))
+            .build();
+        let req = OrderRequest::oco(limit_leg, stop_limit_leg);
+        let after = try_round_trip(&req);
+        assert_eq!(req, after);
+    }
+
+    #[test]
+    fn try_from_round_trips_one_triggers_oco() {
+        let entry = OrderRequest::buy_limit("XYZ", dec!(5), dec!(14.97));
+        let take_profit = OrderRequest::single()
+            .limit(dec!(15.27))
+            .equity_sell("XYZ", dec!(5))
+            .duration(Duration::GoodTillCancel)
+            .build();
+        let stop_loss = OrderRequest::single()
+            .stop(dec!(11.27))
+            .equity_sell("XYZ", dec!(5))
+            .duration(Duration::GoodTillCancel)
+            .build();
+        let oco = OrderRequest::oco(take_profit, stop_loss);
+        let req = OrderRequest::trigger(entry, oco);
+        let after = try_round_trip(&req);
+        assert_eq!(req, after);
+    }
+
+    #[test]
+    fn try_from_drops_broker_assigned_fields_on_a_live_order() {
+        // A live Order from a read endpoint carries broker-assigned fields
+        // (orderId, status, enteredTime, fills, instrument metadata, ...).
+        // The replace body must not echo any of them back; the conversion
+        // drops them. Top-level fields that the response carries and that
+        // the request schema also accepts (e.g. `quantity`) are preserved.
+        let live: crate::orders::Order = serde_json::from_str(
+            r#"{
+                "orderId": 100000001,
+                "accountNumber": 12345678,
+                "status": "WORKING",
+                "orderType": "LIMIT",
+                "session": "NORMAL",
+                "duration": "DAY",
+                "orderStrategyType": "SINGLE",
+                "quantity": 10.0,
+                "filledQuantity": 0.0,
+                "remainingQuantity": 10.0,
+                "price": 140.00,
+                "enteredTime": "2024-03-15T15:30:00.000Z",
+                "cancelable": true,
+                "editable": true,
+                "orderLegCollection": [{
+                    "orderLegType": "EQUITY",
+                    "legId": 1,
+                    "instruction": "BUY",
+                    "quantity": 10.0,
+                    "instrument": {
+                        "assetType": "EQUITY",
+                        "symbol": "AAPL",
+                        "cusip": "037833100",
+                        "instrumentId": 12345
+                    }
+                }]
+            }"#,
+        )
+        .unwrap();
+        let replace_body = OrderRequest::try_from(live).expect("convert live order");
+
+        // Order shape carried through: type, prices, leg.
+        assert_eq!(replace_body.order_type, Some(OrderType::Limit));
+        assert_eq!(replace_body.price, Some(dec!(140.00)));
+        assert_eq!(replace_body.session, Some(Session::Normal));
+        assert_eq!(replace_body.duration, Some(Duration::Day));
+        assert_eq!(
+            replace_body.order_strategy_type,
+            Some(OrderStrategyType::Single)
+        );
+        assert_eq!(replace_body.order_leg_collection.len(), 1);
+        let leg = &replace_body.order_leg_collection[0];
+        assert_eq!(leg.instruction, Some(Instruction::Buy));
+        assert_eq!(leg.quantity, Some(dec!(10)));
+        let inst = leg.instrument.as_ref().unwrap();
+        assert_eq!(inst.symbol.as_deref(), Some("AAPL"));
+        assert_eq!(inst.asset_type, Some(AssetType::Equity));
+
+        // None of the broker-assigned fields appear in the replace body.
+        let json = serde_json::to_string(&replace_body).unwrap();
+        for forbidden in [
+            "orderId",
+            "accountNumber",
+            "status",
+            "enteredTime",
+            "filledQuantity",
+            "remainingQuantity",
+            "cancelable",
+            "editable",
+            "cusip",
+            "instrumentId",
+            "legId",
+        ] {
+            assert!(
+                !json.contains(forbidden),
+                "replace body should not contain {forbidden}, got: {json}"
+            );
+        }
+    }
+
+    #[test]
+    fn try_from_errors_when_leg_has_no_instrument() {
+        let order: crate::orders::Order = serde_json::from_str(
+            r#"{
+                "orderId": 1,
+                "orderStrategyType": "SINGLE",
+                "orderType": "MARKET",
+                "orderLegCollection": [{
+                    "instruction": "BUY",
+                    "quantity": 1
+                }]
+            }"#,
+        )
+        .unwrap();
+        match OrderRequest::try_from(order) {
+            Err(Error::OrderResponseNotRepresentable { reason }) => {
+                assert!(reason.contains("instrument"), "unexpected reason: {reason}");
+            }
+            other => panic!("expected OrderResponseNotRepresentable, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn try_from_errors_when_instrument_has_no_symbol() {
+        let order: crate::orders::Order = serde_json::from_str(
+            r#"{
+                "orderId": 1,
+                "orderStrategyType": "SINGLE",
+                "orderType": "MARKET",
+                "orderLegCollection": [{
+                    "instruction": "BUY",
+                    "quantity": 1,
+                    "instrument": { "assetType": "EQUITY" }
+                }]
+            }"#,
+        )
+        .unwrap();
+        match OrderRequest::try_from(order) {
+            Err(Error::OrderResponseNotRepresentable { reason }) => {
+                assert!(reason.contains("symbol"), "unexpected reason: {reason}");
+            }
+            other => panic!("expected OrderResponseNotRepresentable, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn try_from_errors_when_asset_type_is_unknown() {
+        // Schwab may asset types over time; `string_enum!` decodes any
+        // unrecognized value to `AssetType::Unknown(_)`. The request side
+        // cannot safely send those back to a different endpoint, so the
+        // conversion refuses rather than guessing.
+        let order: crate::orders::Order = serde_json::from_str(
+            r#"{
+                "orderId": 1,
+                "orderStrategyType": "SINGLE",
+                "orderType": "MARKET",
+                "orderLegCollection": [{
+                    "instruction": "BUY",
+                    "quantity": 1,
+                    "instrument": { "assetType": "NEW_ASSET_CLASS", "symbol": "X" }
+                }]
+            }"#,
+        )
+        .unwrap();
+        match OrderRequest::try_from(order) {
+            Err(Error::OrderResponseNotRepresentable { reason }) => {
+                assert!(
+                    reason.contains("NEW_ASSET_CLASS"),
+                    "unexpected reason: {reason}"
+                );
+            }
+            other => panic!("expected OrderResponseNotRepresentable, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn try_from_error_is_not_retryable() {
+        let err = Error::OrderResponseNotRepresentable {
+            reason: "leg missing instrument".to_string(),
+        };
+        assert!(!err.is_retryable());
+        assert_eq!(err.retry_after(), None);
     }
 }
