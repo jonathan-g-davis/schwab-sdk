@@ -35,26 +35,26 @@ type WebSocket = fastwebsockets::WebSocket<Upgraded>;
 #[derive(Debug, thiserror::Error)]
 pub enum WebSocketError {
     /// TCP connect failed.
-    #[error("failed to connect to server")]
-    Connect(std::io::Error),
+    #[error("failed to connect to server: {0}")]
+    Connect(#[source] std::io::Error),
     /// WebSocket upgrade handshake failed.
-    #[error("failed to perform websocket handshake")]
-    Handshake(fastwebsockets::WebSocketError),
+    #[error("failed to perform websocket handshake: {0}")]
+    Handshake(#[source] fastwebsockets::WebSocketError),
     /// `streamerSocketUrl` host is not a valid DNS name.
-    #[error("invalid domain")]
-    InvalidDomain(rustls_pki_types::InvalidDnsNameError),
+    #[error("invalid domain: {0}")]
+    InvalidDomain(#[source] rustls_pki_types::InvalidDnsNameError),
     /// `streamerSocketUrl` did not include a host component.
     #[error("host is required")]
     MissingHost,
     /// TLS handshake failed on top of the TCP socket.
-    #[error("failed to create TLS stream")]
-    TlsStream(std::io::Error),
+    #[error("failed to create TLS stream: {0}")]
+    TlsStream(#[source] std::io::Error),
     /// Building the rustls client config failed.
     #[error("failed to configure TLS: {0}")]
-    TlsConfig(rustls::Error),
+    TlsConfig(#[source] rustls::Error),
     /// Building the HTTP upgrade request failed.
     #[error("failed to build upgrade request: {0}")]
-    BuildRequest(http::Error),
+    BuildRequest(#[source] http::Error),
     /// `streamerSocketUrl` used a scheme that is not permitted for the
     /// current build. `wss://` is always accepted; `ws://` is accepted
     /// only in debug builds, because a plaintext WebSocket would carry
