@@ -193,7 +193,7 @@ impl Error {
             Error::RateLimited { .. } => true,
             Error::Http { status, .. } => status.is_server_error(),
             Error::Transport(e) => e.is_timeout() || e.is_connect() || e.is_request(),
-            Error::WebSocket(_) => true,
+            Error::WebSocket(e) => e.is_retryable(),
             Error::Unauthorized(_)
             | Error::NotFound(_)
             | Error::Codec { .. }

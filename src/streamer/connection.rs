@@ -68,6 +68,31 @@ pub enum WebSocketError {
     Runtime(#[from] fastwebsockets::WebSocketError),
 }
 
+impl WebSocketError {
+    /// Whether a fresh `connect` (and re-login) is worth attempting after
+    /// this error. Returns `false` for configuration-shaped failures that
+    /// will fail identically on retry (bad scheme, missing host, malformed
+    /// upgrade request, rustls config error) and `true` for transport- or
+    /// session-level failures (TCP connect, TLS handshake, WebSocket
+    /// handshake, post-handshake frame errors).
+    ///
+    /// Used by [`crate::Error::is_retryable`] to classify
+    /// [`crate::Error::WebSocket`].
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            WebSocketError::Connect(_)
+            | WebSocketError::TlsStream(_)
+            | WebSocketError::Handshake(_)
+            | WebSocketError::Runtime(_) => true,
+            WebSocketError::InvalidDomain(_)
+            | WebSocketError::MissingHost
+            | WebSocketError::TlsConfig(_)
+            | WebSocketError::BuildRequest(_)
+            | WebSocketError::UnsupportedScheme(_) => false,
+        }
+    }
+}
+
 impl From<fastwebsockets::WebSocketError> for Error {
     fn from(value: fastwebsockets::WebSocketError) -> Self {
         Error::WebSocket(WebSocketError::Runtime(value))
@@ -809,5 +834,51 @@ mod tests {
     fn case_sensitive_scheme_match() {
         assert!(check_websocket_scheme(Some("Wss"), false).is_err(),);
         assert!(check_websocket_scheme(Some("WSS"), false).is_err(),);
+    }
+
+    #[test]
+    fn is_retryable_classifies_transport_failures_as_retryable() {
+        // TCP / TLS / handshake / runtime errors all warrant a reconnect.
+        assert!(WebSocketError::Connect(std::io::Error::other("x")).is_retryable());
+        assert!(WebSocketError::TlsStream(std::io::Error::other("x")).is_retryable());
+        assert!(
+            WebSocketError::Handshake(fastwebsockets::WebSocketError::ConnectionClosed)
+                .is_retryable()
+        );
+        assert!(
+            WebSocketError::Runtime(fastwebsockets::WebSocketError::ConnectionClosed)
+                .is_retryable()
+        );
+    }
+
+    #[test]
+    fn is_retryable_classifies_config_failures_as_terminal() {
+        // These will fail identically on retry; callers must not loop.
+        assert!(!WebSocketError::MissingHost.is_retryable());
+        assert!(!WebSocketError::UnsupportedScheme("ws".to_string()).is_retryable());
+        assert!(
+            !WebSocketError::InvalidDomain(
+                rustls_pki_types::ServerName::try_from("not a dns name").unwrap_err()
+            )
+            .is_retryable()
+        );
+        // `BuildRequest` and `TlsConfig` carry foreign error types that
+        // are awkward to fabricate in a unit test; the exhaustive match
+        // in `is_retryable` keeps them classified alongside the others
+        // here, and the surrounding `match` would fail to compile if a
+        // new variant were added without an explicit decision.
+    }
+
+    #[test]
+    fn error_is_retryable_delegates_to_websocket_error() {
+        // The parent `Error::is_retryable` used to blanket-return `true`
+        // for every `Error::WebSocket`; verify the per-variant path now
+        // surfaces a terminal config error as terminal.
+        let terminal = Error::WebSocket(WebSocketError::UnsupportedScheme("ws".to_string()));
+        assert!(!terminal.is_retryable());
+        let transient = Error::WebSocket(WebSocketError::Connect(std::io::Error::other(
+            "conn refused",
+        )));
+        assert!(transient.is_retryable());
     }
 }
