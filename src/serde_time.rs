@@ -1,24 +1,18 @@
-//! Serde adaptors for Schwab's timestamp encodings.
+//! Serde adaptors for Schwab's non-RFC3339 date and time encodings.
 //!
-//! Schwab sends point-in-time values two ways: ISO-8601 strings (handled
-//! directly by `chrono`'s own serde support) and epoch-millisecond integers.
-//! [`millis_opt`] decodes the integer form into `Option<DateTime<Utc>>` so the
-//! public API exposes one timestamp type rather than a mix of `i64`/`u64` and
-//! `DateTime<Utc>` for the same kind of value.
+//! Some Schwab fields encode a date or instant as a plain integer or a non-ISO
+//! string that cannot be deserialized directly by `chrono`.
 //!
-//! The instruments `fundamental` block is a third case: date-only values sent
-//! as `YYYY-MM-DD HH:MM:SS.S` (space-separated, always midnight).
-//! [`naive_date_opt`] decodes the date portion into `Option<NaiveDate>`.
-//!
-//! The streamer `chart_day` field is a fourth case: a count of days since the
-//! Unix epoch. [`epoch_days_opt`] decodes it into `Option<NaiveDate>`.
+//! Supported formats:
+//! - Epoch milliseconds: [`millis_opt`]
+//! - `YYYY-MM-DD HH:MM:SS.S` (where time is always midnight): [`naive_date_opt`]
+//! - Days since epoch: [`epoch_days_opt`]
 
 /// Serde adaptor for an optional epoch-millisecond timestamp carried on the
 /// wire as a JSON integer. Use with `#[serde(default, with = "millis_opt")]`.
 ///
-/// The wire value is interpreted as milliseconds since the Unix epoch. A
-/// missing field or JSON `null` decodes to `None`. An out-of-range value is a
-/// deserialization error.
+/// The wire value is interpreted as milliseconds since the Unix epoch. A JSON
+/// `null` decodes to `None`. An out-of-range value is a deserialization error.
 pub(crate) mod millis_opt {
     use chrono::{DateTime, Utc};
     use serde::{Deserialize, Deserializer};
@@ -39,15 +33,14 @@ pub(crate) mod millis_opt {
 }
 
 /// Serde adaptor for an optional date carried on the wire as a
-/// `YYYY-MM-DD HH:MM:SS.S` string (the shape Schwab's `fundamental` block
+/// `YYYY-MM-DD HH:MM:SS.S` string (the format Schwab's `fundamental` block
 /// uses, with the time always midnight). Use with
 /// `#[serde(default, with = "naive_date_opt")]`.
 ///
 /// Only the date portion is significant, so the leading date token (up to the
 /// first space or `T`) is parsed as `%Y-%m-%d`; the time and fractional
-/// seconds are ignored. A missing field, JSON `null`, or an empty string
-/// decodes to `None`. A non-empty value whose date portion does not parse is a
-/// deserialization error.
+/// seconds are ignored. A JSON `null` or an empty string decodes to `None`. A
+/// non-empty value whose date portion does not parse is a deserialization error.
 pub(crate) mod naive_date_opt {
     use chrono::NaiveDate;
     use serde::{Deserialize, Deserializer};
