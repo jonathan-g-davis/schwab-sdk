@@ -681,7 +681,7 @@ pub struct CashBalance {
 /// Schwab reports both long and short sides on the same row. Quantities are
 /// signed by side (`long_quantity` for the long leg, `short_quantity` for the
 /// short leg). All monetary values are USD.
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct Position {
     /// Short quantity (shares / contracts).
@@ -750,21 +750,196 @@ pub struct Position {
     pub current_day_cost: Option<Decimal>,
 }
 
-/// Instrument carried by a `Position`. Flat struct: every field that exists
-/// on any documented asset variant lives here as `Option`, so newly-added
-/// asset types deserialize cleanly even if this crate has not been updated.
-/// Consumers match on [`AccountsInstrument::asset_type`] to route.
+/// Instrument carried by a [`Position`] or an order leg, discriminated by the
+/// wire `assetType` field.
+///
+/// Asset types Schwab adds after this crate was published, and any value that
+/// fails to match a known discriminator, land in [`AccountsInstrument::Unknown`]
+/// with the raw JSON preserved, so a new `assetType` never fails the whole
+/// response. Fields shared by every variant (symbol, cusip, asset type, ...)
+/// are reachable through the accessor methods without matching each arm.
+///
+/// # Examples
+///
+/// ```no_run
+/// use schwab_sdk::accounts::AccountsInstrument;
+///
+/// # fn handle(instrument: &AccountsInstrument) {
+/// match instrument {
+///     AccountsInstrument::Option(opt) => {
+///         println!("option on {:?}", opt.underlying_symbol);
+///     }
+///     AccountsInstrument::FixedIncome(fi) => {
+///         println!("matures {:?}", fi.maturity_date);
+///     }
+///     AccountsInstrument::Basic(b) => {
+///         println!("{:?} {:?}", b.asset_type, b.symbol);
+///     }
+///     AccountsInstrument::Unknown { asset_type, .. } => {
+///         eprintln!("unrecognized assetType: {asset_type}");
+///     }
+///     // `AccountsInstrument` is non-exhaustive; treat anything new like Unknown.
+///     _ => eprintln!("unrecognized instrument"),
+/// }
+/// # }
+/// ```
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum AccountsInstrument {
+    /// An option instrument (`assetType: "OPTION"`).
+    Option(OptionInstrument),
+    /// A fixed-income instrument (`assetType: "FIXED_INCOME"`).
+    FixedIncome(FixedIncomeInstrument),
+    /// Any asset type that carries only the shared instrument fields: equity,
+    /// mutual fund, future, forex, index, cash-equivalent, product, currency,
+    /// or collective investment. [`BasicInstrument::asset_type`] records which.
+    Basic(BasicInstrument),
+    /// An `assetType` Schwab returned that this crate does not recognize. The
+    /// raw discriminator and the full instrument object are preserved for
+    /// diagnostics.
+    Unknown {
+        /// Raw `assetType` discriminator Schwab sent.
+        asset_type: String,
+        /// Full instrument object as JSON, for diagnostics.
+        raw: serde_json::Value,
+    },
+}
+
+impl<'de> Deserialize<'de> for AccountsInstrument {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Buffer the object, then dispatch on `assetType`. Mirrors the pattern
+        // used by [`SecuritiesAccount`]: an unknown discriminator never aborts
+        // the parse.
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let asset_type = value
+            .get("assetType")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| serde::de::Error::missing_field("assetType"))?
+            .to_string();
+        match asset_type.as_str() {
+            "OPTION" => OptionInstrument::deserialize(value)
+                .map(AccountsInstrument::Option)
+                .map_err(serde::de::Error::custom),
+            "FIXED_INCOME" => FixedIncomeInstrument::deserialize(value)
+                .map(AccountsInstrument::FixedIncome)
+                .map_err(serde::de::Error::custom),
+            "EQUITY"
+            | "MUTUAL_FUND"
+            | "FUTURE"
+            | "FOREX"
+            | "INDEX"
+            | "CASH_EQUIVALENT"
+            | "PRODUCT"
+            | "CURRENCY"
+            | "COLLECTIVE_INVESTMENT" => BasicInstrument::deserialize(value)
+                .map(AccountsInstrument::Basic)
+                .map_err(serde::de::Error::custom),
+            _ => Ok(AccountsInstrument::Unknown {
+                asset_type,
+                raw: value,
+            }),
+        }
+    }
+}
+
+impl AccountsInstrument {
+    /// Asset-class discriminator. Returns [`AssetType::Unknown`] carrying the
+    /// raw string for the [`AccountsInstrument::Unknown`] arm.
+    pub fn asset_type(&self) -> AssetType {
+        match self {
+            AccountsInstrument::Option(i) => i.asset_type.clone(),
+            AccountsInstrument::FixedIncome(i) => i.asset_type.clone(),
+            AccountsInstrument::Basic(i) => i.asset_type.clone(),
+            AccountsInstrument::Unknown { asset_type, .. } => {
+                AssetType::Unknown(asset_type.clone())
+            }
+        }
+    }
+
+    /// CUSIP, when Schwab has assigned one. `None` for the `Unknown` arm.
+    pub fn cusip(&self) -> Option<&str> {
+        match self {
+            AccountsInstrument::Option(i) => i.cusip.as_deref(),
+            AccountsInstrument::FixedIncome(i) => i.cusip.as_deref(),
+            AccountsInstrument::Basic(i) => i.cusip.as_deref(),
+            AccountsInstrument::Unknown { .. } => None,
+        }
+    }
+
+    /// Wire symbol (Schwab format). `None` for the `Unknown` arm.
+    pub fn symbol(&self) -> Option<&str> {
+        match self {
+            AccountsInstrument::Option(i) => i.symbol.as_deref(),
+            AccountsInstrument::FixedIncome(i) => i.symbol.as_deref(),
+            AccountsInstrument::Basic(i) => i.symbol.as_deref(),
+            AccountsInstrument::Unknown { .. } => None,
+        }
+    }
+
+    /// Human-readable description. `None` for the `Unknown` arm.
+    pub fn description(&self) -> Option<&str> {
+        match self {
+            AccountsInstrument::Option(i) => i.description.as_deref(),
+            AccountsInstrument::FixedIncome(i) => i.description.as_deref(),
+            AccountsInstrument::Basic(i) => i.description.as_deref(),
+            AccountsInstrument::Unknown { .. } => None,
+        }
+    }
+
+    /// Schwab-internal instrument id. `None` for the `Unknown` arm.
+    pub fn instrument_id(&self) -> Option<i64> {
+        match self {
+            AccountsInstrument::Option(i) => i.instrument_id,
+            AccountsInstrument::FixedIncome(i) => i.instrument_id,
+            AccountsInstrument::Basic(i) => i.instrument_id,
+            AccountsInstrument::Unknown { .. } => None,
+        }
+    }
+
+    /// Net price change since the prior close, USD. `None` for the `Unknown` arm.
+    pub fn net_change(&self) -> Option<Decimal> {
+        match self {
+            AccountsInstrument::Option(i) => i.net_change,
+            AccountsInstrument::FixedIncome(i) => i.net_change,
+            AccountsInstrument::Basic(i) => i.net_change,
+            AccountsInstrument::Unknown { .. } => None,
+        }
+    }
+
+    /// The option-specific fields, when this is an [`AccountsInstrument::Option`].
+    pub fn as_option(&self) -> Option<&OptionInstrument> {
+        match self {
+            AccountsInstrument::Option(i) => Some(i),
+            _ => None,
+        }
+    }
+
+    /// The fixed-income-specific fields, when this is an
+    /// [`AccountsInstrument::FixedIncome`].
+    pub fn as_fixed_income(&self) -> Option<&FixedIncomeInstrument> {
+        match self {
+            AccountsInstrument::FixedIncome(i) => Some(i),
+            _ => None,
+        }
+    }
+}
+
+/// Instrument fields shared by equity, mutual-fund, future, forex, index,
+/// cash-equivalent, product, currency, and collective-investment instruments,
+/// none of which carry variant-specific fields.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub struct AccountsInstrument {
-    /// Asset-class discriminator. Match on this to interpret the variant-
-    /// specific fields below.
+pub struct BasicInstrument {
+    /// Asset-class discriminator.
     #[serde(rename = "assetType")]
     pub asset_type: AssetType,
     /// CUSIP, when Schwab has assigned one.
     #[serde(default)]
     pub cusip: Option<String>,
-    /// Wire symbol (Schwab format - e.g. OCC OSI for options).
+    /// Wire symbol (Schwab format).
     #[serde(default)]
     pub symbol: Option<String>,
     /// Human-readable description.
@@ -776,32 +951,76 @@ pub struct AccountsInstrument {
     /// Net price change since the prior close, USD.
     #[serde(default, with = "decimal_opt", rename = "netChange")]
     pub net_change: Option<Decimal>,
+}
 
-    // Option-specific fields. `None` on non-option asset types.
-    /// Option deliverables. Empty on non-option asset types.
+/// A listed option instrument (`assetType: "OPTION"`).
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct OptionInstrument {
+    /// Asset-class discriminator (always [`AssetType::Option`]).
+    #[serde(rename = "assetType")]
+    pub asset_type: AssetType,
+    /// CUSIP, when Schwab has assigned one.
+    #[serde(default)]
+    pub cusip: Option<String>,
+    /// Wire symbol (Schwab format - OCC OSI for options).
+    #[serde(default)]
+    pub symbol: Option<String>,
+    /// Human-readable description.
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Schwab-internal instrument id.
+    #[serde(default, rename = "instrumentId")]
+    pub instrument_id: Option<i64>,
+    /// Net price change since the prior close, USD.
+    #[serde(default, with = "decimal_opt", rename = "netChange")]
+    pub net_change: Option<Decimal>,
+    /// Option deliverables.
     #[serde(default, rename = "optionDeliverables")]
     pub option_deliverables: Vec<AccountApiOptionDeliverable>,
-    /// `Put` / `Call` flag for options.
+    /// `Put` / `Call` flag.
     #[serde(default, rename = "putCall")]
     pub put_call: Option<PutCall>,
-    /// Shares-per-contract multiplier for options (typically 100).
+    /// Shares-per-contract multiplier (typically 100).
     #[serde(default, rename = "optionMultiplier")]
     pub option_multiplier: Option<i32>,
     /// Option style (`VANILLA` / `BINARY` / `BARRIER`).
     #[serde(default, rename = "type")]
     pub option_type: Option<OptionType>,
-    /// Symbol of the underlying instrument for options.
+    /// Symbol of the underlying instrument.
     #[serde(default, rename = "underlyingSymbol")]
     pub underlying_symbol: Option<String>,
+}
 
-    // Fixed-income-specific fields. `None` on non-fixed-income asset types.
-    /// Maturity date for fixed-income instruments.
+/// A fixed-income instrument (`assetType: "FIXED_INCOME"`).
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct FixedIncomeInstrument {
+    /// Asset-class discriminator (always [`AssetType::FixedIncome`]).
+    #[serde(rename = "assetType")]
+    pub asset_type: AssetType,
+    /// CUSIP, when Schwab has assigned one.
+    #[serde(default)]
+    pub cusip: Option<String>,
+    /// Wire symbol (Schwab format).
+    #[serde(default)]
+    pub symbol: Option<String>,
+    /// Human-readable description.
+    #[serde(default)]
+    pub description: Option<String>,
+    /// Schwab-internal instrument id.
+    #[serde(default, rename = "instrumentId")]
+    pub instrument_id: Option<i64>,
+    /// Net price change since the prior close, USD.
+    #[serde(default, with = "decimal_opt", rename = "netChange")]
+    pub net_change: Option<Decimal>,
+    /// Maturity date.
     #[serde(default, rename = "maturityDate")]
     pub maturity_date: Option<DateTime<Utc>>,
     /// Mortgage-backed pool factor (remaining principal fraction).
     #[serde(default, with = "decimal_opt")]
     pub factor: Option<Decimal>,
-    /// Current coupon rate for floating-rate fixed-income instruments.
+    /// Current coupon rate for floating-rate instruments.
     #[serde(default, with = "decimal_opt", rename = "variableRate")]
     pub variable_rate: Option<Decimal>,
 }
@@ -1040,9 +1259,9 @@ mod tests {
         assert_eq!(pos.long_quantity, Some(dec!(10)));
         assert_eq!(pos.average_price, Some(dec!(145.32)));
         let inst = pos.instrument.as_ref().unwrap();
-        assert_eq!(inst.asset_type, AssetType::Equity);
-        assert_eq!(inst.symbol.as_deref(), Some("AAPL"));
-        assert_eq!(inst.instrument_id, Some(12345));
+        assert_eq!(inst.asset_type(), AssetType::Equity);
+        assert_eq!(inst.symbol(), Some("AAPL"));
+        assert_eq!(inst.instrument_id(), Some(12345));
     }
 
     #[test]
@@ -1074,31 +1293,69 @@ mod tests {
         let parsed: Account = serde_json::from_str(json).unwrap();
         let pos = &parsed.securities_account.positions()[0];
         let inst = pos.instrument.as_ref().unwrap();
-        assert_eq!(inst.asset_type, AssetType::Option);
-        assert_eq!(inst.put_call, Some(PutCall::Call));
-        assert_eq!(inst.option_type, Some(OptionType::Vanilla));
-        assert_eq!(inst.option_multiplier, Some(100));
-        assert_eq!(inst.option_deliverables.len(), 1);
-        let deliv = &inst.option_deliverables[0];
+        assert_eq!(inst.asset_type(), AssetType::Option);
+        let opt = inst.as_option().expect("option instrument");
+        assert_eq!(opt.put_call, Some(PutCall::Call));
+        assert_eq!(opt.option_type, Some(OptionType::Vanilla));
+        assert_eq!(opt.option_multiplier, Some(100));
+        assert_eq!(opt.option_deliverables.len(), 1);
+        let deliv = &opt.option_deliverables[0];
         assert_eq!(deliv.currency_type, Some(ApiCurrencyType::Usd));
         assert_eq!(deliv.deliverable_units, Some(dec!(100)));
     }
 
     #[test]
-    fn unknown_asset_type_preserves_raw_string() {
+    fn fixed_income_instrument_routes_to_fixed_income_arm() {
+        let json = r#"{
+            "assetType": "FIXED_INCOME",
+            "cusip": "912828XYZ",
+            "symbol": "T 4.25 05/15/39",
+            "description": "US Treasury Bond",
+            "maturityDate": "2039-05-15T00:00:00.000Z",
+            "factor": 0.98,
+            "variableRate": 4.25
+        }"#;
+        let inst: AccountsInstrument = serde_json::from_str(json).unwrap();
+        assert_eq!(inst.asset_type(), AssetType::FixedIncome);
+        assert_eq!(inst.cusip(), Some("912828XYZ"));
+        let fi = inst.as_fixed_income().expect("fixed-income instrument");
+        assert!(fi.maturity_date.is_some());
+        assert_eq!(fi.factor, Some(dec!(0.98)));
+        assert_eq!(fi.variable_rate, Some(dec!(4.25)));
+        // Wrong-arm accessor returns None.
+        assert!(inst.as_option().is_none());
+    }
+
+    #[test]
+    fn basic_instrument_routes_to_basic_arm() {
+        let json = r#"{
+            "assetType": "MUTUAL_FUND",
+            "symbol": "VFIAX",
+            "description": "Vanguard 500 Index Admiral"
+        }"#;
+        let inst: AccountsInstrument = serde_json::from_str(json).unwrap();
+        assert_eq!(inst.asset_type(), AssetType::MutualFund);
+        assert_eq!(inst.symbol(), Some("VFIAX"));
+        assert!(matches!(inst, AccountsInstrument::Basic(_)));
+    }
+
+    #[test]
+    fn unknown_asset_type_preserves_raw_json() {
         let json =
             r#"{"assetType":"NEW_ASSET_KIND","symbol":"WHAT","description":"Tomorrows thing"}"#;
         let inst: AccountsInstrument = serde_json::from_str(json).unwrap();
-        match &inst.asset_type {
-            AssetType::Unknown(raw) => assert_eq!(raw, "NEW_ASSET_KIND"),
+        match &inst {
+            AccountsInstrument::Unknown { asset_type, raw } => {
+                assert_eq!(asset_type, "NEW_ASSET_KIND");
+                // The full object is preserved for diagnostics.
+                assert_eq!(raw.get("symbol").and_then(|v| v.as_str()), Some("WHAT"));
+            }
             other => panic!("expected Unknown, got {other:?}"),
         }
-        // The strum enum itself round-trips - that is what guarantees a
-        // consumer matching on the variant gets the raw discriminator back.
-        let just_asset: AssetType = serde_json::from_str(r#""NEW_ASSET_KIND""#).unwrap();
+        // The accessor reflects the raw discriminator back to callers.
         assert_eq!(
-            serde_json::to_string(&just_asset).unwrap(),
-            r#""NEW_ASSET_KIND""#
+            inst.asset_type(),
+            AssetType::Unknown("NEW_ASSET_KIND".to_string())
         );
     }
 

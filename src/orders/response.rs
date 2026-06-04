@@ -18,7 +18,7 @@ use crate::secrets::AccountNumber;
 ///
 /// `order_id` is wrapped in [`OrderId`], which serializes transparently as
 /// the same `int64`.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Order {
     /// Trading session the order is valid in.
@@ -135,7 +135,7 @@ pub struct Order {
 }
 
 /// One leg of an order (the security being traded plus its side / quantity).
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[non_exhaustive]
 pub struct OrderLegCollection {
     /// Asset class of the leg.

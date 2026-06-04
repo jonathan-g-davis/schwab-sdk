@@ -959,19 +959,20 @@ impl TryFrom<OrderLegCollection> for OrderLegRequest {
 
         let instrument = instrument
             .map(|inst| {
-                let symbol = inst
-                    .symbol
-                    .ok_or_else(|| Error::OrderResponseNotRepresentable {
-                        reason: "order leg instrument is missing `symbol`".to_string(),
-                    })?;
-                if let AssetType::Unknown(raw) = &inst.asset_type {
+                let asset_type = inst.asset_type();
+                if let AssetType::Unknown(raw) = &asset_type {
                     return Err(Error::OrderResponseNotRepresentable {
                         reason: format!("order leg instrument has unknown assetType `{raw}`"),
                     });
                 }
+                let symbol = inst.symbol().map(str::to_string).ok_or_else(|| {
+                    Error::OrderResponseNotRepresentable {
+                        reason: "order leg instrument is missing `symbol`".to_string(),
+                    }
+                })?;
                 Ok(OrderInstrumentRequest {
                     symbol: Some(symbol),
-                    asset_type: Some(inst.asset_type),
+                    asset_type: Some(asset_type),
                 })
             })
             .ok_or_else(|| Error::OrderResponseNotRepresentable {
