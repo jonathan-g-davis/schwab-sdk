@@ -11,6 +11,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
+use crate::enums::{AssetMainType, AssetSubType, OptionContractType};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -133,10 +134,10 @@ pub struct Content {
     pub delayed: bool,
     /// Asset class string (`"FUTURE_OPTION"`).
     #[serde(rename = "assetMainType")]
-    pub asset_main_type: Option<String>,
+    pub asset_main_type: Option<AssetMainType>,
     /// Asset sub-type string.
     #[serde(rename = "assetSubType")]
-    pub asset_sub_type: Option<String>,
+    pub asset_sub_type: Option<AssetSubType>,
     /// CUSIP, when Schwab supplies one.
     pub cusip: Option<String>,
 
@@ -216,7 +217,7 @@ pub struct Content {
     /// Field 27: expiration style description.
     pub expiration_style: Option<String>,
     /// Field 28: put/call discriminator (`"P"`/`"C"`).
-    pub contract_type: Option<String>,
+    pub contract_type: Option<OptionContractType>,
     /// Field 29: security status string.
     pub security_status: Option<String>,
     /// Field 30: Schwab exchange code.
@@ -283,7 +284,7 @@ mod tests {
         assert_eq!(item.future_multiplier, Some(dec!(50.0)));
         assert_eq!(item.underlying_symbol.as_deref(), Some("/ZCZ23"));
         assert_eq!(item.strike_price, Some(dec!(565.0)));
-        assert_eq!(item.contract_type.as_deref(), Some("C"));
+        assert_eq!(item.contract_type, Some(OptionContractType::Call));
     }
 
     #[test]

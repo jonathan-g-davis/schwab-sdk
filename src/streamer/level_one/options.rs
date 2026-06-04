@@ -8,6 +8,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
+use crate::enums::{AssetMainType, AssetSubType, ExerciseType, OptionContractType, SettlementType};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -183,10 +184,10 @@ pub struct Content {
     pub delayed: bool,
     /// Asset class string (`"OPTION"`).
     #[serde(rename = "assetMainType")]
-    pub asset_main_type: Option<String>,
+    pub asset_main_type: Option<AssetMainType>,
     /// Asset sub-type string.
     #[serde(rename = "assetSubType")]
-    pub asset_sub_type: Option<String>,
+    pub asset_sub_type: Option<AssetSubType>,
     /// CUSIP of the contract.
     pub cusip: Option<String>,
 
@@ -245,7 +246,7 @@ pub struct Content {
     #[serde(with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
     /// Field 21: put / call discriminator (`"P"` / `"C"`).
-    pub contract_type: Option<String>,
+    pub contract_type: Option<OptionContractType>,
     /// Field 22: underlying symbol.
     pub underlying: Option<String>,
     /// Field 23: month of expiration (1-12).
@@ -301,7 +302,7 @@ pub struct Content {
     #[serde(with = "millis_opt")]
     pub last_trading_day: Option<DateTime<Utc>>,
     /// Field 43: AM / PM settlement code.
-    pub settlement_type: Option<String>,
+    pub settlement_type: Option<SettlementType>,
     /// Field 44: net change since prior close as a fraction.
     #[serde(with = "decimal_opt")]
     pub net_percent_change: Option<Decimal>,
@@ -334,7 +335,7 @@ pub struct Content {
     #[serde(with = "millis_opt")]
     pub indicative_quote_time: Option<DateTime<Utc>>,
     /// Field 55: exercise-style code (American / European).
-    pub exercise_type: Option<String>,
+    pub exercise_type: Option<ExerciseType>,
 }
 
 impl Content {
@@ -397,7 +398,7 @@ mod tests {
         assert_eq!(aapl.total_volume, Some(12345));
         assert_eq!(aapl.open_interest, Some(6789));
         assert_eq!(aapl.strike_price, Some(dec!(200.0)));
-        assert_eq!(aapl.contract_type.as_deref(), Some("C"));
+        assert_eq!(aapl.contract_type, Some(OptionContractType::Call));
         assert_eq!(aapl.underlying.as_deref(), Some("AAPL"));
         assert_eq!(aapl.days_to_expiration, Some(7));
         assert_eq!(aapl.delta, Some(dec!(0.52)));
