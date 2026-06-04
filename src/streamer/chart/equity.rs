@@ -34,24 +34,28 @@ impl SubscriptionField for Field {
 #[repr(u8)]
 #[strum(serialize_all = "snake_case")]
 /// Numbered subscription field for CHART_EQUITY.
+///
+/// The field numbers match the live wire format, which differs from
+/// Schwab's published streaming documentation. Field 1 is the sequence number
+/// and Field 6 is the volume.
 #[non_exhaustive]
 pub enum Field {
     /// Field 0. Schwab labels this `"key"` in their docs; we expose it as
     /// `Symbol` so the snake_case key (`symbol`) does not collide with the
     /// top-level `"key"` field that always carries the ticker.
     Symbol,
-    /// Candle open, USD (field 1).
-    OpenPrice,
-    /// Candle high, USD (field 2).
-    HighPrice,
-    /// Candle low, USD (field 3).
-    LowPrice,
-    /// Candle close, USD (field 4).
-    ClosePrice,
-    /// Candle volume; may be fractional (field 5).
-    Volume,
-    /// Schwab-assigned sequence number (field 6).
+    /// Schwab-assigned sequence number; identifies the candle minute (field 1).
     Sequence,
+    /// Candle open, USD (field 2).
+    OpenPrice,
+    /// Candle high, USD (field 3).
+    HighPrice,
+    /// Candle low, USD (field 4).
+    LowPrice,
+    /// Candle close, USD (field 5).
+    ClosePrice,
+    /// Candle volume; may be fractional (field 6).
+    Volume,
     /// Candle-open timestamp, epoch milliseconds (field 7).
     ChartTime,
     /// Days since epoch (field 8).
@@ -95,23 +99,23 @@ pub struct Content {
 
     /// Field 0: wire symbol.
     pub symbol: Option<String>,
-    /// Field 1: candle open, USD.
+    /// Field 1: Schwab-assigned sequence number.
+    pub sequence: Option<i64>,
+    /// Field 2: candle open, USD.
     #[serde(with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    /// Field 2: candle high, USD.
+    /// Field 3: candle high, USD.
     #[serde(with = "decimal_opt")]
     pub high_price: Option<Decimal>,
-    /// Field 3: candle low, USD.
+    /// Field 4: candle low, USD.
     #[serde(with = "decimal_opt")]
     pub low_price: Option<Decimal>,
-    /// Field 4: candle close, USD.
+    /// Field 5: candle close, USD.
     #[serde(with = "decimal_opt")]
     pub close_price: Option<Decimal>,
-    /// Field 5: candle volume; may be fractional on some venues.
+    /// Field 6: candle volume; may be fractional on some venues.
     #[serde(with = "decimal_opt")]
     pub volume: Option<Decimal>,
-    /// Field 6: Schwab-assigned sequence number.
-    pub sequence: Option<i64>,
     /// Field 7: candle-open timestamp.
     #[serde(with = "millis_opt")]
     pub chart_time: Option<DateTime<Utc>>,
@@ -150,9 +154,9 @@ mod tests {
                 "content": [{
                     "key": "AAPL",
                     "delayed": false,
-                    "1": 183.50, "2": 183.80, "3": 183.45, "4": 183.75,
-                    "5": 125000,
-                    "6": 1234,
+                    "1": 1234,
+                    "2": 183.50, "3": 183.80, "4": 183.45, "5": 183.75,
+                    "6": 125000,
                     "7": 1714949580000,
                     "8": 19850
                 }]
@@ -193,7 +197,7 @@ mod tests {
             ],
         );
         assert_eq!(value["keys"], "AAPL");
-        assert_eq!(value["fields"], "1,2,3,4,5,7");
+        assert_eq!(value["fields"], "2,3,4,5,6,7");
     }
 
     #[test]
