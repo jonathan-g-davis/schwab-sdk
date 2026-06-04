@@ -42,6 +42,7 @@
 
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
@@ -50,6 +51,7 @@ use super::chains::{ExpirationType, SettlementType};
 use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::macros::string_enum;
+use crate::serde_time::millis_opt;
 
 /// Accessor for the `/quotes` endpoint family. Construct via
 /// [`MarketData::quotes`](super::MarketData::quotes).
@@ -319,9 +321,9 @@ pub struct QuoteEquity {
     /// Best ask size (shares).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
-    /// Last ask time in epoch milliseconds.
-    #[serde(rename = "askTime", default)]
-    pub ask_time: Option<i64>,
+    /// Last ask time.
+    #[serde(rename = "askTime", default, with = "millis_opt")]
+    pub ask_time: Option<DateTime<Utc>>,
     /// MIC venue id for the best bid.
     #[serde(rename = "bidMICId", default)]
     pub bid_mic_id: Option<String>,
@@ -331,9 +333,9 @@ pub struct QuoteEquity {
     /// Best bid size (shares).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
-    /// Last bid time in epoch milliseconds.
-    #[serde(rename = "bidTime", default)]
-    pub bid_time: Option<i64>,
+    /// Last bid time.
+    #[serde(rename = "bidTime", default, with = "millis_opt")]
+    pub bid_time: Option<DateTime<Utc>>,
     /// Prior session close price, USD.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
@@ -370,18 +372,18 @@ pub struct QuoteEquity {
     /// Day open, USD.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    /// Last quote time in epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// Security status (e.g. `"Normal"`, `"Halted"`).
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
     /// Cumulative session volume (shares).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
     /// Implied volatility (where Schwab supplies one for the equity).
     #[serde(default, with = "decimal_opt")]
     pub volatility: Option<Decimal>,
@@ -439,9 +441,9 @@ pub struct RegularMarket {
     /// Net change since prior close as a fraction.
     #[serde(rename = "regularMarketPercentChange", default, with = "decimal_opt")]
     pub regular_market_percent_change: Option<Decimal>,
-    /// Last regular-session trade time, epoch milliseconds.
-    #[serde(rename = "regularMarketTradeTime", default)]
-    pub regular_market_trade_time: Option<i64>,
+    /// Last regular-session trade time.
+    #[serde(rename = "regularMarketTradeTime", default, with = "millis_opt")]
+    pub regular_market_trade_time: Option<DateTime<Utc>>,
 }
 
 /// Pre-/post-market quote block.
@@ -469,15 +471,15 @@ pub struct ExtendedMarket {
     /// Extended-hours mark price, USD.
     #[serde(default, with = "decimal_opt")]
     pub mark: Option<Decimal>,
-    /// Extended-hours last quote time, epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Extended-hours last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// Extended-hours cumulative volume.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Extended-hours last trade time, epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Extended-hours last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// Fundamental data block returned with equity and mutual-fund quotes.
@@ -490,25 +492,24 @@ pub struct Fundamental {
     /// Trailing 1-year average daily volume (shares).
     #[serde(rename = "avg1YearVolume", default, with = "decimal_opt")]
     pub avg_1_year_volume: Option<Decimal>,
-    /// Dividend declaration date. Schwab ships these dates as ISO-8601
-    /// strings (`yyyy-MM-ddTHH:mm:ssZ`).
+    /// Dividend declaration date.
     #[serde(rename = "declarationDate", default)]
-    pub declaration_date: Option<String>,
+    pub declaration_date: Option<DateTime<Utc>>,
     /// Most recent dividend amount, USD per share.
     #[serde(rename = "divAmount", default, with = "decimal_opt")]
     pub div_amount: Option<Decimal>,
-    /// Most recent dividend ex-date (ISO-8601 string).
+    /// Most recent dividend ex-date.
     #[serde(rename = "divExDate", default)]
-    pub div_ex_date: Option<String>,
+    pub div_ex_date: Option<DateTime<Utc>>,
     /// Number of dividends per year (1 = annual, 4 = quarterly, etc.).
     #[serde(rename = "divFreq", default)]
     pub div_freq: Option<i32>,
     /// Most recent dividend pay amount, USD per share.
     #[serde(rename = "divPayAmount", default, with = "decimal_opt")]
     pub div_pay_amount: Option<Decimal>,
-    /// Most recent dividend pay date (ISO-8601 string).
+    /// Most recent dividend pay date.
     #[serde(rename = "divPayDate", default)]
-    pub div_pay_date: Option<String>,
+    pub div_pay_date: Option<DateTime<Utc>>,
     /// Trailing dividend yield as a fraction.
     #[serde(rename = "divYield", default, with = "decimal_opt")]
     pub div_yield: Option<Decimal>,
@@ -521,12 +522,12 @@ pub struct Fundamental {
     /// Fund strategy classification (active/leveraged/passive/...).
     #[serde(rename = "fundStrategy", default)]
     pub fund_strategy: Option<FundStrategy>,
-    /// Next projected dividend ex-date (ISO-8601 string).
+    /// Next projected dividend ex-date.
     #[serde(rename = "nextDivExDate", default)]
-    pub next_div_ex_date: Option<String>,
-    /// Next projected dividend pay date (ISO-8601 string).
+    pub next_div_ex_date: Option<DateTime<Utc>>,
+    /// Next projected dividend pay date.
     #[serde(rename = "nextDivPayDate", default)]
-    pub next_div_pay_date: Option<String>,
+    pub next_div_pay_date: Option<DateTime<Utc>>,
     /// Trailing price-to-earnings ratio.
     #[serde(rename = "peRatio", default, with = "decimal_opt")]
     pub pe_ratio: Option<Decimal>,
@@ -616,10 +617,9 @@ pub struct QuoteOption {
     /// Indicative bid price; only on indicative option symbols.
     #[serde(rename = "indBidPrice", default, with = "decimal_opt")]
     pub ind_bid_price: Option<Decimal>,
-    /// Indicative quote time in epoch milliseconds; only on indicative
-    /// option symbols.
-    #[serde(rename = "indQuoteTime", default)]
-    pub ind_quote_time: Option<i64>,
+    /// Indicative quote time; only on indicative option symbols.
+    #[serde(rename = "indQuoteTime", default, with = "millis_opt")]
+    pub ind_quote_time: Option<DateTime<Utc>>,
     /// Implied yield (where Schwab supplies one).
     #[serde(rename = "impliedYield", default, with = "decimal_opt")]
     pub implied_yield: Option<Decimal>,
@@ -656,9 +656,9 @@ pub struct QuoteOption {
     /// Day open premium, USD.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    /// Last quote time in epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// Rho (Black-Scholes).
     #[serde(default, with = "decimal_opt")]
     pub rho: Option<Decimal>,
@@ -677,9 +677,9 @@ pub struct QuoteOption {
     /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
     /// Underlying price used by Schwab's pricing model, USD.
     #[serde(rename = "underlyingPrice", default, with = "decimal_opt")]
     pub underlying_price: Option<Decimal>,
@@ -734,9 +734,9 @@ pub struct ReferenceOption {
     /// `true` if the contract is in the SEC Penny Pilot program.
     #[serde(rename = "isPennyPilot", default)]
     pub is_penny_pilot: Option<bool>,
-    /// Last trading day, epoch milliseconds.
-    #[serde(rename = "lastTradingDay", default)]
-    pub last_trading_day: Option<i64>,
+    /// Last trading day.
+    #[serde(rename = "lastTradingDay", default, with = "millis_opt")]
+    pub last_trading_day: Option<DateTime<Utc>>,
     /// Shares-per-contract multiplier (typically 100).
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
@@ -826,9 +826,9 @@ pub struct QuoteForex {
     /// Day open.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    /// Last quote time in epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
@@ -841,9 +841,9 @@ pub struct QuoteForex {
     /// Cumulative session volume.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// Static reference data for a forex quote.
@@ -912,9 +912,9 @@ pub struct QuoteFuture {
     /// Best ask size (contracts).
     #[serde(rename = "askSize", default)]
     pub ask_size: Option<i32>,
-    /// Last ask time in epoch milliseconds.
-    #[serde(rename = "askTime", default)]
-    pub ask_time: Option<i64>,
+    /// Last ask time.
+    #[serde(rename = "askTime", default, with = "millis_opt")]
+    pub ask_time: Option<DateTime<Utc>>,
     /// MIC venue id for the best bid.
     #[serde(rename = "bidMICId", default)]
     pub bid_mic_id: Option<String>,
@@ -924,9 +924,9 @@ pub struct QuoteFuture {
     /// Best bid size (contracts).
     #[serde(rename = "bidSize", default)]
     pub bid_size: Option<i32>,
-    /// Last bid time in epoch milliseconds.
-    #[serde(rename = "bidTime", default)]
-    pub bid_time: Option<i64>,
+    /// Last bid time.
+    #[serde(rename = "bidTime", default, with = "millis_opt")]
+    pub bid_time: Option<DateTime<Utc>>,
     /// Prior session settlement/close price.
     #[serde(rename = "closePrice", default, with = "decimal_opt")]
     pub close_price: Option<Decimal>,
@@ -960,18 +960,18 @@ pub struct QuoteFuture {
     /// Day open price.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    /// Last quote time in epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// `true` if the quote was sampled during a regular session.
     #[serde(rename = "quotedInSession", default)]
     pub quoted_in_session: Option<bool>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
-    /// Settlement time in epoch milliseconds.
-    #[serde(rename = "settleTime", default)]
-    pub settle_time: Option<i64>,
+    /// Settlement time.
+    #[serde(rename = "settleTime", default, with = "millis_opt")]
+    pub settle_time: Option<DateTime<Utc>>,
     /// Minimum tick size.
     #[serde(default, with = "decimal_opt")]
     pub tick: Option<Decimal>,
@@ -981,9 +981,9 @@ pub struct QuoteFuture {
     /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// Static reference data for a futures quote.
@@ -1002,9 +1002,9 @@ pub struct ReferenceFuture {
     /// Active (front-month) symbol for this product.
     #[serde(rename = "futureActiveSymbol", default)]
     pub future_active_symbol: Option<String>,
-    /// Expiration date in epoch milliseconds.
-    #[serde(rename = "futureExpirationDate", default)]
-    pub future_expiration_date: Option<i64>,
+    /// Expiration date.
+    #[serde(rename = "futureExpirationDate", default, with = "millis_opt")]
+    pub future_expiration_date: Option<DateTime<Utc>>,
     /// `true` if this contract is the front month.
     #[serde(rename = "futureIsActive", default)]
     pub future_is_active: Option<bool>,
@@ -1109,9 +1109,9 @@ pub struct QuoteFutureOption {
     /// Day open premium.
     #[serde(rename = "openPrice", default, with = "decimal_opt")]
     pub open_price: Option<Decimal>,
-    /// Last quote time in epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
     pub security_status: Option<String>,
@@ -1133,9 +1133,9 @@ pub struct QuoteFutureOption {
     /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// Static reference data for a futures-option quote.
@@ -1157,9 +1157,9 @@ pub struct ReferenceFutureOption {
     /// Shares/units per contract multiplier.
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
-    /// Expiration date in epoch milliseconds.
-    #[serde(rename = "expirationDate", default)]
-    pub expiration_date: Option<i64>,
+    /// Expiration date.
+    #[serde(rename = "expirationDate", default, with = "millis_opt")]
+    pub expiration_date: Option<DateTime<Utc>>,
     /// Expiration style description (American/European/...).
     #[serde(rename = "expirationStyle", default)]
     pub expiration_style: Option<String>,
@@ -1235,9 +1235,9 @@ pub struct QuoteIndex {
     /// Cumulative session volume of constituent trades.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// Static reference data for an index quote.
@@ -1315,9 +1315,9 @@ pub struct QuoteMutualFund {
     /// Cumulative session volume (shares).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time in epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// Static reference data for a mutual-fund quote.
@@ -1536,7 +1536,7 @@ mod tests {
         assert_eq!(quote.last_price, Some(dec!(122.3)));
         assert_eq!(quote.week_52_high, Some(dec!(145.09)));
         assert_eq!(quote.total_volume, Some(20171188));
-        assert_eq!(quote.ask_time, Some(1621376892336));
+        assert_eq!(quote.ask_time.unwrap().timestamp_millis(), 1621376892336);
 
         let reference = q.reference.as_ref().unwrap();
         assert_eq!(reference.cusip.as_deref(), Some("037833100"));
@@ -1640,7 +1640,10 @@ mod tests {
         assert_eq!(f.div_freq, Some(4));
         assert_eq!(f.div_yield, Some(dec!(0.7)));
         assert_eq!(f.fund_strategy, Some(FundStrategy::Passive));
-        assert_eq!(f.div_ex_date.as_deref(), Some("2021-05-07T00:00:00Z"));
+        assert_eq!(
+            f.div_ex_date,
+            Some("2021-05-07T00:00:00Z".parse::<DateTime<Utc>>().unwrap())
+        );
     }
 
     #[test]
@@ -1774,7 +1777,10 @@ mod tests {
         assert_eq!(quote.quoted_in_session, Some(false));
 
         let reference = q.reference.as_ref().unwrap();
-        assert_eq!(reference.future_expiration_date, Some(1639717200000));
+        assert_eq!(
+            reference.future_expiration_date.unwrap().timestamp_millis(),
+            1639717200000
+        );
         assert_eq!(reference.future_multiplier, Some(dec!(50)));
         assert_eq!(reference.product.as_deref(), Some("/ES"));
     }

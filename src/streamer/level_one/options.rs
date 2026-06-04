@@ -2,12 +2,14 @@
 //!
 //! Delivery type: Change. Fields not present on a tick stay `None`.
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
+use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -285,16 +287,19 @@ pub struct Content {
     /// Field 37: mark price, USD.
     #[serde(with = "decimal_opt")]
     pub mark_price: Option<Decimal>,
-    /// Field 38: last quote time, epoch milliseconds.
-    pub quote_time: Option<u64>,
-    /// Field 39: last trade time, epoch milliseconds.
-    pub trade_time: Option<u64>,
+    /// Field 38: last quote time.
+    #[serde(with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
+    /// Field 39: last trade time.
+    #[serde(with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
     /// Field 40: Schwab exchange code.
     pub exchange: Option<String>,
     /// Field 41: exchange display name.
     pub exchange_name: Option<String>,
-    /// Field 42: last trading day, epoch milliseconds.
-    pub last_trading_day: Option<i64>,
+    /// Field 42: last trading day.
+    #[serde(with = "millis_opt")]
+    pub last_trading_day: Option<DateTime<Utc>>,
     /// Field 43: AM / PM settlement code.
     pub settlement_type: Option<String>,
     /// Field 44: net change since prior close as a fraction.
@@ -325,8 +330,9 @@ pub struct Content {
     /// Field 53: indicative bid price (indicative symbols only).
     #[serde(with = "decimal_opt")]
     pub indicative_bid_price: Option<Decimal>,
-    /// Field 54: indicative quote time, epoch milliseconds.
-    pub indicative_quote_time: Option<u64>,
+    /// Field 54: indicative quote time.
+    #[serde(with = "millis_opt")]
+    pub indicative_quote_time: Option<DateTime<Utc>>,
     /// Field 55: exercise-style code (American / European).
     pub exercise_type: Option<String>,
 }

@@ -123,7 +123,7 @@ mod tests {
         };
         let row = &rows[0];
         assert_eq!(row.key, "NYSE_VOLUME_5");
-        assert_eq!(row.timestamp, Some(1714949590000));
+        assert_eq!(row.timestamp.unwrap().timestamp_millis(), 1714949590000);
         assert_eq!(row.sort_field.as_deref(), Some("VOLUME"));
         assert_eq!(row.frequency, Some(5));
         assert_eq!(row.items.len(), 2);

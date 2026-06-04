@@ -61,6 +61,7 @@ use serde::Deserialize;
 use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::macros::string_enum;
+use crate::serde_time::millis_opt;
 
 /// Accessor for `/pricehistory`. Construct via
 /// [`MarketData::price_history`](super::MarketData::price_history).
@@ -235,12 +236,9 @@ pub struct CandleList {
     /// Populated only when the request set `need_previous_close=true`.
     #[serde(default, with = "decimal_opt", rename = "previousClose")]
     pub previous_close: Option<Decimal>,
-    /// Previous-close date in epoch milliseconds.
-    #[serde(default, rename = "previousCloseDate")]
-    pub previous_close_date: Option<i64>,
-    /// `yyyy-MM-dd` string companion to [`Self::previous_close_date`].
-    #[serde(default, rename = "previousCloseDateISO8601")]
-    pub previous_close_date_iso8601: Option<String>,
+    /// Previous-close date.
+    #[serde(default, rename = "previousCloseDate", with = "millis_opt")]
+    pub previous_close_date: Option<DateTime<Utc>>,
     /// Symbol the candles belong to.
     #[serde(default)]
     pub symbol: Option<String>,
@@ -262,13 +260,9 @@ pub struct Candle {
     /// Candle close, USD.
     #[serde(default, with = "decimal_opt")]
     pub close: Option<Decimal>,
-    /// Candle-open timestamp in epoch milliseconds.
-    #[serde(default)]
-    pub datetime: Option<i64>,
-    /// `yyyy-MM-dd` string companion to [`Self::datetime`]; Schwab
-    /// includes this on daily/weekly/monthly aggregations.
-    #[serde(default, rename = "datetimeISO8601")]
-    pub datetime_iso8601: Option<String>,
+    /// Candle-open timestamp.
+    #[serde(default, with = "millis_opt")]
+    pub datetime: Option<DateTime<Utc>>,
     /// Cumulative volume traded during the candle.
     #[serde(default)]
     pub volume: Option<i64>,
@@ -343,7 +337,10 @@ mod tests {
         assert_eq!(resp.symbol.as_deref(), Some("AAPL"));
         assert!(!resp.empty);
         assert_eq!(resp.previous_close, Some(dec!(145.32)));
-        assert_eq!(resp.previous_close_date, Some(1710374400000));
+        assert_eq!(
+            resp.previous_close_date.unwrap().timestamp_millis(),
+            1710374400000
+        );
         assert_eq!(resp.candles.len(), 2);
 
         let c0 = &resp.candles[0];
@@ -352,12 +349,10 @@ mod tests {
         assert_eq!(c0.low, Some(dec!(145.10)));
         assert_eq!(c0.close, Some(dec!(145.45)));
         assert_eq!(c0.volume, Some(12345));
-        assert_eq!(c0.datetime, Some(1710423000000));
-        assert_eq!(c0.datetime_iso8601.as_deref(), Some("2024-03-14"));
+        assert_eq!(c0.datetime.unwrap().timestamp_millis(), 1710423000000);
 
         let c1 = &resp.candles[1];
-        assert_eq!(c1.datetime, Some(1710423060000));
-        assert_eq!(c1.datetime_iso8601, None);
+        assert_eq!(c1.datetime.unwrap().timestamp_millis(), 1710423060000);
     }
 
     #[test]

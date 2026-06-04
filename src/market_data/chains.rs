@@ -56,7 +56,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::de::value::MapAccessDeserializer;
@@ -66,6 +66,7 @@ use serde::{Deserialize, Deserializer};
 use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::macros::string_enum;
+use crate::serde_time::millis_opt;
 
 /// Accessor for `/chains`. Construct via
 /// [`MarketData::chains`](super::MarketData::chains).
@@ -500,18 +501,18 @@ pub struct Underlying {
     /// Net change since prior close as a fraction.
     #[serde(rename = "percentChange", default, with = "decimal_opt")]
     pub percent_change: Option<Decimal>,
-    /// Last quote time, epoch milliseconds.
-    #[serde(rename = "quoteTime", default)]
-    pub quote_time: Option<i64>,
+    /// Last quote time.
+    #[serde(rename = "quoteTime", default, with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
     /// Underlying symbol.
     #[serde(default)]
     pub symbol: Option<String>,
     /// Cumulative session volume.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Last trade time, epoch milliseconds.
-    #[serde(rename = "tradeTime", default)]
-    pub trade_time: Option<i64>,
+    /// Last trade time.
+    #[serde(rename = "tradeTime", default, with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
 }
 
 /// A single option contract within a [`OptionChain`].
@@ -566,17 +567,17 @@ pub struct OptionContract {
     /// Cumulative session volume (contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
-    /// Trade date, epoch milliseconds.
-    #[serde(rename = "tradeDate", default)]
-    pub trade_date: Option<i64>,
-    /// Epoch milliseconds. Schwab's published schema mistypes this as a
+    /// Trade date.
+    #[serde(rename = "tradeDate", default, with = "millis_opt")]
+    pub trade_date: Option<DateTime<Utc>>,
+    /// Quote time. Schwab's published schema mistypes this as a
     /// 32-bit integer; the live API sends a millisecond timestamp.
-    #[serde(rename = "quoteTimeInLong", default)]
-    pub quote_time_in_long: Option<i64>,
-    /// Epoch milliseconds. Same schema mistype as
+    #[serde(rename = "quoteTimeInLong", default, with = "millis_opt")]
+    pub quote_time_in_long: Option<DateTime<Utc>>,
+    /// Trade time. Same schema mistype as
     /// [`Self::quote_time_in_long`].
-    #[serde(rename = "tradeTimeInLong", default)]
-    pub trade_time_in_long: Option<i64>,
+    #[serde(rename = "tradeTimeInLong", default, with = "millis_opt")]
+    pub trade_time_in_long: Option<DateTime<Utc>>,
     /// Net change since prior close, USD.
     #[serde(rename = "netChange", default, with = "decimal_opt")]
     pub net_change: Option<Decimal>,
@@ -625,18 +626,18 @@ pub struct OptionContract {
     /// Strike price, USD.
     #[serde(rename = "strikePrice", default, with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
-    /// `yyyy-MM-dd'T'HH:mm:ss` expiration timestamp string.
+    /// Expiration timestamp.
     #[serde(rename = "expirationDate", default)]
-    pub expiration_date: Option<String>,
+    pub expiration_date: Option<DateTime<Utc>>,
     /// Calendar days until expiration.
     #[serde(rename = "daysToExpiration", default)]
     pub days_to_expiration: Option<i32>,
     /// Expiration classification (standard/weekly/quarterly/...).
     #[serde(rename = "expirationType", default)]
     pub expiration_type: Option<ExpirationType>,
-    /// Last trading day, epoch milliseconds.
-    #[serde(rename = "lastTradingDay", default)]
-    pub last_trading_day: Option<i64>,
+    /// Last trading day.
+    #[serde(rename = "lastTradingDay", default, with = "millis_opt")]
+    pub last_trading_day: Option<DateTime<Utc>>,
     /// Shares-per-contract multiplier (typically 100).
     #[serde(default, with = "decimal_opt")]
     pub multiplier: Option<Decimal>,
@@ -947,7 +948,10 @@ mod tests {
         assert_eq!(contract.days_to_expiration, Some(5));
         assert_eq!(contract.expiration_type, Some(ExpirationType::Weekly));
         assert_eq!(contract.settlement_type, Some(SettlementType::Pm));
-        assert_eq!(contract.last_trading_day, Some(1705622400000));
+        assert_eq!(
+            contract.last_trading_day.unwrap().timestamp_millis(),
+            1705622400000
+        );
         assert_eq!(contract.is_in_the_money, Some(true));
 
         assert!(chain.put_exp_date_map.is_empty());

@@ -34,6 +34,7 @@
 //! # }
 //! ```
 
+use chrono::NaiveDate;
 use serde::Deserialize;
 
 use super::chains::{ExpirationType, SettlementType};
@@ -87,7 +88,7 @@ pub struct Expiration {
     /// `yyyy-MM-dd` expiration date. The live API sends this as
     /// `expirationDate`; `expiration` is accepted as an alias.
     #[serde(rename = "expirationDate", alias = "expiration", default)]
-    pub expiration_date: Option<String>,
+    pub expiration_date: Option<NaiveDate>,
     /// Expiration classification (standard/weekly/quarterly/...).
     #[serde(rename = "expirationType", default)]
     pub expiration_type: Option<ExpirationType>,
@@ -132,7 +133,7 @@ mod tests {
         assert_eq!(resp.expiration_list.len(), 2);
 
         let first = &resp.expiration_list[0];
-        assert_eq!(first.expiration_date.as_deref(), Some("2022-01-07"));
+        assert_eq!(first.expiration_date, NaiveDate::from_ymd_opt(2022, 1, 7));
         assert_eq!(first.days_to_expiration, Some(2));
         assert_eq!(first.expiration_type, Some(ExpirationType::Weekly));
         assert_eq!(first.standard, Some(true));
@@ -150,8 +151,8 @@ mod tests {
         let json = r#"{ "expirationList": [ { "expiration": "2022-01-07" } ] }"#;
         let resp: ExpirationChainResponse = serde_json::from_str(json).unwrap();
         assert_eq!(
-            resp.expiration_list[0].expiration_date.as_deref(),
-            Some("2022-01-07")
+            resp.expiration_list[0].expiration_date,
+            NaiveDate::from_ymd_opt(2022, 1, 7)
         );
     }
 

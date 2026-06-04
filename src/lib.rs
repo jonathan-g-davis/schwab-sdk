@@ -176,6 +176,7 @@ mod constants;
 mod token;
 
 pub(crate) mod macros;
+pub(crate) mod serde_time;
 
 pub mod accounts;
 pub mod error;

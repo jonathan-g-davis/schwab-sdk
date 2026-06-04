@@ -167,7 +167,7 @@ pub type MarketHoursResponse = HashMap<String, HashMap<String, Hours>>;
 pub struct Hours {
     /// `yyyy-MM-dd` date the hours apply to.
     #[serde(default)]
-    pub date: Option<String>,
+    pub date: Option<NaiveDate>,
     /// Broader market-type classification.
     #[serde(rename = "marketType", default)]
     pub market_type: Option<MarketType>,
@@ -295,7 +295,7 @@ mod tests {
         let resp: MarketHoursResponse = serde_json::from_str(json).unwrap();
         let equity = resp.get("equity").unwrap();
         let eq = equity.get("EQ").unwrap();
-        assert_eq!(eq.date.as_deref(), Some("2024-03-15"));
+        assert_eq!(eq.date, NaiveDate::from_ymd_opt(2024, 3, 15));
         assert_eq!(eq.market_type, Some(MarketType::Equity));
         assert_eq!(eq.is_open, Some(true));
         assert_eq!(eq.product.as_deref(), Some("EQ"));

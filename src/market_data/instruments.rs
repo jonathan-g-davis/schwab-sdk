@@ -211,7 +211,7 @@ pub struct FundamentalInst {
     /// Trailing dividend yield as a fraction.
     #[serde(rename = "dividendYield", default, with = "decimal_opt")]
     pub dividend_yield: Option<Decimal>,
-    /// Most recent dividend date (Schwab-formatted string).
+    /// Most recent dividend date.
     #[serde(rename = "dividendDate", default)]
     pub dividend_date: Option<String>,
     /// Price-to-earnings ratio.
@@ -319,7 +319,7 @@ pub struct FundamentalInst {
     /// Most recent dividend pay amount, USD per share.
     #[serde(rename = "dividendPayAmount", default, with = "decimal_opt")]
     pub dividend_pay_amount: Option<Decimal>,
-    /// Most recent dividend pay date (Schwab-formatted string).
+    /// Most recent dividend pay date.
     #[serde(rename = "dividendPayDate", default)]
     pub dividend_pay_date: Option<String>,
     /// Beta relative to the broader market.
@@ -343,7 +343,7 @@ pub struct FundamentalInst {
     /// 3-month average volume (integer-typed alias).
     #[serde(rename = "avg3MonthVolume", default)]
     pub avg_3_month_volume: Option<i64>,
-    /// Dividend declaration date (Schwab-formatted string).
+    /// Dividend declaration date.
     #[serde(rename = "declarationDate", default)]
     pub declaration_date: Option<String>,
     /// Number of dividends per year (4 = quarterly, etc.).
@@ -352,16 +352,16 @@ pub struct FundamentalInst {
     /// Reported EPS, USD.
     #[serde(default, with = "decimal_opt")]
     pub eps: Option<Decimal>,
-    /// Date of the most recent corporate action (Schwab-formatted string).
+    /// Date of the most recent corporate action.
     #[serde(rename = "corpactionDate", default)]
     pub corpaction_date: Option<String>,
     /// Day-trade-notional volume.
     #[serde(rename = "dtnVolume", default)]
     pub dtn_volume: Option<i64>,
-    /// Next projected dividend pay date (Schwab-formatted string).
+    /// Next projected dividend pay date.
     #[serde(rename = "nextDividendPayDate", default)]
     pub next_dividend_pay_date: Option<String>,
-    /// Next projected dividend ex-date (Schwab-formatted string).
+    /// Next projected dividend ex-date.
     #[serde(rename = "nextDividendDate", default)]
     pub next_dividend_date: Option<String>,
     /// Leverage factor for leveraged funds.

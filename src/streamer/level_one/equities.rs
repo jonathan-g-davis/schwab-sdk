@@ -2,12 +2,14 @@
 //!
 //! Delivery type: Change. Fields not present on a tick stay `None`.
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
+use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -162,7 +164,8 @@ impl TryFrom<u8> for Field {
 /// numerically indexed; the remaining fields correspond 1:1 with the
 /// `Field` enum above.
 ///
-/// **Timestamps** are milliseconds since the Unix epoch (`u64`).
+/// **Timestamps** are `DateTime<Utc>`, decoded from the wire's
+/// epoch-millisecond integers.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
@@ -265,16 +268,21 @@ pub struct Content {
     /// Field 33: mark price, USD.
     #[serde(with = "decimal_opt")]
     pub mark_price: Option<Decimal>,
-    /// Field 34: last quote time, epoch milliseconds.
-    pub quote_time: Option<u64>,
-    /// Field 35: last trade time, epoch milliseconds.
-    pub trade_time: Option<u64>,
-    /// Field 36: last regular-session trade time, epoch milliseconds.
-    pub regular_market_trade_time: Option<u64>,
-    /// Field 37: last bid time, epoch milliseconds.
-    pub bid_time: Option<u64>,
-    /// Field 38: last ask time, epoch milliseconds.
-    pub ask_time: Option<u64>,
+    /// Field 34: last quote time.
+    #[serde(with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
+    /// Field 35: last trade time.
+    #[serde(with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
+    /// Field 36: last regular-session trade time.
+    #[serde(with = "millis_opt")]
+    pub regular_market_trade_time: Option<DateTime<Utc>>,
+    /// Field 37: last bid time.
+    #[serde(with = "millis_opt")]
+    pub bid_time: Option<DateTime<Utc>>,
+    /// Field 38: last ask time.
+    #[serde(with = "millis_opt")]
+    pub ask_time: Option<DateTime<Utc>>,
     /// Field 39: MIC venue id for the best ask.
     pub ask_mic_id: Option<String>,
     /// Field 40: MIC venue id for the best bid.
