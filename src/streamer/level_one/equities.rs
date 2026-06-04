@@ -2,12 +2,14 @@
 //!
 //! Delivery type: Change. Fields not present on a tick stay `None`.
 
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
+use crate::serde_time::{millis_opt, naive_date_opt};
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -162,7 +164,8 @@ impl TryFrom<u8> for Field {
 /// numerically indexed; the remaining fields correspond 1:1 with the
 /// `Field` enum above.
 ///
-/// **Timestamps** are milliseconds since the Unix epoch (`u64`).
+/// **Timestamps** are `DateTime<Utc>`, decoded from the wire's
+/// epoch-millisecond integers.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[serde(default)]
 #[non_exhaustive]
@@ -246,8 +249,9 @@ pub struct Content {
     pub nav: Option<Decimal>,
     /// Field 25: exchange display name.
     pub exchange_name: Option<String>,
-    /// Field 26: dividend date string.
-    pub dividend_date: Option<String>,
+    /// Field 26: dividend date.
+    #[serde(with = "naive_date_opt")]
+    pub dividend_date: Option<NaiveDate>,
     /// Field 27: `true` if a regular-session quote is available.
     pub regular_market_quote: Option<bool>,
     /// Field 28: `true` if a regular-session trade has occurred.
@@ -265,16 +269,21 @@ pub struct Content {
     /// Field 33: mark price, USD.
     #[serde(with = "decimal_opt")]
     pub mark_price: Option<Decimal>,
-    /// Field 34: last quote time, epoch milliseconds.
-    pub quote_time: Option<u64>,
-    /// Field 35: last trade time, epoch milliseconds.
-    pub trade_time: Option<u64>,
-    /// Field 36: last regular-session trade time, epoch milliseconds.
-    pub regular_market_trade_time: Option<u64>,
-    /// Field 37: last bid time, epoch milliseconds.
-    pub bid_time: Option<u64>,
-    /// Field 38: last ask time, epoch milliseconds.
-    pub ask_time: Option<u64>,
+    /// Field 34: last quote time.
+    #[serde(with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
+    /// Field 35: last trade time.
+    #[serde(with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
+    /// Field 36: last regular-session trade time.
+    #[serde(with = "millis_opt")]
+    pub regular_market_trade_time: Option<DateTime<Utc>>,
+    /// Field 37: last bid time.
+    #[serde(with = "millis_opt")]
+    pub bid_time: Option<DateTime<Utc>>,
+    /// Field 38: last ask time.
+    #[serde(with = "millis_opt")]
+    pub ask_time: Option<DateTime<Utc>>,
     /// Field 39: MIC venue id for the best ask.
     pub ask_mic_id: Option<String>,
     /// Field 40: MIC venue id for the best bid.
@@ -353,7 +362,8 @@ mod tests {
                         "assetSubType": "COE",
                         "cusip": "037833100",
                         "1": 183.75, "2": 183.8, "3": 183.8,
-                        "4": 1, "5": 2, "8": 163224109, "10": 187
+                        "4": 1, "5": 2, "8": 163224109, "10": 187,
+                        "26": "2026-05-11 00:00:00.0"
                     }
                 ]
             }]
@@ -391,6 +401,9 @@ mod tests {
         assert_eq!(aapl.key, "AAPL");
         assert_eq!(aapl.bid_price, Some(dec!(183.75)));
         assert_eq!(aapl.last_price, Some(dec!(183.8)));
+        // The streamer sends dividend date as `YYYY-MM-DD HH:MM:SS.S`; only the
+        // date portion is kept.
+        assert_eq!(aapl.dividend_date, NaiveDate::from_ymd_opt(2026, 5, 11));
     }
 
     #[test]

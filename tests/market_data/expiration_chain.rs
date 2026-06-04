@@ -34,8 +34,8 @@ async fn get_expiration_chain() {
     assert_eq!(resp.status.as_deref(), Some("SUCCESS"));
     assert_eq!(resp.expiration_list.len(), 3);
     assert_eq!(
-        resp.expiration_list[0].expiration_date.as_deref(),
-        Some("2024-03-15")
+        resp.expiration_list[0].expiration_date,
+        Some("2024-03-15".parse().unwrap())
     );
     assert_eq!(resp.expiration_list[0].days_to_expiration, Some(1));
     assert_eq!(resp.expiration_list[0].standard, Some(true));

@@ -43,7 +43,7 @@
 
 use std::collections::HashMap;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use serde::Deserialize;
 
 use crate::client::SchwabClient;
@@ -167,7 +167,7 @@ pub type MarketHoursResponse = HashMap<String, HashMap<String, Hours>>;
 pub struct Hours {
     /// `yyyy-MM-dd` date the hours apply to.
     #[serde(default)]
-    pub date: Option<String>,
+    pub date: Option<NaiveDate>,
     /// Broader market-type classification.
     #[serde(rename = "marketType", default)]
     pub market_type: Option<MarketType>,
@@ -193,20 +193,19 @@ pub struct Hours {
     pub session_hours: HashMap<String, Vec<Interval>>,
 }
 
-/// One contiguous session window. `start` and `end` are ISO-8601
-/// timestamp strings carrying the exchange-local timezone (e.g.
-/// `"2024-03-15T09:30:00-04:00"`); kept as `String` for now since the
-/// timezone is informational and chrono parsing is a one-liner at the
-/// consumer.
+/// One contiguous session window.
+///
+/// `start` and `end` are sent as ISO-8601 timestamps carrying the exchange-local
+/// offset (e.g. `"2026-03-15T09:30:00-04:00"`). The offset is preserved.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Interval {
-    /// Session start timestamp.
+    /// Session start timestamp, in the exchange-local offset.
     #[serde(default)]
-    pub start: Option<String>,
-    /// Session end timestamp.
+    pub start: Option<DateTime<FixedOffset>>,
+    /// Session end timestamp, in the exchange-local offset.
     #[serde(default)]
-    pub end: Option<String>,
+    pub end: Option<DateTime<FixedOffset>>,
 }
 
 // --- Enums ---
@@ -295,21 +294,28 @@ mod tests {
         let resp: MarketHoursResponse = serde_json::from_str(json).unwrap();
         let equity = resp.get("equity").unwrap();
         let eq = equity.get("EQ").unwrap();
-        assert_eq!(eq.date.as_deref(), Some("2024-03-15"));
+        assert_eq!(eq.date, NaiveDate::from_ymd_opt(2024, 3, 15));
         assert_eq!(eq.market_type, Some(MarketType::Equity));
         assert_eq!(eq.is_open, Some(true));
         assert_eq!(eq.product.as_deref(), Some("EQ"));
 
         let regular = eq.session_hours.get("regularMarket").unwrap();
         assert_eq!(regular.len(), 1);
+        // The exchange-local offset (-04:00) is preserved, not normalized.
         assert_eq!(
-            regular[0].start.as_deref(),
-            Some("2024-03-15T09:30:00-04:00")
+            regular[0].start.unwrap().to_rfc3339(),
+            "2024-03-15T09:30:00-04:00"
         );
-        assert_eq!(regular[0].end.as_deref(), Some("2024-03-15T16:00:00-04:00"));
+        assert_eq!(
+            regular[0].end.unwrap().to_rfc3339(),
+            "2024-03-15T16:00:00-04:00"
+        );
 
         let pre = eq.session_hours.get("preMarket").unwrap();
-        assert_eq!(pre[0].end.as_deref(), Some("2024-03-15T09:30:00-04:00"));
+        assert_eq!(
+            pre[0].end.unwrap().to_rfc3339(),
+            "2024-03-15T09:30:00-04:00"
+        );
     }
 
     #[test]

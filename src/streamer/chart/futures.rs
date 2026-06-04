@@ -4,12 +4,14 @@
 //! ordering differs from CHART_EQUITY: `chart_time` is field 1 here, not 7,
 //! and there is no `sequence` or `chart_day` field.
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
+use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -84,8 +86,9 @@ pub struct Content {
 
     /// Field 0: wire symbol.
     pub symbol: Option<String>,
-    /// Field 1: candle-open timestamp, epoch milliseconds.
-    pub chart_time: Option<u64>,
+    /// Field 1: candle-open timestamp.
+    #[serde(with = "millis_opt")]
+    pub chart_time: Option<DateTime<Utc>>,
     /// Field 2: candle open.
     #[serde(with = "decimal_opt")]
     pub open_price: Option<Decimal>,
@@ -149,7 +152,7 @@ mod tests {
         };
         let candle = &items[0];
         assert_eq!(candle.key, "/ESZ24");
-        assert_eq!(candle.chart_time, Some(1714949580000));
+        assert_eq!(candle.chart_time.unwrap().timestamp_millis(), 1714949580000);
         assert_eq!(candle.open_price, Some(dec!(5020.00)));
         assert_eq!(candle.high_price, Some(dec!(5025.50)));
         assert_eq!(candle.low_price, Some(dec!(5018.25)));

@@ -5,12 +5,14 @@
 //! Futures-options symbols are Schwab-standard: `./` + root + month + year +
 //! `C`/`P` + strike (e.g. `./OZCZ23C565`).
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
+use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -162,10 +164,12 @@ pub struct Content {
     pub total_volume: Option<u64>,
     /// Field 9: last trade size, contracts.
     pub last_size: Option<u64>,
-    /// Field 10: last quote time, epoch milliseconds.
-    pub quote_time: Option<u64>,
-    /// Field 11: last trade time, epoch milliseconds.
-    pub trade_time: Option<u64>,
+    /// Field 10: last quote time.
+    #[serde(with = "millis_opt")]
+    pub quote_time: Option<DateTime<Utc>>,
+    /// Field 11: last trade time.
+    #[serde(with = "millis_opt")]
+    pub trade_time: Option<DateTime<Utc>>,
     /// Field 12: day high premium.
     #[serde(with = "decimal_opt")]
     pub high_price: Option<Decimal>,
@@ -206,8 +210,9 @@ pub struct Content {
     /// Field 25: strike price.
     #[serde(with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
-    /// Field 26: expiration date, epoch milliseconds.
-    pub future_expiration_date: Option<i64>,
+    /// Field 26: expiration date.
+    #[serde(with = "millis_opt")]
+    pub future_expiration_date: Option<DateTime<Utc>>,
     /// Field 27: expiration style description.
     pub expiration_style: Option<String>,
     /// Field 28: put/call discriminator (`"P"`/`"C"`).

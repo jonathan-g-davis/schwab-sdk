@@ -4,12 +4,14 @@
 //! tick from the source is forwarded with a sequence number; the streamer
 //! does not conflate.
 
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
+use crate::serde_time::{epoch_days_opt, millis_opt};
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -110,10 +112,12 @@ pub struct Content {
     pub volume: Option<Decimal>,
     /// Field 6: Schwab-assigned sequence number.
     pub sequence: Option<i64>,
-    /// Field 7: candle-open timestamp, epoch milliseconds.
-    pub chart_time: Option<u64>,
-    /// Field 8: days since epoch.
-    pub chart_day: Option<i32>,
+    /// Field 7: candle-open timestamp.
+    #[serde(with = "millis_opt")]
+    pub chart_time: Option<DateTime<Utc>>,
+    /// Field 8: candle-open date (decoded from days since epoch).
+    #[serde(with = "epoch_days_opt")]
+    pub chart_day: Option<NaiveDate>,
 }
 
 impl Content {
@@ -170,8 +174,9 @@ mod tests {
         assert_eq!(candle.close_price, Some(dec!(183.75)));
         assert_eq!(candle.volume, Some(dec!(125000)));
         assert_eq!(candle.sequence, Some(1234));
-        assert_eq!(candle.chart_time, Some(1714949580000));
-        assert_eq!(candle.chart_day, Some(19850));
+        assert_eq!(candle.chart_time.unwrap().timestamp_millis(), 1714949580000);
+        // 19850 days since the Unix epoch is 2024-05-07.
+        assert_eq!(candle.chart_day, NaiveDate::from_ymd_opt(2024, 5, 7));
     }
 
     #[test]

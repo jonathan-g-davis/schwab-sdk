@@ -10,11 +10,13 @@
 //! streamer frame parser). Items inside the `items` array use named
 //! camelCase fields and decode via standard serde rename rules.
 
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 
 use crate::error::{Error, Result};
+use crate::serde_time::millis_opt;
 
 pub mod equity;
 pub mod option;
@@ -31,9 +33,9 @@ pub struct Content {
     /// practice the subscribed composite key.
     #[serde(default)]
     pub symbol: Option<String>,
-    /// Field 1. Market snapshot timestamp, milliseconds since the Unix epoch.
-    #[serde(default)]
-    pub timestamp: Option<u64>,
+    /// Field 1. Market snapshot timestamp.
+    #[serde(default, with = "millis_opt")]
+    pub timestamp: Option<DateTime<Utc>>,
     /// Field 2. The field the rankings were sorted on.
     #[serde(default)]
     pub sort_field: Option<String>,

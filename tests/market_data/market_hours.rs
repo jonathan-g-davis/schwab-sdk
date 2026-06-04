@@ -35,7 +35,7 @@ async fn get_market_hours_single_market() {
     let equity = resp.get("equity").unwrap();
     let eq = equity.get("EQ").unwrap();
     assert_eq!(eq.is_open, Some(true));
-    assert_eq!(eq.date.as_deref(), Some("2024-03-14"));
+    assert_eq!(eq.date, Some("2024-03-14".parse().unwrap()));
     assert!(eq.session_hours.contains_key("regularMarket"));
 }
 
