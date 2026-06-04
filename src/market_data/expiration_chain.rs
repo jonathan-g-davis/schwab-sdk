@@ -37,8 +37,9 @@
 use chrono::NaiveDate;
 use serde::Deserialize;
 
-use super::chains::{ExpirationType, SettlementType};
+use super::chains::ExpirationType;
 use crate::client::SchwabClient;
+use crate::enums::SettlementType;
 use crate::error::Result;
 
 /// Accessor for `/expirationchain`. Construct via

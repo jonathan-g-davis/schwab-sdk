@@ -64,6 +64,7 @@ use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 use crate::client::SchwabClient;
+use crate::enums::SettlementType;
 use crate::error::Result;
 use crate::macros::string_enum;
 use crate::serde_time::{millis_opt, naive_date_opt};
@@ -854,16 +855,6 @@ string_enum! {
         Standard = "S",
         /// Weekly expiration.
         Weekly = "W",
-    }
-}
-
-string_enum! {
-    /// Option contract settlement time.
-    SettlementType {
-        /// AM settlement.
-        Am = "A",
-        /// PM settlement.
-        Pm = "P",
     }
 }
 

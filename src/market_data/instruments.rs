@@ -42,6 +42,7 @@ use serde::Deserialize;
 use crate::serde_time::naive_date_opt;
 
 use crate::client::SchwabClient;
+use crate::enums::FundStrategy;
 use crate::error::Result;
 use crate::macros::string_enum;
 
@@ -370,10 +371,9 @@ pub struct FundamentalInst {
     /// Leverage factor for leveraged funds.
     #[serde(rename = "fundLeverageFactor", default, with = "decimal_opt")]
     pub fund_leverage_factor: Option<Decimal>,
-    /// Fund strategy code (kept as a string here; see
-    /// [`crate::market_data::FundStrategy`] for the typed equivalent).
+    /// Fund strategy code.
     #[serde(rename = "fundStrategy", default)]
-    pub fund_strategy: Option<String>,
+    pub fund_strategy: Option<FundStrategy>,
 }
 
 // --- Enums ---
@@ -497,7 +497,7 @@ mod tests {
         // Schwab sends fundamental dates as `YYYY-MM-DD HH:MM:SS.S`; only the
         // date portion is kept.
         assert_eq!(f.dividend_date, NaiveDate::from_ymd_opt(2026, 5, 11));
-        assert_eq!(f.fund_strategy.as_deref(), Some("A"));
+        assert_eq!(f.fund_strategy, Some(FundStrategy::Active));
     }
 
     #[test]
