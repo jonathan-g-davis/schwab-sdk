@@ -34,9 +34,12 @@
 //! # }
 //! ```
 
+use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
+
+use crate::serde_time::naive_date_opt;
 
 use crate::client::SchwabClient;
 use crate::error::Result;
@@ -212,8 +215,8 @@ pub struct FundamentalInst {
     #[serde(rename = "dividendYield", default, with = "decimal_opt")]
     pub dividend_yield: Option<Decimal>,
     /// Most recent dividend date.
-    #[serde(rename = "dividendDate", default)]
-    pub dividend_date: Option<String>,
+    #[serde(rename = "dividendDate", default, with = "naive_date_opt")]
+    pub dividend_date: Option<NaiveDate>,
     /// Price-to-earnings ratio.
     #[serde(rename = "peRatio", default, with = "decimal_opt")]
     pub pe_ratio: Option<Decimal>,
@@ -320,8 +323,8 @@ pub struct FundamentalInst {
     #[serde(rename = "dividendPayAmount", default, with = "decimal_opt")]
     pub dividend_pay_amount: Option<Decimal>,
     /// Most recent dividend pay date.
-    #[serde(rename = "dividendPayDate", default)]
-    pub dividend_pay_date: Option<String>,
+    #[serde(rename = "dividendPayDate", default, with = "naive_date_opt")]
+    pub dividend_pay_date: Option<NaiveDate>,
     /// Beta relative to the broader market.
     #[serde(default, with = "decimal_opt")]
     pub beta: Option<Decimal>,
@@ -344,8 +347,8 @@ pub struct FundamentalInst {
     #[serde(rename = "avg3MonthVolume", default)]
     pub avg_3_month_volume: Option<i64>,
     /// Dividend declaration date.
-    #[serde(rename = "declarationDate", default)]
-    pub declaration_date: Option<String>,
+    #[serde(rename = "declarationDate", default, with = "naive_date_opt")]
+    pub declaration_date: Option<NaiveDate>,
     /// Number of dividends per year (4 = quarterly, etc.).
     #[serde(rename = "dividendFreq", default)]
     pub dividend_freq: Option<i32>,
@@ -353,17 +356,17 @@ pub struct FundamentalInst {
     #[serde(default, with = "decimal_opt")]
     pub eps: Option<Decimal>,
     /// Date of the most recent corporate action.
-    #[serde(rename = "corpactionDate", default)]
-    pub corpaction_date: Option<String>,
+    #[serde(rename = "corpactionDate", default, with = "naive_date_opt")]
+    pub corpaction_date: Option<NaiveDate>,
     /// Day-trade-notional volume.
     #[serde(rename = "dtnVolume", default)]
     pub dtn_volume: Option<i64>,
     /// Next projected dividend pay date.
-    #[serde(rename = "nextDividendPayDate", default)]
-    pub next_dividend_pay_date: Option<String>,
+    #[serde(rename = "nextDividendPayDate", default, with = "naive_date_opt")]
+    pub next_dividend_pay_date: Option<NaiveDate>,
     /// Next projected dividend ex-date.
-    #[serde(rename = "nextDividendDate", default)]
-    pub next_dividend_date: Option<String>,
+    #[serde(rename = "nextDividendDate", default, with = "naive_date_opt")]
+    pub next_dividend_date: Option<NaiveDate>,
     /// Leverage factor for leveraged funds.
     #[serde(rename = "fundLeverageFactor", default, with = "decimal_opt")]
     pub fund_leverage_factor: Option<Decimal>,
@@ -474,6 +477,7 @@ mod tests {
                         "dividendFreq": 4,
                         "avg10DaysVolume": 52000000,
                         "beta": 1.29,
+                        "dividendDate": "2026-05-11 00:00:00.0",
                         "fundStrategy": "A"
                     }
                 }
@@ -490,6 +494,9 @@ mod tests {
         assert_eq!(f.dividend_freq, Some(4));
         assert_eq!(f.avg_10_days_volume, Some(52000000));
         assert_eq!(f.beta, Some(dec!(1.29)));
+        // Schwab sends fundamental dates as `YYYY-MM-DD HH:MM:SS.S`; only the
+        // date portion is kept.
+        assert_eq!(f.dividend_date, NaiveDate::from_ymd_opt(2026, 5, 11));
         assert_eq!(f.fund_strategy.as_deref(), Some("A"));
     }
 

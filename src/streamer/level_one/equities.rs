@@ -2,14 +2,14 @@
 //!
 //! Delivery type: Change. Fields not present on a tick stay `None`.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
 use crate::error::{Error, Result};
-use crate::serde_time::millis_opt;
+use crate::serde_time::{millis_opt, naive_date_opt};
 use crate::streamer::{Service, subscription::SubscriptionField};
 
 impl SubscriptionField for Field {
@@ -249,8 +249,9 @@ pub struct Content {
     pub nav: Option<Decimal>,
     /// Field 25: exchange display name.
     pub exchange_name: Option<String>,
-    /// Field 26: dividend date string.
-    pub dividend_date: Option<String>,
+    /// Field 26: dividend date.
+    #[serde(with = "naive_date_opt")]
+    pub dividend_date: Option<NaiveDate>,
     /// Field 27: `true` if a regular-session quote is available.
     pub regular_market_quote: Option<bool>,
     /// Field 28: `true` if a regular-session trade has occurred.
@@ -361,7 +362,8 @@ mod tests {
                         "assetSubType": "COE",
                         "cusip": "037833100",
                         "1": 183.75, "2": 183.8, "3": 183.8,
-                        "4": 1, "5": 2, "8": 163224109, "10": 187
+                        "4": 1, "5": 2, "8": 163224109, "10": 187,
+                        "26": "2026-05-11 00:00:00.0"
                     }
                 ]
             }]
@@ -399,6 +401,9 @@ mod tests {
         assert_eq!(aapl.key, "AAPL");
         assert_eq!(aapl.bid_price, Some(dec!(183.75)));
         assert_eq!(aapl.last_price, Some(dec!(183.8)));
+        // The streamer sends dividend date as `YYYY-MM-DD HH:MM:SS.S`; only the
+        // date portion is kept.
+        assert_eq!(aapl.dividend_date, NaiveDate::from_ymd_opt(2026, 5, 11));
     }
 
     #[test]
