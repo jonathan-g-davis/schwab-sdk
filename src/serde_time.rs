@@ -9,6 +9,9 @@
 //! The instruments `fundamental` block is a third case: date-only values sent
 //! as `YYYY-MM-DD HH:MM:SS.S` (space-separated, always midnight).
 //! [`naive_date_opt`] decodes the date portion into `Option<NaiveDate>`.
+//!
+//! The streamer `chart_day` field is a fourth case: a count of days since the
+//! Unix epoch. [`epoch_days_opt`] decodes it into `Option<NaiveDate>`.
 
 /// Serde adaptor for an optional epoch-millisecond timestamp carried on the
 /// wire as a JSON integer. Use with `#[serde(default, with = "millis_opt")]`.
@@ -63,6 +66,36 @@ pub(crate) mod naive_date_opt {
         NaiveDate::parse_from_str(date, "%Y-%m-%d")
             .map(Some)
             .map_err(serde::de::Error::custom)
+    }
+}
+
+/// Serde adaptor for an optional date carried on the wire as a count of days
+/// since the Unix epoch. Use with `#[serde(default, with = "epoch_days_opt")]`.
+///
+/// Used for the streamer `chart_day` field.
+///
+/// A missing field or JSON `null` decodes to `None`. A count that overflows the
+/// representable date range is a deserialization error.
+pub(crate) mod epoch_days_opt {
+    use chrono::{DateTime, NaiveDate};
+    use serde::{Deserialize, Deserializer};
+
+    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDate>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let Some(days) = Option::<i64>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        match days
+            .checked_mul(86_400)
+            .and_then(|secs| DateTime::from_timestamp(secs, 0))
+        {
+            Some(dt) => Ok(Some(dt.date_naive())),
+            None => Err(serde::de::Error::custom(format!(
+                "epoch day out of range: {days}"
+            ))),
+        }
     }
 }
 
@@ -132,5 +165,32 @@ mod tests {
     #[test]
     fn malformed_date_is_an_error() {
         assert!(serde_json::from_str::<DateHolder>(r#"{"d": "not-a-date"}"#).is_err());
+    }
+
+    #[derive(Deserialize)]
+    struct DayHolder {
+        #[serde(default, with = "super::epoch_days_opt")]
+        d: Option<NaiveDate>,
+    }
+
+    #[test]
+    fn epoch_day_count_decodes_to_date() {
+        // 20608 days after 1970-01-01 is 2026-06-04 (observed alongside a
+        // chart_time on the same day).
+        let h: DayHolder = serde_json::from_str(r#"{"d": 20608}"#).unwrap();
+        assert_eq!(h.d, NaiveDate::from_ymd_opt(2026, 6, 4));
+    }
+
+    #[test]
+    fn epoch_day_missing_and_null_decode_to_none() {
+        let missing: DayHolder = serde_json::from_str(r#"{}"#).unwrap();
+        assert!(missing.d.is_none());
+        let null: DayHolder = serde_json::from_str(r#"{"d": null}"#).unwrap();
+        assert!(null.d.is_none());
+    }
+
+    #[test]
+    fn epoch_day_out_of_range_is_an_error() {
+        assert!(serde_json::from_str::<DayHolder>(r#"{"d": 9223372036854775807}"#).is_err());
     }
 }
