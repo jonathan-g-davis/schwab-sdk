@@ -66,7 +66,7 @@ use serde::{Deserialize, Deserializer};
 use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::macros::string_enum;
-use crate::serde_time::millis_opt;
+use crate::serde_time::{millis_opt, naive_date_opt};
 
 /// Accessor for `/chains`. Construct via
 /// [`MarketData::chains`](super::MarketData::chains).
@@ -626,9 +626,9 @@ pub struct OptionContract {
     /// Strike price, USD.
     #[serde(rename = "strikePrice", default, with = "decimal_opt")]
     pub strike_price: Option<Decimal>,
-    /// Expiration timestamp.
-    #[serde(rename = "expirationDate", default)]
-    pub expiration_date: Option<DateTime<Utc>>,
+    /// Expiration date.
+    #[serde(rename = "expirationDate", default, with = "naive_date_opt")]
+    pub expiration_date: Option<NaiveDate>,
     /// Calendar days until expiration.
     #[serde(rename = "daysToExpiration", default)]
     pub days_to_expiration: Option<i32>,
@@ -941,6 +941,10 @@ mod tests {
 
         let contract = &strike[0];
         assert_eq!(contract.put_call, Some(PutCall::Call));
+        assert_eq!(
+            contract.expiration_date,
+            NaiveDate::from_ymd_opt(2024, 1, 19)
+        );
         assert_eq!(contract.bid_price, Some(dec!(2.10)));
         assert_eq!(contract.delta, Some(dec!(0.52)));
         assert_eq!(contract.open_interest, Some(dec!(12000.0)));

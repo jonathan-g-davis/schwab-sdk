@@ -42,7 +42,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
@@ -51,7 +51,7 @@ use super::chains::{ExpirationType, SettlementType};
 use crate::client::SchwabClient;
 use crate::error::Result;
 use crate::macros::string_enum;
-use crate::serde_time::millis_opt;
+use crate::serde_time::{millis_opt, naive_date_opt};
 
 /// Accessor for the `/quotes` endpoint family. Construct via
 /// [`MarketData::quotes`](super::MarketData::quotes).
@@ -493,14 +493,14 @@ pub struct Fundamental {
     #[serde(rename = "avg1YearVolume", default, with = "decimal_opt")]
     pub avg_1_year_volume: Option<Decimal>,
     /// Dividend declaration date.
-    #[serde(rename = "declarationDate", default)]
-    pub declaration_date: Option<DateTime<Utc>>,
+    #[serde(rename = "declarationDate", default, with = "naive_date_opt")]
+    pub declaration_date: Option<NaiveDate>,
     /// Most recent dividend amount, USD per share.
     #[serde(rename = "divAmount", default, with = "decimal_opt")]
     pub div_amount: Option<Decimal>,
     /// Most recent dividend ex-date.
-    #[serde(rename = "divExDate", default)]
-    pub div_ex_date: Option<DateTime<Utc>>,
+    #[serde(rename = "divExDate", default, with = "naive_date_opt")]
+    pub div_ex_date: Option<NaiveDate>,
     /// Number of dividends per year (1 = annual, 4 = quarterly, etc.).
     #[serde(rename = "divFreq", default)]
     pub div_freq: Option<i32>,
@@ -508,8 +508,8 @@ pub struct Fundamental {
     #[serde(rename = "divPayAmount", default, with = "decimal_opt")]
     pub div_pay_amount: Option<Decimal>,
     /// Most recent dividend pay date.
-    #[serde(rename = "divPayDate", default)]
-    pub div_pay_date: Option<DateTime<Utc>>,
+    #[serde(rename = "divPayDate", default, with = "naive_date_opt")]
+    pub div_pay_date: Option<NaiveDate>,
     /// Trailing dividend yield as a fraction.
     #[serde(rename = "divYield", default, with = "decimal_opt")]
     pub div_yield: Option<Decimal>,
@@ -523,11 +523,11 @@ pub struct Fundamental {
     #[serde(rename = "fundStrategy", default)]
     pub fund_strategy: Option<FundStrategy>,
     /// Next projected dividend ex-date.
-    #[serde(rename = "nextDivExDate", default)]
-    pub next_div_ex_date: Option<DateTime<Utc>>,
+    #[serde(rename = "nextDivExDate", default, with = "naive_date_opt")]
+    pub next_div_ex_date: Option<NaiveDate>,
     /// Next projected dividend pay date.
-    #[serde(rename = "nextDivPayDate", default)]
-    pub next_div_pay_date: Option<DateTime<Utc>>,
+    #[serde(rename = "nextDivPayDate", default, with = "naive_date_opt")]
+    pub next_div_pay_date: Option<NaiveDate>,
     /// Trailing price-to-earnings ratio.
     #[serde(rename = "peRatio", default, with = "decimal_opt")]
     pub pe_ratio: Option<Decimal>,
@@ -1640,10 +1640,7 @@ mod tests {
         assert_eq!(f.div_freq, Some(4));
         assert_eq!(f.div_yield, Some(dec!(0.7)));
         assert_eq!(f.fund_strategy, Some(FundStrategy::Passive));
-        assert_eq!(
-            f.div_ex_date,
-            Some("2021-05-07T00:00:00Z".parse::<DateTime<Utc>>().unwrap())
-        );
+        assert_eq!(f.div_ex_date, NaiveDate::from_ymd_opt(2021, 5, 7));
     }
 
     #[test]
