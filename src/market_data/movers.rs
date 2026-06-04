@@ -33,8 +33,8 @@
 //!
 //! for screener in movers.screeners.iter().take(10) {
 //!     println!(
-//!         "{:?} {:?} {:?}",
-//!         screener.symbol, screener.change, screener.direction,
+//!         "{:?} last={:?} change={:?} vol={:?}",
+//!         screener.symbol, screener.last, screener.change, screener.volume,
 //!     );
 //! }
 //! # Ok(())
@@ -129,18 +129,19 @@ pub struct MoversResponse {
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Screener {
-    /// Percent (default) or value changed. Sign is informational; pair
-    /// with [`Self::direction`] for the explicit up/down.
-    #[serde(default, with = "decimal_opt")]
+    /// Percent change as a fraction (e.g. `0.0154` for +1.54%). See
+    /// [`Self::net_change`] for the absolute change.
+    #[serde(default, alias = "netPercentChange", with = "decimal_opt")]
     pub change: Option<Decimal>,
     /// Name of the security.
     #[serde(default)]
     pub description: Option<String>,
-    /// Up/down direction of the move.
+    /// Up/down direction of the move. The live API does not always send this
+    /// field. Derive direction from the sign of [`Self::change`] or [`Self::net_change`].
     #[serde(default)]
     pub direction: Option<MoverDirection>,
     /// Last quoted price.
-    #[serde(default, with = "decimal_opt")]
+    #[serde(default, alias = "lastPrice", with = "decimal_opt")]
     pub last: Option<Decimal>,
     /// Wire symbol.
     #[serde(default)]
@@ -148,6 +149,19 @@ pub struct Screener {
     /// Cumulative session volume (shares/contracts).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
+    /// Absolute price change.
+    #[serde(rename = "netChange", default, with = "decimal_opt")]
+    pub net_change: Option<Decimal>,
+    /// Market-share metric Schwab assigns this mover.
+    #[serde(rename = "marketShare", default, with = "decimal_opt")]
+    pub market_share: Option<Decimal>,
+    /// Trade count over the window.
+    #[serde(default)]
+    pub trades: Option<i64>,
+    /// Volume over the window, distinct from the cumulative
+    /// [`Self::total_volume`].
+    #[serde(default)]
+    pub volume: Option<i64>,
 }
 
 // --- Enums ---
@@ -244,6 +258,39 @@ mod tests {
         let tsla = &resp.screeners[1];
         assert_eq!(tsla.direction, Some(MoverDirection::Down));
         assert_eq!(tsla.change, Some(dec!(-0.0212)));
+    }
+
+    #[test]
+    fn movers_response_parses_live_wire_shape() {
+        // The format Schwab actually returns: `lastPrice`/`netChange`/
+        // `netPercentChange`/`marketShare`/`trades`/`volume`, and no
+        // `direction`. Verifies the aliases and the undocumented fields.
+        let json = r#"{
+            "screeners": [
+                {
+                    "symbol": "NVDA",
+                    "description": "NVIDIA CORP",
+                    "lastPrice": 217.81,
+                    "netChange": 3.31,
+                    "netPercentChange": 0.0154,
+                    "marketShare": 6.04,
+                    "trades": 1034735,
+                    "volume": 74787615,
+                    "totalVolume": 1238679573
+                }
+            ]
+        }"#;
+        let resp: MoversResponse = serde_json::from_str(json).unwrap();
+        let nvda = &resp.screeners[0];
+        assert_eq!(nvda.symbol.as_deref(), Some("NVDA"));
+        assert_eq!(nvda.last, Some(dec!(217.81)));
+        assert_eq!(nvda.change, Some(dec!(0.0154)));
+        assert_eq!(nvda.net_change, Some(dec!(3.31)));
+        assert_eq!(nvda.market_share, Some(dec!(6.04)));
+        assert_eq!(nvda.trades, Some(1034735));
+        assert_eq!(nvda.volume, Some(74787615));
+        assert_eq!(nvda.total_volume, Some(1238679573));
+        assert_eq!(nvda.direction, None);
     }
 
     #[test]
