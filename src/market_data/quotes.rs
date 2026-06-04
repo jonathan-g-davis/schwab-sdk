@@ -47,8 +47,11 @@ use rust_decimal::Decimal;
 use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 
-use super::chains::{ExpirationType, SettlementType};
+use super::chains::ExpirationType;
 use crate::client::SchwabClient;
+use crate::enums::{
+    AssetMainType, AssetSubType, ExerciseType, FundStrategy, OptionContractType, SettlementType,
+};
 use crate::error::Result;
 use crate::macros::string_enum;
 use crate::serde_time::{millis_opt, naive_date_opt};
@@ -1341,77 +1344,12 @@ pub struct ReferenceMutualFund {
 // --- Enums ---
 
 string_enum! {
-    /// Asset class discriminator on a quote response.
-    AssetMainType {
-        /// Bond. Schwab returns no typed schema for bond quotes.
-        Bond = "BOND",
-        /// Equity.
-        Equity = "EQUITY",
-        /// Forex pair.
-        Forex = "FOREX",
-        /// Futures contract.
-        Future = "FUTURE",
-        /// Futures option.
-        FutureOption = "FUTURE_OPTION",
-        /// Index.
-        Index = "INDEX",
-        /// Mutual fund.
-        MutualFund = "MUTUAL_FUND",
-        /// Listed option.
-        Option = "OPTION",
-    }
-}
-
-string_enum! {
-    /// Asset sub-type (only applicable to some asset classes).
-    AssetSubType {
-        /// Common stock.
-        Coe = "COE",
-        /// Preferred stock.
-        Prf = "PRF",
-        /// American Depositary Receipt.
-        Adr = "ADR",
-        /// Global Depositary Receipt.
-        Gdr = "GDR",
-        /// Closed-end fund.
-        Cef = "CEF",
-        /// Exchange-traded fund.
-        Etf = "ETF",
-        /// Exchange-traded note.
-        Etn = "ETN",
-        /// Unit investment trust.
-        Uit = "UIT",
-        /// Warrant.
-        War = "WAR",
-        /// Right.
-        Rgt = "RGT",
-    }
-}
-
-string_enum! {
     /// Quote freshness/source classification.
     QuoteType {
         /// National Best Bid and Offer; real-time.
         Nbbo = "NBBO",
         /// Non-fee-liable quote.
         Nfl = "NFL",
-    }
-}
-
-string_enum! {
-    /// Fund-strategy code: A=Active, L=Leveraged, P=Passive,
-    /// Q=Quantitative, S=Short.
-    FundStrategy {
-        /// Actively managed.
-        Active = "A",
-        /// Leveraged.
-        Leveraged = "L",
-        /// Passive/index-tracking.
-        Passive = "P",
-        /// Quantitative/rules-based.
-        Quantitative = "Q",
-        /// Inverse/short.
-        Short = "S",
     }
 }
 
@@ -1424,26 +1362,6 @@ string_enum! {
         Cef = "CEF",
         /// Money-market fund.
         Mmf = "MMF",
-    }
-}
-
-string_enum! {
-    /// Call/put discriminator on an option or future-option reference.
-    OptionContractType {
-        /// Put.
-        Put = "P",
-        /// Call.
-        Call = "C",
-    }
-}
-
-string_enum! {
-    /// Option exercise style.
-    ExerciseType {
-        /// American-style: exercisable any time before expiration.
-        American = "A",
-        /// European-style: exercisable only at expiration.
-        European = "E",
     }
 }
 

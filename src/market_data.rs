@@ -49,10 +49,13 @@ mod movers;
 mod price_history;
 mod quotes;
 
+pub use crate::enums::{
+    AssetMainType, AssetSubType, ExerciseType, FundStrategy, OptionContractType, SettlementType,
+};
 pub use chains::{
     Chains, ContractType, Entitlement, ExpirationMonth, ExpirationType, GetChainBuilder,
     OptionChain, OptionContract, OptionContractMap, OptionDeliverables, OptionRange,
-    OptionStrategy, OptionType, PutCall, SettlementType, Underlying, UnderlyingExchange,
+    OptionStrategy, OptionType, PutCall, Underlying, UnderlyingExchange,
 };
 pub use expiration_chain::{Expiration, ExpirationChain, ExpirationChainResponse};
 pub use instruments::{
@@ -70,13 +73,12 @@ pub use price_history::{
     Candle, CandleList, FrequencyType, GetPriceHistoryBuilder, PeriodType, PriceHistory,
 };
 pub use quotes::{
-    AssetMainType, AssetSubType, EquityQuote, ExerciseType, ExtendedMarket, ForexQuote,
-    FundStrategy, Fundamental, FutureOptionQuote, FutureQuote, GetQuoteBuilder, IndexQuote,
-    ListQuotesBuilder, MutualFundAssetSubType, MutualFundQuote, OptionContractType, OptionQuote,
-    QuoteEntry, QuoteEquity, QuoteError, QuoteField, QuoteForex, QuoteFuture, QuoteFutureOption,
-    QuoteIndex, QuoteMutualFund, QuoteOption, QuoteResponse, QuoteType, Quotes, ReferenceEquity,
-    ReferenceForex, ReferenceFuture, ReferenceFutureOption, ReferenceIndex, ReferenceMutualFund,
-    ReferenceOption, RegularMarket,
+    EquityQuote, ExtendedMarket, ForexQuote, Fundamental, FutureOptionQuote, FutureQuote,
+    GetQuoteBuilder, IndexQuote, ListQuotesBuilder, MutualFundAssetSubType, MutualFundQuote,
+    OptionQuote, QuoteEntry, QuoteEquity, QuoteError, QuoteField, QuoteForex, QuoteFuture,
+    QuoteFutureOption, QuoteIndex, QuoteMutualFund, QuoteOption, QuoteResponse, QuoteType, Quotes,
+    ReferenceEquity, ReferenceForex, ReferenceFuture, ReferenceFutureOption, ReferenceIndex,
+    ReferenceMutualFund, ReferenceOption, RegularMarket,
 };
 
 use crate::client::SchwabClient;

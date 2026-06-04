@@ -179,6 +179,7 @@ pub(crate) mod macros;
 pub(crate) mod serde_time;
 
 pub mod accounts;
+pub mod enums;
 pub mod error;
 pub mod market_data;
 pub mod orders;

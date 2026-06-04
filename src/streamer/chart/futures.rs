@@ -10,6 +10,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
+use crate::enums::{AssetMainType, AssetSubType};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -77,10 +78,10 @@ pub struct Content {
     pub delayed: bool,
     /// Asset class string (`"FUTURE"`).
     #[serde(rename = "assetMainType")]
-    pub asset_main_type: Option<String>,
+    pub asset_main_type: Option<AssetMainType>,
     /// Asset sub-type string.
     #[serde(rename = "assetSubType")]
-    pub asset_sub_type: Option<String>,
+    pub asset_sub_type: Option<AssetSubType>,
     /// CUSIP, when Schwab supplies one.
     pub cusip: Option<String>,
 
