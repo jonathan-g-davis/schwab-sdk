@@ -43,7 +43,7 @@
 
 use std::collections::HashMap;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::Deserialize;
 
 use crate::client::SchwabClient;
@@ -193,20 +193,19 @@ pub struct Hours {
     pub session_hours: HashMap<String, Vec<Interval>>,
 }
 
-/// One contiguous session window. `start` and `end` are ISO-8601
-/// timestamp strings carrying the exchange-local timezone (e.g.
-/// `"2024-03-15T09:30:00-04:00"`); kept as `String` for now since the
-/// timezone is informational and chrono parsing is a one-liner at the
-/// consumer.
+/// One contiguous session window.
+///
+/// `start` and `end` are sent as ISO-8601 timestamps carrying the exchange-local
+/// offset (e.g. `"2024-03-15T09:30:00-04:00"`).
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Interval {
     /// Session start timestamp.
     #[serde(default)]
-    pub start: Option<String>,
+    pub start: Option<DateTime<Utc>>,
     /// Session end timestamp.
     #[serde(default)]
-    pub end: Option<String>,
+    pub end: Option<DateTime<Utc>>,
 }
 
 // --- Enums ---
@@ -302,14 +301,33 @@ mod tests {
 
         let regular = eq.session_hours.get("regularMarket").unwrap();
         assert_eq!(regular.len(), 1);
+        // The wire offset (-04:00) is normalized to UTC.
         assert_eq!(
-            regular[0].start.as_deref(),
-            Some("2024-03-15T09:30:00-04:00")
+            regular[0].start,
+            Some(
+                "2024-03-15T09:30:00-04:00"
+                    .parse::<DateTime<Utc>>()
+                    .unwrap()
+            )
         );
-        assert_eq!(regular[0].end.as_deref(), Some("2024-03-15T16:00:00-04:00"));
+        assert_eq!(
+            regular[0].end,
+            Some(
+                "2024-03-15T16:00:00-04:00"
+                    .parse::<DateTime<Utc>>()
+                    .unwrap()
+            )
+        );
 
         let pre = eq.session_hours.get("preMarket").unwrap();
-        assert_eq!(pre[0].end.as_deref(), Some("2024-03-15T09:30:00-04:00"));
+        assert_eq!(
+            pre[0].end,
+            Some(
+                "2024-03-15T09:30:00-04:00"
+                    .parse::<DateTime<Utc>>()
+                    .unwrap()
+            )
+        );
     }
 
     #[test]
