@@ -43,7 +43,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate};
 use serde::Deserialize;
 
 use crate::client::SchwabClient;
@@ -196,16 +196,16 @@ pub struct Hours {
 /// One contiguous session window.
 ///
 /// `start` and `end` are sent as ISO-8601 timestamps carrying the exchange-local
-/// offset (e.g. `"2024-03-15T09:30:00-04:00"`).
+/// offset (e.g. `"2026-03-15T09:30:00-04:00"`). The offset is preserved.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub struct Interval {
-    /// Session start timestamp.
+    /// Session start timestamp, in the exchange-local offset.
     #[serde(default)]
-    pub start: Option<DateTime<Utc>>,
-    /// Session end timestamp.
+    pub start: Option<DateTime<FixedOffset>>,
+    /// Session end timestamp, in the exchange-local offset.
     #[serde(default)]
-    pub end: Option<DateTime<Utc>>,
+    pub end: Option<DateTime<FixedOffset>>,
 }
 
 // --- Enums ---
@@ -301,32 +301,20 @@ mod tests {
 
         let regular = eq.session_hours.get("regularMarket").unwrap();
         assert_eq!(regular.len(), 1);
-        // The wire offset (-04:00) is normalized to UTC.
+        // The exchange-local offset (-04:00) is preserved, not normalized.
         assert_eq!(
-            regular[0].start,
-            Some(
-                "2024-03-15T09:30:00-04:00"
-                    .parse::<DateTime<Utc>>()
-                    .unwrap()
-            )
+            regular[0].start.unwrap().to_rfc3339(),
+            "2024-03-15T09:30:00-04:00"
         );
         assert_eq!(
-            regular[0].end,
-            Some(
-                "2024-03-15T16:00:00-04:00"
-                    .parse::<DateTime<Utc>>()
-                    .unwrap()
-            )
+            regular[0].end.unwrap().to_rfc3339(),
+            "2024-03-15T16:00:00-04:00"
         );
 
         let pre = eq.session_hours.get("preMarket").unwrap();
         assert_eq!(
-            pre[0].end,
-            Some(
-                "2024-03-15T09:30:00-04:00"
-                    .parse::<DateTime<Utc>>()
-                    .unwrap()
-            )
+            pre[0].end.unwrap().to_rfc3339(),
+            "2024-03-15T09:30:00-04:00"
         );
     }
 
