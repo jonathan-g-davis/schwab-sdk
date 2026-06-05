@@ -470,7 +470,10 @@ impl WriteHalf {
     /// `login` again after the provider observes a rotated token will
     /// re-LOGIN with the new value.
     pub async fn login(&self) -> Result<()> {
-        let auth_token = self.token_provider.access_token()?;
+        let auth_token = self
+            .token_provider
+            .access_token()
+            .map_err(|source| Error::TokenProvider { source })?;
         let request = admin::Login {
             authorization: auth_token,
             schwab_client_channel: self.channel.clone(),

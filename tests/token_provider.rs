@@ -41,12 +41,10 @@ impl CountingProvider {
 }
 
 impl TokenProvider for CountingProvider {
-    fn access_token(&self) -> Result<AuthToken, Error> {
+    fn access_token(&self) -> Result<AuthToken, Box<dyn std::error::Error + Send + Sync>> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if self.fail {
-            Err(Error::TokenProvider {
-                source: "provider down".into(),
-            })
+            Err("provider down".into())
         } else {
             Ok(self.token.clone())
         }

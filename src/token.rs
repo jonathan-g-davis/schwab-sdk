@@ -18,7 +18,6 @@
 //! listener one-shot, and validate the `state` parameter on every
 //! callback to prevent CSRF.
 
-use crate::error::Error;
 use crate::secrets::AuthToken;
 
 /// Source of the bearer token used on every Schwab REST request.
@@ -35,7 +34,7 @@ use crate::secrets::AuthToken;
 /// ```no_run
 /// use std::sync::Arc;
 /// use arc_swap::ArcSwap;
-/// use schwab_sdk::{AuthToken, Error, SchwabClient, TokenProvider};
+/// use schwab_sdk::{AuthToken, SchwabClient, TokenProvider};
 ///
 /// struct SwappableProvider(ArcSwap<AuthToken>);
 ///
@@ -51,7 +50,7 @@ use crate::secrets::AuthToken;
 /// }
 ///
 /// impl TokenProvider for SwappableProvider {
-///     fn access_token(&self) -> Result<AuthToken, Error> {
+///     fn access_token(&self) -> Result<AuthToken, Box<dyn std::error::Error + Send + Sync>> {
 ///         Ok((*self.0.load_full()).clone())
 ///     }
 /// }
@@ -80,9 +79,9 @@ pub trait TokenProvider {
     /// Return the current bearer token. Called once per REST request.
     ///
     /// Must be non-blocking. A provider that needs to refresh the token over
-    /// the network should do this in a background task rather than inside than
-    /// inside `access_token`.
-    fn access_token(&self) -> Result<AuthToken, Error>;
+    /// the network should do this in a background task rather than inside
+    /// `access_token`.
+    fn access_token(&self) -> Result<AuthToken, Box<dyn std::error::Error + Send + Sync>>;
 }
 
 /// [`TokenProvider`] that returns the same [`AuthToken`] for every call.
@@ -102,7 +101,7 @@ impl StaticTokenProvider {
 }
 
 impl TokenProvider for StaticTokenProvider {
-    fn access_token(&self) -> Result<AuthToken, Error> {
+    fn access_token(&self) -> Result<AuthToken, Box<dyn std::error::Error + Send + Sync>> {
         Ok(self.0.clone())
     }
 }
