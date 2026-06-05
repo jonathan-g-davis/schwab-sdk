@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.4.1...v0.5.0) - 2026-06-05
+
+### Other
+
+- Change TokenProvider error to boxed type ([#38](https://github.com/jonathan-g-davis/schwab-sdk/pull/38))
+- Make TokenProvider synchronous ([#37](https://github.com/jonathan-g-davis/schwab-sdk/pull/37))
+- Create SecurityStatus enum ([#36](https://github.com/jonathan-g-davis/schwab-sdk/pull/36))
+- Refactor Enum definitions ([#35](https://github.com/jonathan-g-davis/schwab-sdk/pull/35))
+- Update mover response ([#34](https://github.com/jonathan-g-davis/schwab-sdk/pull/34))
+- Fix chart sequence field number ([#33](https://github.com/jonathan-g-davis/schwab-sdk/pull/33))
+- [**breaking**] Chrono timestamps ([#32](https://github.com/jonathan-g-davis/schwab-sdk/pull/32))
+- Bump hyper from 1.10.0 to 1.10.1 in the patch-and-minor group ([#28](https://github.com/jonathan-g-davis/schwab-sdk/pull/28))
+- [**breaking**] Flatten transaction instrument to enum ([#31](https://github.com/jonathan-g-davis/schwab-sdk/pull/31))
+- [**breaking**] Create AccountInstrument enum ([#29](https://github.com/jonathan-g-davis/schwab-sdk/pull/29))
+
 ## [0.4.1](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.4.0...v0.4.1) - 2026-05-29
 
 ### Fixed
