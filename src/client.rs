@@ -127,7 +127,7 @@ impl SchwabClient {
     /// # use std::sync::Arc;
     /// # use arc_swap::ArcSwap;
     /// use schwab_sdk::{AuthToken, SchwabClient};
-    /// # use schwab_sdk::{Error, TokenProvider};
+    /// # use schwab_sdk::TokenProvider;
     /// #
     /// # struct SwappableProvider(ArcSwap<AuthToken>);
     /// # impl SwappableProvider {
@@ -135,7 +135,7 @@ impl SchwabClient {
     /// #     fn rotate(&self, fresh: AuthToken) { self.0.store(Arc::new(fresh)); }
     /// # }
     /// # impl TokenProvider for SwappableProvider {
-    /// #     fn access_token(&self) -> Result<AuthToken, Error> {
+    /// #     fn access_token(&self) -> Result<AuthToken, Box<dyn std::error::Error + Send + Sync>> {
     /// #         Ok((*self.0.load_full()).clone())
     /// #     }
     /// # }
@@ -377,7 +377,10 @@ impl<'a> AuthedRequest<'a> {
     /// the request, and return the raw [`reqwest::Response`] on 2xx.
     /// Non-2xx maps to an [`Error`] via [`map_response_to_error`].
     pub(crate) async fn send(self) -> Result<reqwest::Response> {
-        let token = self.provider.access_token()?;
+        let token = self
+            .provider
+            .access_token()
+            .map_err(|source| Error::TokenProvider { source })?;
         let response = self
             .builder
             .bearer_auth(token.expose_secret())

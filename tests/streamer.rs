@@ -14,7 +14,6 @@ use std::time::Duration;
 use common::TEST_TOKEN;
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal_macros::dec;
-use schwab_sdk::error::Error;
 use schwab_sdk::streamer::{
     self, DataContent, Service, StreamerCommand, StreamerResponse, SubscriptionCommand,
     level_one::equities::Field,
@@ -323,7 +322,7 @@ impl ScriptedProvider {
 }
 
 impl TokenProvider for ScriptedProvider {
-    fn access_token(&self) -> Result<AuthToken, Error> {
+    fn access_token(&self) -> Result<AuthToken, Box<dyn std::error::Error + Send + Sync>> {
         let next = self
             .0
             .lock()
