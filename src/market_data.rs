@@ -50,7 +50,8 @@ mod price_history;
 mod quotes;
 
 pub use crate::enums::{
-    AssetMainType, AssetSubType, ExerciseType, FundStrategy, OptionContractType, SettlementType,
+    AssetMainType, AssetSubType, ExerciseType, FundStrategy, OptionContractType, SecurityStatus,
+    SettlementType,
 };
 pub use chains::{
     Chains, ContractType, Entitlement, ExpirationMonth, ExpirationType, GetChainBuilder,

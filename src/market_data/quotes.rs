@@ -50,7 +50,8 @@ use serde::Deserialize;
 use super::chains::ExpirationType;
 use crate::client::SchwabClient;
 use crate::enums::{
-    AssetMainType, AssetSubType, ExerciseType, FundStrategy, OptionContractType, SettlementType,
+    AssetMainType, AssetSubType, ExerciseType, FundStrategy, OptionContractType, SecurityStatus,
+    SettlementType,
 };
 use crate::error::Result;
 use crate::macros::string_enum;
@@ -380,7 +381,7 @@ pub struct QuoteEquity {
     pub quote_time: Option<DateTime<Utc>>,
     /// Security status (e.g. `"Normal"`, `"Halted"`).
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Cumulative session volume (shares).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
@@ -667,7 +668,7 @@ pub struct QuoteOption {
     pub rho: Option<Decimal>,
     /// Security status (e.g. `"Normal"`, `"Halted"`).
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Theoretical fair value from Schwab's pricing model, USD.
     #[serde(rename = "theoreticalOptionValue", default, with = "decimal_opt")]
     pub theoretical_option_value: Option<Decimal>,
@@ -834,7 +835,7 @@ pub struct QuoteForex {
     pub quote_time: Option<DateTime<Utc>>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Minimum tick size.
     #[serde(default, with = "decimal_opt")]
     pub tick: Option<Decimal>,
@@ -971,7 +972,7 @@ pub struct QuoteFuture {
     pub quoted_in_session: Option<bool>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Settlement time.
     #[serde(rename = "settleTime", default, with = "millis_opt")]
     pub settle_time: Option<DateTime<Utc>>,
@@ -1117,7 +1118,7 @@ pub struct QuoteFutureOption {
     pub quote_time: Option<DateTime<Utc>>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Settlement price. Schwab's published schema misspells the wire key
     /// as `settlemetPrice`; both spellings decode here.
     #[serde(
@@ -1234,7 +1235,7 @@ pub struct QuoteIndex {
     pub open_price: Option<Decimal>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Cumulative session volume of constituent trades.
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,
@@ -1314,7 +1315,7 @@ pub struct QuoteMutualFund {
     pub net_percent_change: Option<Decimal>,
     /// Security status string.
     #[serde(rename = "securityStatus", default)]
-    pub security_status: Option<String>,
+    pub security_status: Option<SecurityStatus>,
     /// Cumulative session volume (shares).
     #[serde(rename = "totalVolume", default)]
     pub total_volume: Option<i64>,

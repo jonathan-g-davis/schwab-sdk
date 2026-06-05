@@ -101,3 +101,18 @@ string_enum! {
         Short = "S",
     }
 }
+
+string_enum! {
+    /// A symbol's current trading status.
+    SecurityStatus {
+        /// Trading normally.
+        Normal = "Normal",
+        /// Trading halted.
+        Halted = "Halted",
+        /// Closed for trading.
+        Closed = "Closed",
+        /// Schwab's explicit `"Unknown"` status (e.g. instruments with no
+        /// meaningful intraday status, such as indices or mutual funds).
+        Indeterminate = "Unknown",
+    }
+}

@@ -10,7 +10,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
-use crate::enums::{AssetMainType, AssetSubType};
+use crate::enums::{AssetMainType, AssetSubType, SecurityStatus};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -184,8 +184,8 @@ pub struct Content {
     pub exchange_name: Option<String>,
     /// Field 19: decimal digits Schwab uses for price display.
     pub digits: Option<i32>,
-    /// Field 20: security status string.
-    pub security_status: Option<String>,
+    /// Field 20: current trading status.
+    pub security_status: Option<SecurityStatus>,
     /// Field 21: minimum tick size.
     #[serde(with = "decimal_opt")]
     pub tick: Option<Decimal>,
