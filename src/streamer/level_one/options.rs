@@ -8,7 +8,9 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
-use crate::enums::{AssetMainType, AssetSubType, ExerciseType, OptionContractType, SettlementType};
+use crate::enums::{
+    AssetMainType, AssetSubType, ExerciseType, OptionContractType, SecurityStatus, SettlementType,
+};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -275,8 +277,8 @@ pub struct Content {
     /// Field 32: rho (Black-Scholes).
     #[serde(with = "decimal_opt")]
     pub rho: Option<Decimal>,
-    /// Field 33: security status string.
-    pub security_status: Option<String>,
+    /// Field 33: current trading status.
+    pub security_status: Option<SecurityStatus>,
     /// Field 34: theoretical fair value from Schwab's model, USD.
     #[serde(with = "decimal_opt")]
     pub theoretical_option_value: Option<Decimal>,

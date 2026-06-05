@@ -8,7 +8,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
-use crate::enums::{AssetMainType, AssetSubType};
+use crate::enums::{AssetMainType, AssetSubType, SecurityStatus};
 use crate::error::{Error, Result};
 use crate::serde_time::{millis_opt, naive_date_opt};
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -265,8 +265,8 @@ pub struct Content {
     /// Field 31: regular-session net change, USD.
     #[serde(with = "decimal_opt")]
     pub regular_market_net_change: Option<Decimal>,
-    /// Field 32: security status string.
-    pub security_status: Option<String>,
+    /// Field 32: current trading status.
+    pub security_status: Option<SecurityStatus>,
     /// Field 33: mark price, USD.
     #[serde(with = "decimal_opt")]
     pub mark_price: Option<Decimal>,

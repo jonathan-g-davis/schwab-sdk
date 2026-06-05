@@ -11,7 +11,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
-use crate::enums::{AssetMainType, AssetSubType};
+use crate::enums::{AssetMainType, AssetSubType, SecurityStatus};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -217,8 +217,8 @@ pub struct Content {
     pub future_percent_change: Option<Decimal>,
     /// Field 21: exchange display name.
     pub exchange_name: Option<String>,
-    /// Field 22: security status string (Normal / Halted / Closed).
-    pub security_status: Option<String>,
+    /// Field 22: current trading status (Normal / Halted / Closed).
+    pub security_status: Option<SecurityStatus>,
     /// Field 23: open interest, contracts.
     pub open_interest: Option<i64>,
     /// Field 24: mark-to-market value (last_price if inside the spread,

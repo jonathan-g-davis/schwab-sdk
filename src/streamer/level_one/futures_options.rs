@@ -11,7 +11,7 @@ use rust_decimal::serde::float_option as decimal_opt;
 use serde::Deserialize;
 use strum::{Display, EnumString, FromRepr};
 
-use crate::enums::{AssetMainType, AssetSubType, OptionContractType};
+use crate::enums::{AssetMainType, AssetSubType, OptionContractType, SecurityStatus};
 use crate::error::{Error, Result};
 use crate::serde_time::millis_opt;
 use crate::streamer::{Service, subscription::SubscriptionField};
@@ -218,8 +218,8 @@ pub struct Content {
     pub expiration_style: Option<String>,
     /// Field 28: put/call discriminator (`"P"`/`"C"`).
     pub contract_type: Option<OptionContractType>,
-    /// Field 29: security status string.
-    pub security_status: Option<String>,
+    /// Field 29: current trading status.
+    pub security_status: Option<SecurityStatus>,
     /// Field 30: Schwab exchange code.
     pub exchange: Option<String>,
     /// Field 31: exchange display name.
