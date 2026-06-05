@@ -5,7 +5,6 @@ mod common;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use async_trait::async_trait;
 use schwab_sdk::error::Error;
 use schwab_sdk::{AuthToken, SchwabClient, TokenProvider};
 use wiremock::matchers::{header, method, path};
@@ -41,9 +40,8 @@ impl CountingProvider {
     }
 }
 
-#[async_trait]
 impl TokenProvider for CountingProvider {
-    async fn access_token(&self) -> Result<AuthToken, Error> {
+    fn access_token(&self) -> Result<AuthToken, Error> {
         self.calls.fetch_add(1, Ordering::SeqCst);
         if self.fail {
             Err(Error::TokenProvider {
