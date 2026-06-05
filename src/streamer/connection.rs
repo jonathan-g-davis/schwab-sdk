@@ -465,14 +465,12 @@ impl WriteHalf {
     /// Returns when the frame has been handed to the socket; the LOGIN
     /// ack arrives later on the read half as a `response` frame.
     ///
-    /// The bearer carried by the frame is fetched from the
-    /// [`TokenProvider`] supplied to [`connect`] at the moment `login`
-    /// is called - calling `login` again after the provider observes a
-    /// rotated token will re-LOGIN with the new value.
-    /// [`Error::TokenProvider`] surfaces if the provider fails before
-    /// any frame is written.
+    /// The bearer carried by the frame is fetched from the [`TokenProvider`]
+    /// supplied to [`connect`] at the moment `login` is called. Calling
+    /// `login` again after the provider observes a rotated token will
+    /// re-LOGIN with the new value.
     pub async fn login(&self) -> Result<()> {
-        let auth_token = self.token_provider.access_token().await?;
+        let auth_token = self.token_provider.access_token()?;
         let request = admin::Login {
             authorization: auth_token,
             schwab_client_channel: self.channel.clone(),

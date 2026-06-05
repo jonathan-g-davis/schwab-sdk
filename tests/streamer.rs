@@ -11,7 +11,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use async_trait::async_trait;
 use common::TEST_TOKEN;
 use futures_util::{SinkExt, StreamExt};
 use rust_decimal_macros::dec;
@@ -323,9 +322,8 @@ impl ScriptedProvider {
     }
 }
 
-#[async_trait]
 impl TokenProvider for ScriptedProvider {
-    async fn access_token(&self) -> Result<AuthToken, Error> {
+    fn access_token(&self) -> Result<AuthToken, Error> {
         let next = self
             .0
             .lock()

@@ -126,7 +126,6 @@ impl SchwabClient {
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use arc_swap::ArcSwap;
-    /// # use async_trait::async_trait;
     /// use schwab_sdk::{AuthToken, SchwabClient};
     /// # use schwab_sdk::{Error, TokenProvider};
     /// #
@@ -135,9 +134,8 @@ impl SchwabClient {
     /// #     fn new(initial: AuthToken) -> Self { Self(ArcSwap::from_pointee(initial)) }
     /// #     fn rotate(&self, fresh: AuthToken) { self.0.store(Arc::new(fresh)); }
     /// # }
-    /// # #[async_trait]
     /// # impl TokenProvider for SwappableProvider {
-    /// #     async fn access_token(&self) -> Result<AuthToken, Error> {
+    /// #     fn access_token(&self) -> Result<AuthToken, Error> {
     /// #         Ok((*self.0.load_full()).clone())
     /// #     }
     /// # }
@@ -378,15 +376,8 @@ impl<'a> AuthedRequest<'a> {
     /// Consult the [`TokenProvider`], attach the bearer header, send
     /// the request, and return the raw [`reqwest::Response`] on 2xx.
     /// Non-2xx maps to an [`Error`] via [`map_response_to_error`].
-    ///
-    /// A provider failure surfaces as [`Error::TokenProvider`] without
-    /// any network I/O. Use this directly when the caller needs to
-    /// inspect response headers (e.g. parsing the `Location` header
-    /// after a 201).
     pub(crate) async fn send(self) -> Result<reqwest::Response> {
-        let token = self.provider.access_token().await?;
-        // The exposed string does not leave this stack frame; it is
-        // copied into the `Authorization` header by `bearer_auth`.
+        let token = self.provider.access_token()?;
         let response = self
             .builder
             .bearer_auth(token.expose_secret())

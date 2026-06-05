@@ -18,35 +18,23 @@
 //! listener one-shot, and validate the `state` parameter on every
 //! callback to prevent CSRF.
 
-use async_trait::async_trait;
-
 use crate::error::Error;
 use crate::secrets::AuthToken;
 
 /// Source of the bearer token used on every Schwab REST request.
 ///
 /// The SDK calls [`access_token`](Self::access_token) once per request,
-/// just before sending. A provider that wants to cache should do so
-/// internally; the SDK does not.
-///
-/// The trait itself carries no `Send`/`Sync` bound so `!Send`
-/// implementations remain expressible (tests, future client variants).
-/// The bound is enforced at the storage site: [`SchwabClient`] holds
-/// `Arc<dyn TokenProvider + Send + Sync>`, so a provider handed to
-/// [`SchwabClient::with_token_provider`] must satisfy both.
+/// just before sending.
 ///
 /// # Examples
 ///
 /// A swappable provider using `arc-swap` for wait-free reads. A refresh
-/// loop calls [`rotate`](#method.rotate) when a new access token arrives
-/// and the next [`access_token`](Self::access_token) call hands it out.
-/// Wire it in with [`SchwabClient::with_token_provider`]. The same provider
-/// is reused across every clone of the client.
+/// loop calls [`rotate`](#method.rotate) when a new access token is obtained.
+/// The next request receives the new token from [`access_token`](Self::access_token).
 ///
 /// ```no_run
 /// use std::sync::Arc;
 /// use arc_swap::ArcSwap;
-/// use async_trait::async_trait;
 /// use schwab_sdk::{AuthToken, Error, SchwabClient, TokenProvider};
 ///
 /// struct SwappableProvider(ArcSwap<AuthToken>);
@@ -62,9 +50,8 @@ use crate::secrets::AuthToken;
 ///     }
 /// }
 ///
-/// #[async_trait]
 /// impl TokenProvider for SwappableProvider {
-///     async fn access_token(&self) -> Result<AuthToken, Error> {
+///     fn access_token(&self) -> Result<AuthToken, Error> {
 ///         Ok((*self.0.load_full()).clone())
 ///     }
 /// }
@@ -89,13 +76,13 @@ use crate::secrets::AuthToken;
 ///
 /// [`SchwabClient`]: crate::SchwabClient
 /// [`SchwabClient::with_token_provider`]: crate::SchwabClient::with_token_provider
-#[async_trait]
 pub trait TokenProvider {
     /// Return the current bearer token. Called once per REST request.
     ///
-    /// A failure here surfaces as [`Error::TokenProvider`] before any
-    /// network I/O is attempted.
-    async fn access_token(&self) -> Result<AuthToken, Error>;
+    /// Must be non-blocking. A provider that needs to refresh the token over
+    /// the network should do this in a background task rather than inside than
+    /// inside `access_token`.
+    fn access_token(&self) -> Result<AuthToken, Error>;
 }
 
 /// [`TokenProvider`] that returns the same [`AuthToken`] for every call.
@@ -114,9 +101,8 @@ impl StaticTokenProvider {
     }
 }
 
-#[async_trait]
 impl TokenProvider for StaticTokenProvider {
-    async fn access_token(&self) -> Result<AuthToken, Error> {
+    fn access_token(&self) -> Result<AuthToken, Error> {
         Ok(self.0.clone())
     }
 }
@@ -124,15 +110,6 @@ impl TokenProvider for StaticTokenProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn static_provider_returns_the_same_token() {
-        let provider = StaticTokenProvider::new(AuthToken::new("abc"));
-        let a = provider.access_token().await.unwrap();
-        let b = provider.access_token().await.unwrap();
-        assert_eq!(a.expose_secret(), "abc");
-        assert_eq!(b.expose_secret(), "abc");
-    }
 
     #[test]
     fn static_provider_debug_does_not_leak_token() {
