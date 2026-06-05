@@ -22,7 +22,6 @@ include = [
 ]
 
 [dependencies]
-async-trait = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["serde", "clock"] }
 fastwebsockets = { version = "0.10.0", features = ["unstable-split", "upgrade"] }
 http = "1.4.1"
