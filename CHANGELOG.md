@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.4.1...v0.5.0) - 2026-06-05
+
+### Added
+
+- Movers responses now expose the `net_change`, `market_share`, `trades`, and
+  `volume` fields, with serde aliases for the live API's field names ([#34](https://github.com/jonathan-g-davis/schwab-sdk/pull/34))
+
+### Changed
+
+- **Breaking:** Timestamps deserialize to `chrono::DateTime<Utc>` instead of
+  raw `i64`/`u64` epoch values, and date strings to `chrono::NaiveDate` ([#32](https://github.com/jonathan-g-davis/schwab-sdk/pull/32))
+- **Breaking:** Transaction instruments are now a flattened `TransactionInstrument`
+  enum with per-asset-class variants (option, fixed income, mutual fund, future,
+  forex) ([#31](https://github.com/jonathan-g-davis/schwab-sdk/pull/31))
+- **Breaking:** Account instruments are now an `AccountsInstrument` enum with
+  per-asset-class variants and accessors, replacing the previous flat struct ([#29](https://github.com/jonathan-g-davis/schwab-sdk/pull/29))
+- **Breaking:** Replaced security status string enum with `SecurityStatus` enum ([#36](https://github.com/jonathan-g-davis/schwab-sdk/pull/36))
+- **Breaking:** Make TokenProvider synchronous ([#37](https://github.com/jonathan-g-davis/schwab-sdk/pull/37))
+- **Breaking:** Change TokenProvider error to boxed type ([#38](https://github.com/jonathan-g-davis/schwab-sdk/pull/38))
+- Consolidated the market-data and streamer string enums (`AssetMainType`,
+  `AssetSubType`, `OptionContractType`, `ExerciseType`, `SettlementType`,
+  `FundStrategy`) into a shared `enums` module ([#35](https://github.com/jonathan-g-davis/schwab-sdk/pull/35))
+
+### Fixed
+
+- Correct the field number for the chart equity sequence field ([#33](https://github.com/jonathan-g-davis/schwab-sdk/pull/33))
+
+### Other
+
+- Bump hyper from 1.10.0 to 1.10.1 in the patch-and-minor group ([#28](https://github.com/jonathan-g-davis/schwab-sdk/pull/28))
+
 ## [0.4.1](https://github.com/jonathan-g-davis/schwab-sdk/compare/v0.4.0...v0.4.1) - 2026-05-29
 
 ### Fixed
